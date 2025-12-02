@@ -11,10 +11,11 @@ bool gekko_create(GekkoSession** session)
     return true;
 }
 
-bool gekko_destroy(GekkoSession* session)
+bool gekko_destroy(GekkoSession** session)
 {
-    if (session) {
-        delete session;
+    if (session && *session) {
+        delete *session;
+        *session = nullptr;
         return true;
     }
 
@@ -79,7 +80,7 @@ void gekko_network_poll(GekkoSession* session)
 #endif
 #endif // _WIN32
 
-#define ASIO_STANDALONE 
+#define ASIO_STANDALONE
 
 #include "asio/asio.hpp"
 #include <iostream>
@@ -128,15 +129,15 @@ static GekkoNetResult** asio_receive(int* length) {
         else if (!_ec) {
             std::string endpoint = _remote.address().to_string() + ":" + std::to_string(_remote.port());
 
-            _results.push_back(new GekkoNetResult());
+            GekkoNetResult* res = reinterpret_cast<GekkoNetResult*>(std::malloc(sizeof(*res)));
+            _results.push_back(res);
 
-            auto res = _results.back();
-            res->addr.data = new char[endpoint.size()];
+            res->addr.data = std::malloc(endpoint.size());
             res->addr.size = (u32)endpoint.size();
             std::memcpy(res->addr.data, endpoint.c_str(), res->addr.size);
 
             res->data_len = len;
-            res->data = new char[len];
+            res->data = std::malloc(len);
 
             std::memcpy(res->data, _buffer, len);
         }
@@ -151,7 +152,7 @@ static GekkoNetResult** asio_receive(int* length) {
 }
 
 static void asio_free(void* data_ptr) {
-    delete data_ptr;
+    std::free(data_ptr);
 }
 
 static GekkoNetAdapter default_sock{
@@ -180,6 +181,16 @@ GekkoNetAdapter* gekko_default_adapter(unsigned short port) {
     _socket->non_blocking(true);
 
     return &default_sock;
+}
+
+bool gekko_default_adapter_destroy()
+{
+    if (_socket) {
+        delete _socket;
+        _socket = nullptr;
+        return true;
+    }
+    return false;
 }
 
 #endif // GEKKONET_NO_ASIO

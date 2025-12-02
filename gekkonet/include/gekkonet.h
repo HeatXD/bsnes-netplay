@@ -28,6 +28,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #ifdef __cplusplus
 extern "C" {
+#else
+#include <stdbool.h>
 #endif
 
 #ifdef _WIN32
@@ -61,7 +63,6 @@ typedef struct GekkoConfig {
     unsigned int input_size;
     unsigned int state_size;
     bool limited_saving;
-    bool post_sync_joining;
     bool desync_detection;
 } GekkoConfig;
 
@@ -109,6 +110,7 @@ typedef struct GekkoGameEvent {
             int frame;
             unsigned int input_len;
             unsigned char* inputs;
+            bool rolling_back;
         } adv;
         struct Save {
             int frame;
@@ -170,7 +172,7 @@ typedef struct GekkoNetworkStats {
 // Public Facing API
 GEKKONET_API bool gekko_create(GekkoSession** session);
 
-GEKKONET_API bool gekko_destroy(GekkoSession* session);
+GEKKONET_API bool gekko_destroy(GekkoSession** session);
 
 GEKKONET_API void gekko_start(GekkoSession* session, GekkoConfig* config);
 
@@ -196,8 +198,10 @@ GEKKONET_API void gekko_network_poll(GekkoSession* session);
 
 GEKKONET_API GekkoNetAdapter* gekko_default_adapter(unsigned short port);
 
+GEKKONET_API bool gekko_default_adapter_destroy();
+
 #endif // GEKKONET_NO_ASIO
 
-#ifdef __cplusplus
+#ifdef __cplusplus  
 }
 #endif

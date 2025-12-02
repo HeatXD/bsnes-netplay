@@ -10,7 +10,7 @@
 #include "sync.h"
 #include "storage.h"
 
-// define GekkoSession internally 
+// define GekkoSession internally
 struct GekkoSession {
     virtual void Init(GekkoConfig* config) = 0;
     virtual void SetLocalDelay(i32 player, u8 delay) = 0;
@@ -22,6 +22,7 @@ struct GekkoSession {
     virtual f32 FramesAhead() = 0;
     virtual void NetworkStats(i32 player, GekkoNetworkStats* stats) = 0;
     virtual void NetworkPoll() = 0;
+    virtual ~GekkoSession();
 };
 
 namespace Gekko {
@@ -53,7 +54,7 @@ namespace Gekko {
 	private:
 		void Poll();
 
-		bool AllPlayersValid();
+		bool AllActorsValid();
 
 		void HandleReceivedInputs();
 
@@ -65,13 +66,15 @@ namespace Gekko {
 
 		bool IsPlayingLocally();
 
+        bool IsLockstepActive() const;
+
 		void AddDisconnectedPlayerInputs();
 
 		void SendSpectatorInputs();
 
 		void HandleRollback(std::vector<GekkoGameEvent*>& ev);
 
-		bool AddAdvanceEvent(std::vector<GekkoGameEvent*>& ev);
+		bool AddAdvanceEvent(std::vector<GekkoGameEvent*>& ev, bool rolling_back);
 
 		void AddSaveEvent(std::vector<GekkoGameEvent*>& ev);
 

@@ -97,16 +97,19 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
 auto Program::netplayStop() -> void {
     if (netplay.mode == Netplay::Mode::Inactive) return;
 
-    netplayMode(Netplay::Inactive);
-
     netplay.poller.stop();
 
-    gekko_destroy(netplay.session);
+    netplayMode(Netplay::Inactive);
+    
+    netplay.poller.with_session([this](GekkoSession* session) {
+        if (session) {
+            gekko_destroy(&session);
+            netplay.session = nullptr; 
+        }
+    });
 
-    netplay.session = nullptr;
     netplay.config = {};
     netplay.counter = 0;
-    netplay.stallCounter = 0;
 
     netplay.peers.reset();
     netplay.inputs.reset();
@@ -125,13 +128,10 @@ auto Program::netplayRun() -> bool {
     netplay.poller.with_session([this](GekkoSession* session) {
         
         float framesAhead = gekko_frames_ahead(session);
-        if(framesAhead - netplay.localDelay >= 1.0f && netplay.counter % 180 == 0) {
+        if (framesAhead - netplay.localDelay >= 1.0f && netplay.counter % 180 == 0) {
             // rift syncing first attempt
             // kinda hacky.... when i can find a way to just slow down the frequency of the simulation, ill fix this. 
-            auto volume = Emulator::audio.volume();
-            Emulator::audio.setVolume(volume * 0.25f);
             netplayHaltFrame();
-            Emulator::audio.setVolume(volume);
             return true;
         }
 
@@ -174,48 +174,33 @@ auto Program::netplayRun() -> bool {
         auto updates = gekko_update_session(session, &count);
         for (int i = 0; i < count; i++) {
             auto ev = updates[i];
-            int frame = 0, cframe = 0;
             auto serial = serializer();
 
             switch (ev->type) {
             case SaveEvent:
                 // save the state ourselves
-                serial = emulator->serialize();
+                serial = emulator->serialize(0);
                 // pass the frame number so we can maybe use it later to get the right state
                 *ev->data.save.checksum = 0; // maybe can be helpful later.
                 *ev->data.save.state_len = serial.size();
                 memcpy(ev->data.save.state, serial.data(), serial.size());
                 break;
             case LoadEvent:
-                //print("Load frame:", ev->data.load.frame, "\n");
                 serial = serializer(ev->data.load.state, ev->data.load.state_len);
                 emulator->unserialize(serial);
                 program.mute |= Mute::Always;
                 emulator->setRunAhead(true);
                 break;
             case AdvanceEvent:
-                if(emulator->runAhead()) {
-                    cframe = count - 1;
-                    if(cframe == i || (updates[cframe]->type == SaveEvent && i == cframe - 1)) {
-                        emulator->setRunAhead(false);
-                        program.mute &= ~Mute::Always;
-                    }
+                if (!ev->data.adv.rolling_back) {
+                    emulator->setRunAhead(false);
+                    program.mute &= ~Mute::Always;
                 }
                 memcpy(netplay.inputs.data(), ev->data.adv.inputs, sizeof(Netplay::Buttons) * netplay.config.num_players);
                 emulator->run();
                 break;
             }
         }
-
-        // handle stalling due to various reasons including spectator wait.
-        if(count == 0) {
-            netplay.stallCounter++;
-            if (netplay.stallCounter > 10) program.mute |= Mute::Always;
-        }else{
-            program.mute &= ~Mute::Always;
-            netplay.stallCounter = 0;
-        }
-
         return true;
     });
     return true;
