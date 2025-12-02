@@ -16,8 +16,8 @@ jobs:
           version: latest
         - name: windows
           version: latest
-        - name: macos
-          version: latest
+        #- name: macos
+       #   version: latest
     runs-on: ${{ matrix.os.name }}-${{ matrix.os.version }}
     steps:
     - uses: actions/checkout@v4
@@ -93,7 +93,7 @@ jobs:
           #chmod +x ${bindir}/${program}-macos/${program}.app/Contents/MacOS/${program}
         done
 
-        for os in ubuntu windows macos freebsd
+        for os in ubuntu windows freebsd
         do
           mkdir "${os}"
           cd "${os}"
