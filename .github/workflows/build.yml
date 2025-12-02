@@ -49,6 +49,8 @@ jobs:
         prepare: |
           pkg install --yes gmake gdb gcc14 pkgconf sdl2 openal-soft gtk3 gtksourceview3 libXv zip
         run: |
+          mkdir -p bsnes/obj
+          mkdir -p bsnes/out
           gmake -j4 -C bsnes local=false
     - name: Upload
       uses: actions/upload-artifact@v4
