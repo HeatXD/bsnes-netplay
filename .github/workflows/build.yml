@@ -16,8 +16,8 @@ jobs:
           version: latest
         - name: windows
           version: latest
-        # - name: macos  // gekkonet doesnt want to build on mac for some reaosn? ill deal with it later. super odd tho.
-        #   version: latest
+        - name: macos
+          version: latest
     runs-on: ${{ matrix.os.name }}-${{ matrix.os.version }}
     steps:
     - uses: actions/checkout@v4
