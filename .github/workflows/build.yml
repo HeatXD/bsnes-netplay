@@ -16,8 +16,8 @@ jobs:
           version: latest
         - name: windows
           version: latest
-        # - name: macos  // gekkonet doesnt want to build on mac for some reaosn? ill deal with it later. super odd tho.
-        #   version: latest
+        #- name: macos
+       #   version: latest
     runs-on: ${{ matrix.os.name }}-${{ matrix.os.version }}
     steps:
     - uses: actions/checkout@v4
@@ -49,6 +49,8 @@ jobs:
         prepare: |
           pkg install --yes gmake gdb gcc14 pkgconf sdl2 openal-soft gtk3 gtksourceview3 libXv zip
         run: |
+          mkdir -p bsnes/obj
+          mkdir -p bsnes/out
           gmake -j4 -C bsnes local=false
     - name: Upload
       uses: actions/upload-artifact@v4
@@ -91,7 +93,7 @@ jobs:
           #chmod +x ${bindir}/${program}-macos/${program}.app/Contents/MacOS/${program}
         done
 
-        for os in ubuntu windows macos freebsd
+        for os in ubuntu windows freebsd
         do
           mkdir "${os}"
           cd "${os}"
