@@ -16,8 +16,8 @@ jobs:
           version: latest
         - name: windows
           version: latest
-        #- name: macos
-       #   version: latest
+        - name: macos
+          version: latest
     runs-on: ${{ matrix.os.name }}-${{ matrix.os.version }}
     steps:
     - uses: actions/checkout@v4
@@ -26,10 +26,6 @@ jobs:
       run: |
         sudo apt-get update -y -qq
         sudo apt-get install libsdl2-dev libgtk-3-dev gtksourceview-3.0 libao-dev libopenal-dev
-    - name: Create build directories
-      run: |
-        mkdir -p bsnes/obj
-        mkdir -p bsnes/out
     - name: Make
       run: make -j4 -C bsnes local=false
     - name: Upload
@@ -49,8 +45,6 @@ jobs:
         prepare: |
           pkg install --yes gmake gdb gcc14 pkgconf sdl2 openal-soft gtk3 gtksourceview3 libXv zip
         run: |
-          mkdir -p bsnes/obj
-          mkdir -p bsnes/out
           gmake -j4 -C bsnes local=false
     - name: Upload
       uses: actions/upload-artifact@v4
@@ -93,7 +87,7 @@ jobs:
           #chmod +x ${bindir}/${program}-macos/${program}.app/Contents/MacOS/${program}
         done
 
-        for os in ubuntu windows freebsd
+        for os in ubuntu windows freebsd macos
         do
           mkdir "${os}"
           cd "${os}"
