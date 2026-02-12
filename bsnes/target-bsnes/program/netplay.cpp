@@ -35,15 +35,17 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     netplay.config.state_size = stateSize;
     netplay.config.max_spectators = spectators.size();
     netplay.config.input_prediction_window = rollback;
-    netplay.config.spectator_delay = 90;
+    netplay.config.spectator_delay = 5 * 60;
 
     netplay.netStats.resize(inpBufferLength);
 
-    gekko_create(&netplay.session);
+    bool isSpectating = local >= numPlayers;
+
+    gekko_create(&netplay.session, isSpectating ? GekkoSessionType::Spectate : GekkoSessionType::Game);
     gekko_start(netplay.session, &netplay.config);
     gekko_net_adapter_set(netplay.session, gekko_default_adapter(port));
 
-    if(local < numPlayers) {
+    if(!isSpectating) {
         // player? connect to all peers in the mesh network
         bool localAdded = false;
         for(int i = 0; i < numPlayers; i++) {
