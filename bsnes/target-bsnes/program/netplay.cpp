@@ -1,16 +1,8 @@
 auto Program::netplayMode(Netplay::Mode mode) -> void {
     if(netplay.mode == mode) return;
     if(mode == Netplay::Running) {
-        // be sure the contollers are connected
-        emulator->connect(0, Netplay::Device::Gamepad);
-        // depending on the player count either add a normal gamepad or a multitap
-        emulator->connect(1, netplay.config.num_players > 2 ? Netplay::Device::Multitap : Netplay::Device::Gamepad);
         // disable input when unfocused
         inputSettings.blockInput.setChecked();
-        // we don't want entropy
-        emulator->configure("Hacks/Entropy", "None");
-        // power cycle to match all peers
-        emulator->power();
     }
     netplay.mode = mode;
 }
@@ -28,6 +20,31 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
         netplay.inputs.append(Netplay::Buttons());
     }
 
+    // connect controllers
+    emulator->connect(0, Netplay::Device::Gamepad);
+    emulator->connect(1, numPlayers > 2 ? Netplay::Device::Multitap : Netplay::Device::Gamepad);
+
+    // force deterministic emulator settings so all peers match
+    emulator->configure("Hacks/Entropy", "None");
+    emulator->configure("Hacks/Hotfixes", "true");
+    emulator->configure("Hacks/CPU/Overclock", "100");
+    emulator->configure("Hacks/CPU/FastMath", "false");
+    emulator->configure("Hacks/PPU/Fast", "true");
+    emulator->configure("Hacks/PPU/NoSpriteLimit", "false");
+    emulator->configure("Hacks/PPU/NoVRAMBlocking", "false");
+    emulator->configure("Hacks/PPU/RenderCycle", "512");
+    emulator->configure("Hacks/DSP/Fast", "true");
+    emulator->configure("Hacks/DSP/Cubic", "false");
+    emulator->configure("Hacks/DSP/EchoShadow", "false");
+    emulator->configure("Hacks/Coprocessor/DelayedSync", "true");
+    emulator->configure("Hacks/Coprocessor/PreferHLE", "false");
+    emulator->configure("Hacks/SA1/Overclock", "100");
+    emulator->configure("Hacks/SuperFX/Overclock", "100");
+
+    // power cycle with deterministic settings
+    emulator->power();
+
+    // calculate state size AFTER power with forced settings
     const int stateSize = emulator->serialize(0).size();
 
     netplay.config.num_players = numPlayers;

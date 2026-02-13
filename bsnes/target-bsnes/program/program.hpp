@@ -103,22 +103,23 @@ struct Program : Lock, Emulator::Platform {
     struct Buttons {
       union u {
         struct btn {
-          uint b      : 1; 
-          uint y      : 1; 
-          uint select : 1;
-          uint start  : 1;
-          uint up     : 1;
-          uint down   : 1;
-          uint left   : 1;
-          uint right  : 1;
-          uint a      : 1;
-          uint x      : 1;
-          uint l      : 1;
-          uint r      : 1;
+          uint16_t b      : 1;
+          uint16_t y      : 1;
+          uint16_t select : 1;
+          uint16_t start  : 1;
+          uint16_t up     : 1;
+          uint16_t down   : 1;
+          uint16_t left   : 1;
+          uint16_t right  : 1;
+          uint16_t a      : 1;
+          uint16_t x      : 1;
+          uint16_t l      : 1;
+          uint16_t r      : 1;
         } btn;
         int16 value;
       } u;
     };
+    static_assert(sizeof(Buttons) == sizeof(int16), "Buttons must be 2 bytes to match Gekko input_size");
     enum SnesButton: uint {
       Up, Down, Left, Right, B, A, Y, X, L, R, Select, Start, Count
     };
@@ -137,7 +138,7 @@ struct Program : Lock, Emulator::Platform {
   auto netplayRun() -> bool;
   auto netplayPollLocalInput(Netplay::Buttons& localInput) -> void;
   auto netplayGetInput(uint port, uint device, uint button) -> int16;
-  auto netplayHaltFrame() -> void;
+  auto netplayTimesync() -> void;
 
   //video.cpp
   auto updateVideoDriver(Window parent) -> void;
