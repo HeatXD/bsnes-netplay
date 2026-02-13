@@ -128,8 +128,7 @@ struct Program : Lock, Emulator::Platform {
     GekkoConfig config = {};
     GekkoSession* session = nullptr;
     uint counter = 0;
-    uint stallCounter = 0;
-    uint localDelay = 0;
+    double speedScale = 1.0;
   } netplay;
   auto netplayMode(Netplay::Mode) -> void;
   auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator) -> void;

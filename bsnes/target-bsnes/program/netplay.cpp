@@ -87,7 +87,6 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
                 }
                 // set local delay
                 gekko_set_local_delay(netplay.session, local, delay);
-                netplay.localDelay = delay;
                 localAdded = true;
                 continue;
             }
@@ -120,6 +119,7 @@ auto Program::netplayStop() -> void {
 
     netplay.config = {};
     netplay.counter = 0;
+    netplay.speedScale = 1.0;
 
     netplay.peers.reset();
     netplay.inputs.reset();
@@ -253,17 +253,20 @@ auto Program::netplayGetInput(uint port, uint device, uint button) -> int16 {
 }
 
 auto Program::netplayTimesync() -> void {
+    const float DEADZONE = 0.5f;
+    const double STRENGTH = 0.002;
+    const double MIN_SPEED = 0.99;
+    const double MAX_SPEED = 1.01;
+    const double LERP = 0.15;
+
     float framesAhead = gekko_frames_ahead(netplay.session);
 
-    if(framesAhead < 0.5f && framesAhead > -0.5f) {
-        Emulator::audio.setSpeedScale(1.0);
-        return;
+    double targetScale = 1.0;
+    if(framesAhead >= DEADZONE || framesAhead <= -DEADZONE) {
+        targetScale = 1.0 + framesAhead * STRENGTH;
+        targetScale = max(MIN_SPEED, min(MAX_SPEED, targetScale));
     }
 
-    // scale emulation speed between 59fps and 61fps
-    double scale = 1.0 + framesAhead * 0.005;
-    if(scale > 60.0 / 59.0) scale = 60.0 / 59.0;
-    if(scale < 60.0 / 61.0) scale = 60.0 / 61.0;
-
-    Emulator::audio.setSpeedScale(scale);
+    netplay.speedScale += (targetScale - netplay.speedScale) * LERP;
+    Emulator::audio.setSpeedScale(netplay.speedScale);
 }
