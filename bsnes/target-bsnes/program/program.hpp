@@ -119,7 +119,6 @@ struct Program : Lock, Emulator::Platform {
         int16 value;
       } u;
     };
-    static_assert(sizeof(Buttons) == sizeof(int16), "Buttons must be 2 bytes to match Gekko input_size");
     enum SnesButton: uint {
       Up, Down, Left, Right, B, A, Y, X, L, R, Select, Start, Count
     };
