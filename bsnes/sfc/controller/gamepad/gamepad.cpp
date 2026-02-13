@@ -26,6 +26,23 @@ auto Gamepad::data() -> uint2 {
   return 0;  //12-15: signature
 }
 
+auto Gamepad::serialize(serializer& s) -> void {
+  s.boolean(latched);
+  s.integer(counter);
+  s.boolean(b);
+  s.boolean(y);
+  s.boolean(select);
+  s.boolean(start);
+  s.boolean(up);
+  s.boolean(down);
+  s.boolean(left);
+  s.boolean(right);
+  s.boolean(a);
+  s.boolean(x);
+  s.boolean(l);
+  s.boolean(r);
+}
+
 auto Gamepad::latch(bool data) -> void {
   if(latched == data) return;
   latched = data;

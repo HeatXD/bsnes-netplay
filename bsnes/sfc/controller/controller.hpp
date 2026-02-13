@@ -21,6 +21,7 @@ struct Controller {
   virtual auto latch(bool data) -> void {}
   virtual auto latch() -> void {}  //light guns
   virtual auto draw(uint16_t* output, uint pitch, uint width, uint height) -> void {}  //light guns
+  virtual auto serialize(serializer&) -> void {}
 
   const uint port;
 };

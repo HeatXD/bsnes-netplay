@@ -44,6 +44,26 @@ auto SuperMultitap::data() -> uint2 {
   unreachable;
 }
 
+auto SuperMultitap::serialize(serializer& s) -> void {
+  s.boolean(latched);
+  s.integer(counter1);
+  s.integer(counter2);
+  for(uint id : range(4)) {
+    s.boolean(gamepads[id].b);
+    s.boolean(gamepads[id].y);
+    s.boolean(gamepads[id].select);
+    s.boolean(gamepads[id].start);
+    s.boolean(gamepads[id].up);
+    s.boolean(gamepads[id].down);
+    s.boolean(gamepads[id].left);
+    s.boolean(gamepads[id].right);
+    s.boolean(gamepads[id].a);
+    s.boolean(gamepads[id].x);
+    s.boolean(gamepads[id].l);
+    s.boolean(gamepads[id].r);
+  }
+}
+
 auto SuperMultitap::latch(bool data) -> void {
   if(latched == data) return;
   latched = data;

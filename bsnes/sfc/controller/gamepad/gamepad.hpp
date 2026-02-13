@@ -7,6 +7,7 @@ struct Gamepad : Controller {
 
   auto data() -> uint2;
   auto latch(bool data) -> void;
+  auto serialize(serializer&) -> void override;
 
 private:
   bool latched;

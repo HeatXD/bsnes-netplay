@@ -58,6 +58,7 @@ auto ControllerPort::unload() -> void {
 }
 
 auto ControllerPort::serialize(serializer& s) -> void {
+  if(device) device->serialize(s);
 }
 
 }
