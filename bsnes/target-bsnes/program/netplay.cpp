@@ -41,7 +41,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
 
     bool isSpectating = local >= numPlayers;
 
-    gekko_create(&netplay.session, isSpectating ? GekkoSessionType::Spectate : GekkoSessionType::Game);
+    gekko_create(&netplay.session, isSpectating ? GekkoSessionType::Spectate : GekkoSessionType::Game );
     gekko_start(netplay.session, &netplay.config);
     gekko_net_adapter_set(netplay.session, gekko_default_adapter(port));
 
@@ -111,6 +111,9 @@ auto Program::netplayStop() -> void {
     inputSettings.pauseEmulation.setChecked();
 
     program.mute &= ~Mute::Always;
+
+    // restore normal audio speed
+    Emulator::audio.setSpeedScale(1.0);
 }
 
 auto Program::netplayRun() -> bool {
@@ -119,13 +122,7 @@ auto Program::netplayRun() -> bool {
     gekko_network_poll(netplay.session);
 
     netplay.counter++;
-    float framesAhead = gekko_frames_ahead(netplay.session);
-    if (framesAhead - netplay.localDelay >= 1.0f && netplay.counter % 180 == 0) {
-        // rift syncing first attempt
-        // kinda hacky.... when i can find a way to just slow down the frequency of the simulation, ill fix this. 
-        netplayHaltFrame();
-        return true;
-    }
+    netplayTimesync();
 
     for(int i = 0; i < netplay.peers.size(); i++) {
         if(netplay.peers[i].conn.addr != "localhost"){
@@ -238,9 +235,18 @@ auto Program::netplayGetInput(uint port, uint device, uint button) -> int16 {
     }
 }
 
-auto Program::netplayHaltFrame() -> void {
-    auto state = emulator->serialize(0);
-    emulator->run();
-    state.setMode(serializer::Mode::Load);
-    emulator->unserialize(state);
+auto Program::netplayTimesync() -> void {
+    float framesAhead = gekko_frames_ahead(netplay.session);
+
+    if(framesAhead < 0.5f && framesAhead > -0.5f) {
+        Emulator::audio.setSpeedScale(1.0);
+        return;
+    }
+
+    // scale emulation speed between 59fps and 61fps
+    double scale = 1.0 + framesAhead * 0.005;
+    if(scale > 60.0 / 59.0) scale = 60.0 / 59.0;
+    if(scale < 60.0 / 61.0) scale = 60.0 / 61.0;
+
+    Emulator::audio.setSpeedScale(scale);
 }

@@ -22,6 +22,7 @@ struct Audio {
   inline auto balance() const -> double { return _balance; }
 
   auto setFrequency(double frequency) -> void;
+  auto setSpeedScale(double scale) -> void;
   auto setVolume(double volume) -> void;
   auto setBalance(double balance) -> void;
 

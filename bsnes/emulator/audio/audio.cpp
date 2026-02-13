@@ -20,6 +20,14 @@ auto Audio::setFrequency(double frequency) -> void {
   }
 }
 
+auto Audio::setSpeedScale(double scale) -> void {
+  for(auto& stream : _streams) {
+    for(auto& channel : stream->channels) {
+      channel.resampler.setInputFrequency(stream->inputFrequency / scale);
+    }
+  }
+}
+
 auto Audio::setVolume(double volume) -> void {
   _volume = volume;
 }
