@@ -213,13 +213,18 @@ private:
     auto addSpectator() -> void;
     auto removeSelectedPlayer() -> void;
     auto startSession() -> void;
-    auto roleToPort(Role role) -> uint8;
+    auto roleToPlayerIndex(Role role) -> uint8;
     
     auto isValidIP(const string& ip) -> bool;
     auto isLoopbackIP(const string& ip) -> bool;
+    auto isValidRemoteIP(const string& ip) -> bool;
     auto isValidPort(const string& port) -> bool;
     auto setValidationColor(LineEdit& field, bool valid, bool hasText) -> void;
-    auto updateSelectedItem(uint partIndex, const string& newValue) -> void;
+    auto formatEntry(const string& role, const string& ip, const string& port) -> string;
+    auto parseEntry(const string& text, string& role, string& ip, string& port) -> bool;
+    auto updateEditingState() -> void;
+    auto updateSelectedIP(const string& ip) -> void;
+    auto updateSelectedPort(const string& port) -> void;
     auto sortPlayerList() -> void;
 
     Role currentRole = Role::Player1;
@@ -303,12 +308,9 @@ private:
 public:
     struct Configuration {
         uint localPort = 55435;
-        uint rollbackframes = 7;
-        uint localDelay = 1;
-        vector<string> remotes;
-        vector<string> spectators;
+        uint rollbackframes = 8;
+        uint localDelay = 2;
         uint spectatorPlayerCount = 2;
-        uint8 localPlayer = 0;
     } config;
 };
 
