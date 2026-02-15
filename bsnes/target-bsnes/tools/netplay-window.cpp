@@ -1,4 +1,3 @@
-
 auto NetplayWindow::isValidIP(const string& ip) -> bool {
     auto parts = ip.split(".");
     if(parts.size() != 4) return false;
@@ -46,6 +45,46 @@ auto NetplayWindow::updateSelectedItem(uint partIndex, const string& newValue) -
     });
 }
 
+auto NetplayWindow::sortPlayerList() -> void {
+    vector<string> entries;
+    for(uint i = 0; i < remotePlayersList.itemCount(); i++) {
+        entries.append(remotePlayersList.item(i).text());
+    }
+    
+    // Sort: Players by number first, then spectators
+    entries.sort([](const string& a, const string& b) -> bool {
+        auto aParts = a.split("|");
+        auto bParts = b.split("|");
+        if(aParts.size() < 1 || bParts.size() < 1) return false;
+        
+        string aPlayer = aParts[0].strip();
+        string bPlayer = bParts[0].strip();
+        
+        bool aIsPlayer = aPlayer.beginsWith("Player ");
+        bool bIsPlayer = bPlayer.beginsWith("Player ");
+        
+        // Players come before spectators
+        if(aIsPlayer && !bIsPlayer) return true;
+        if(!aIsPlayer && bIsPlayer) return false;
+        
+        // Both players - sort by number
+        if(aIsPlayer && bIsPlayer) {
+            uint aNum = aPlayer.trimLeft("Player ", 1L).natural();
+            uint bNum = bPlayer.trimLeft("Player ", 1L).natural();
+            return aNum < bNum;
+        }
+        
+        // Both spectators - maintain order
+        return false;
+    });
+    
+    // Rebuild list
+    remotePlayersList.reset();
+    for(auto& entry : entries) {
+        remotePlayersList.append(ListViewItem().setText(entry));
+    }
+}
+
 auto NetplayWindow::create() -> void {
     layout.setPadding(5_sx, 5_sx);
 
@@ -76,7 +115,7 @@ auto NetplayWindow::create() -> void {
 
     rollbackLabel.setText("Rollback Frames:");
     rollbackValue.setText("7").setAlignment(0.5);
-    rollbackSlider.setLength(11).setPosition(7).onChange([&] {
+    rollbackSlider.setLength(16).setPosition(7).onChange([&] {
         uint frames = rollbackSlider.position();
         rollbackValue.setText({frames});
         config.rollbackframes = frames;
@@ -143,7 +182,6 @@ auto NetplayWindow::create() -> void {
     
     devModeCheck.setText("Dev Mode").setChecked(false).onToggle([&] {
         devMode = devModeCheck.checked();
-        // Re-validate current IP if editing
         if(editIPValue.text()) {
             string ip = editIPValue.text().strip();
             bool valid = isValidIP(ip) && (devMode ? true : !isLoopbackIP(ip));
@@ -210,7 +248,6 @@ auto NetplayWindow::addPlayer() -> void {
     uint myPlayerNum = roleToPort(currentRole) + 1;
     vector<uint> usedPlayers{myPlayerNum};
     
-    // Find used player numbers
     for(uint i = 0; i < remotePlayersList.itemCount(); i++) {
         auto parts = remotePlayersList.item(i).text().split("|");
         if(parts.size() > 0) {
@@ -222,10 +259,10 @@ auto NetplayWindow::addPlayer() -> void {
         }
     }
     
-    // Find first available player slot
     for(uint p = 1; p <= 5; p++) {
         if(!usedPlayers.find(p)) {
             remotePlayersList.append(ListViewItem().setText({"Player ", p, " | 127.0.0.1 | 55435"}));
+            sortPlayerList();
             remotePlayersList.resizeColumn();
             return;
         }
@@ -306,6 +343,9 @@ auto NetplayWindow::startSession() -> void {
     }
     
     vector<string> remotes, spectators;
+    uint8 localPlayer = roleToPort(currentRole);
+    uint myPlayerNum = localPlayer + 1;
+    
     for(uint i = 0; i < remotePlayersList.itemCount(); i++) {
         auto parts = remotePlayersList.item(i).text().split("|");
         if(parts.size() < 3) continue;
@@ -327,10 +367,17 @@ auto NetplayWindow::startSession() -> void {
             return;
         }
         
-        (player == "Spectator" ? spectators : remotes).append({ip, ":", port});
+        if(player == "Spectator") {
+            spectators.append({ip, ":", port});
+        } else if(player.beginsWith("Player ")) {
+            uint playerNum = player.trimLeft("Player ", 1L).natural();
+            // Skip local player
+            if(playerNum != myPlayerNum) {
+                remotes.append({ip, ":", port});
+            }
+        }
     }
     
-    uint8 localPlayer = roleToPort(currentRole);
     uint totalPlayers = (localPlayer == 255) ? config.spectatorPlayerCount : remotes.size() + 1;
     
     if(totalPlayers < 2) {
@@ -370,7 +417,6 @@ auto NetplayWindow::startSession() -> void {
         }
     }
     
-    // Start the session
     program.netplayStart(config.localPort, localPlayer, config.rollbackframes, 
                         config.localDelay, finalRemotes, spectators);
     doClose();
@@ -389,7 +435,9 @@ auto NetplayWindow::roleToPort(Role role) -> uint8 {
 }
 
 auto NetplayWindow::setVisible(bool visible) -> NetplayWindow& {
-    if(visible) Application::processEvents();
+    if(visible) {
+        Application::processEvents();
+    }
     return Window::setVisible(visible), *this;
 }
 

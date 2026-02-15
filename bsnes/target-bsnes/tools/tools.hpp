@@ -220,6 +220,7 @@ private:
     auto isValidPort(const string& port) -> bool;
     auto setValidationColor(LineEdit& field, bool valid, bool hasText) -> void;
     auto updateSelectedItem(uint partIndex, const string& newValue) -> void;
+    auto sortPlayerList() -> void;
 
     Role currentRole = Role::Player1;
     bool devMode = false;
@@ -268,7 +269,7 @@ private:
     
     // Remote players section
     Label remotePlayersLabel{&layout, Size{~0, 0}};
-    ListView remotePlayersList{&layout, Size{~0, 100_sy}};
+    ListView remotePlayersList{&layout, Size{~0, ~0}};
     
     // Editing section
     Label editingLabel{&layout, Size{~0, 0}};
