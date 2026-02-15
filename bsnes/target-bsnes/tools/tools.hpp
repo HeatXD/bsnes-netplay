@@ -193,54 +193,122 @@ public:
 };
 
 struct NetplayWindow : Window {
-  struct Config {
-    bool multitap = false;
-    uint16 localPort = 0;
-    uint8 localPlayer = 0;
-    uint8 rollbackframes = 8;
-    uint8 localDelay = 1;
-    uint8 spectatorPlayerCount = 0;
-    vector<string> remotes = {};
-    vector<string> spectators = {};
-  } config {};
+    enum class Role : uint {
+        Player1,
+        Player2, 
+        Player3,
+        Player4,
+        Player5,
+        Spectator
+    };
 
-  auto create() -> void;
-  auto setVisible(bool visible = true) -> NetplayWindow&;
-  auto show() -> void;
+    auto create() -> void;
+    auto setVisible(bool visible = true) -> NetplayWindow&;
+    auto show() -> void;
+
 private:
-  auto updateMultitap() -> void;
-  auto updateLocalController(uint8 port) -> void;
-  auto filterAddresses(vector<string>& addresses) -> vector<string>;
+    auto updateRole(Role role) -> void;
+    auto autoPopulatePlayerList() -> void;
+    auto addPlayer() -> void;
+    auto addSpectator() -> void;
+    auto removeSelectedPlayer() -> void;
+    auto startSession() -> void;
+    auto roleToPort(Role role) -> uint8;
+    
+    auto isValidIP(const string& ip) -> bool;
+    auto isLoopbackIP(const string& ip) -> bool;
+    auto isValidPort(const string& port) -> bool;
+    auto setValidationColor(LineEdit& field, bool valid, bool hasText) -> void;
+    auto updateSelectedItem(uint partIndex, const string& newValue) -> void;
+
+    Role currentRole = Role::Player1;
+    bool devMode = false;
+
+    VerticalLayout layout{this};
+    
+    // Role selection
+    Label roleLabel{&layout, Size{~0, 0}};
+    HorizontalLayout roleLayout{&layout, Size{~0, 0}};
+      RadioLabel rolePlayer1{&roleLayout, Size{80_sx, 0}};
+      RadioLabel rolePlayer2{&roleLayout, Size{80_sx, 0}};
+      RadioLabel rolePlayer3{&roleLayout, Size{80_sx, 0}};
+      RadioLabel rolePlayer4{&roleLayout, Size{80_sx, 0}};
+      RadioLabel rolePlayer5{&roleLayout, Size{80_sx, 0}};
+      RadioLabel roleSpectator{&roleLayout, Size{80_sx, 0}};
+    Group roleGroup{&rolePlayer1, &rolePlayer2, &rolePlayer3, &rolePlayer4, &rolePlayer5, &roleSpectator};
+    Canvas roleSpacer{&layout, Size{~0, 1}};
+    
+    // Connection info header
+    Label connectionLabel{&layout, Size{~0, 0}};
+    
+    // Port configuration
+    HorizontalLayout portLayout{&layout, Size{~0, 0}};
+      Label portLabel{&portLayout, Size{100_sx, 0}};
+      LineEdit portValue{&portLayout, Size{100_sx, 0}};
+      Widget portSpacer1{&portLayout, Size{10_sx, 0}};
+      // Spectator player count (only visible for spectators, same row as port)
+      Label spectatorPlayerCountLabel{&portLayout, Size{130_sx, 0}};
+      LineEdit spectatorPlayerCountValue{&portLayout, Size{60_sx, 0}};
+      Widget portSpacer2{&portLayout, Size{~0, 0}};
+    
+    // Sliders layout - horizontal
+    HorizontalLayout slidersLayout{&layout, Size{~0, 0}};
+      // Rollback frames
+      Label rollbackLabel{&slidersLayout, Size{110_sx, 0}};
+      HorizontalSlider rollbackSlider{&slidersLayout, Size{~0, 0}};
+      Label rollbackValue{&slidersLayout, Size{35_sx, 0}};
+      // Spacing between sliders
+      Widget sliderMiddleSpacer{&slidersLayout, Size{15_sx, 0}};
+      // Input delay
+      Label delayLabel{&slidersLayout, Size{80_sx, 0}};
+      HorizontalSlider delaySlider{&slidersLayout, Size{~0, 0}};
+      Label delayValue{&slidersLayout, Size{35_sx, 0}};
+    
+    Canvas sliderSpacer{&layout, Size{~0, 1}};
+    
+    // Remote players section
+    Label remotePlayersLabel{&layout, Size{~0, 0}};
+    ListView remotePlayersList{&layout, Size{~0, 100_sy}};
+    
+    // Editing section
+    Label editingLabel{&layout, Size{~0, 0}};
+    HorizontalLayout editLayout{&layout, Size{~0, 0}};
+      Label editIPLabel{&editLayout, Size{35_sx, 0}};
+      LineEdit editIPValue{&editLayout, Size{~0, 0}};
+      Widget editSpacer1{&editLayout, Size{5_sx, 0}};
+      Label editPortLabel{&editLayout, Size{40_sx, 0}};
+      LineEdit editPortValue{&editLayout, Size{100_sx, 0}};
+      Widget editSpacer2{&editLayout, Size{~0, 0}};
+    
+    // Action buttons for list
+    HorizontalLayout remoteButtonsLayout{&layout, Size{~0, 0}};
+      Button btnAddPlayer{&remoteButtonsLayout, Size{100_sx, 0}};
+      Button btnAddSpectator{&remoteButtonsLayout, Size{120_sx, 0}};
+      Button btnRemove{&remoteButtonsLayout, Size{100_sx, 0}};
+      Widget remoteSpacer{&remoteButtonsLayout, Size{~0, 0}};
+    
+    // Spacer to push bottom controls to end
+    Canvas bottomSpacer{&layout, Size{~0, 1}};
+    
+    // Bottom controls layout
+    HorizontalLayout bottomControlsLayout{&layout, Size{~0, 0}};
+      // Dev mode checkbox
+      CheckLabel devModeCheck{&bottomControlsLayout, Size{0, 0}};
+      Widget bottomMiddleSpacer{&bottomControlsLayout, Size{~0, 0}};
+      // Action buttons
+      Button btnStart{&bottomControlsLayout, Size{120_sx, 0}};
+      Button btnCancel{&bottomControlsLayout, Size{80_sx, 0}};
+
 public:
-  VerticalLayout layout{this};
-    HorizontalLayout gameSettingsLayout{&layout, Size{~0, 0}};
-      Label rollbackframeLabel{&gameSettingsLayout, Size{85_sx, 0}};
-      HorizontalSlider rollbackframeValue{&gameSettingsLayout, Size{~0, 0}};
-      Label delayLabel{&gameSettingsLayout, Size{50_sx, 0}};
-      HorizontalSlider delayValue{&gameSettingsLayout, Size{~0, 0}};
-      CheckLabel enableMultitap{&gameSettingsLayout, Size{0, 0}};
-    HorizontalLayout playerSettingsLayout{&layout, Size{~0, 0}};
-      Label portLabel{&playerSettingsLayout, Size{0, 0}};
-      LineEdit portValue{&playerSettingsLayout, Size{~0, 0}};
-    HorizontalLayout playerLayout{&layout, Size{~0, 0}};
-      Label playerLabel{&playerLayout, Size{0, 0}};
-      RadioLabel specSelect{&playerLayout, Size{0, 0}};
-      RadioLabel p1Select{&playerLayout, Size{0, 0}};
-      RadioLabel p2Select{&playerLayout, Size{0, 0}};
-      RadioLabel p3Select{&playerLayout, Size{0, 0}};
-      RadioLabel p4Select{&playerLayout, Size{0, 0}};
-      RadioLabel p5Select{&playerLayout, Size{0, 0}};
-      Group playerGroup{&specSelect, &p1Select, &p2Select, &p3Select, &p4Select, &p5Select};
-    HorizontalLayout specLayout{&layout, Size{~0, 0}};
-      Label specPlayerCountLabel{&specLayout, Size{0, 0}};
-      LineEdit specPlayerCountValue{&specLayout, Size{~0, 0}};
-    Label remoteLabel{&layout, Size{0, 0}};
-    TextEdit remoteValue{&layout, Size{~0, ~0}};
-    Label spectatorLabel{&layout, Size{0, 0}};
-    TextEdit spectatorValue{&layout, Size{~0, ~0}};
-    HorizontalLayout buttonLayout{&layout, Size{~0, 0}};
-      Button btnStart{&buttonLayout, Size{~0, 0}};
-      Button btnCancel{&buttonLayout, Size{~0, 0}};
+    struct Configuration {
+        uint localPort = 55435;
+        uint rollbackframes = 7;
+        uint localDelay = 1;
+        vector<string> remotes;
+        vector<string> spectators;
+        uint spectatorPlayerCount = 2;
+        uint8 localPlayer = 0;
+    } config;
 };
 
 namespace Instances { extern Instance<CheatDatabase> cheatDatabase; }
