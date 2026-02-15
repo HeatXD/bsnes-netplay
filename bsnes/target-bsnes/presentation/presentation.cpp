@@ -266,7 +266,7 @@ auto Presentation::create() -> void {
     program.quit();
   });
 
-  setTitle({"bsnes v", Emulator::Version});
+  setTitle({"bsnes v", Emulator::Version, " - netplay v", Emulator::NetplayVersion});
   resizeWindow();
   setAlignment(Alignment::Center);
 
