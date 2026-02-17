@@ -223,7 +223,7 @@ auto NetplayWindow::updateRole(Role role) -> void {
         remotePlayersLabel.setText("Player to Spectate:");
         
         remotePlayersList.reset();
-        remotePlayersList.append(ListViewItem().setText(formatEntry("Any Player", "127.0.0.1", "55435")));
+        remotePlayersList.append(ListViewItem().setText(formatEntry("Player", "127.0.0.1", "55435")));
         remotePlayersList.item(0).setSelected();
 
         btnAddPlayer.setEnabled(false);
@@ -393,6 +393,8 @@ auto NetplayWindow::startSession() -> void {
             if(playerNum != myPlayerNum) {
                 remotes.append({ip, ":", port});
             }
+        } else {
+            remotes.append({ip, ":", port});
         }
     }
 
