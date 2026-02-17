@@ -5,14 +5,12 @@ bsnes-netplay
 A custom build of the bsnes emulator, integrated with GekkoNet, to provide
 robust and low-latency netplay capabilities.
 
-Currently, it supports direct IP connections between two players. Port
+Currently, it supports sessions up to 5 players. Port
 forwarding (or another solution, such as a VPN that simulates a Local-Area
-Network) is required.
+Network) might be required.
 
 Spectating is also supported, also through direct connection.
-
-Support for more simultaneous players and other connection methods are currently
-in the works.
+Other connection methods are currently in the works.
 
 [**Download the latest release of bsnes-netplay here.**](https://github.com/HeatXD/bsnes-netplay/releases)
 
