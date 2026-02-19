@@ -58,7 +58,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
 
     bool isSpectating = local >= numPlayers;
 
-    gekko_create(&netplay.session, isSpectating ? GekkoSessionType::Spectate : GekkoSessionType::Game );
+    gekko_create(&netplay.session, isSpectating ? GekkoSpectateSession : GekkoGameSession);
     gekko_start(netplay.session, &netplay.config);
     gekko_net_adapter_set(netplay.session, gekko_default_adapter(port));
 
@@ -69,12 +69,12 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
             auto peer = Netplay::Peer();
             peer.nickname = {"P", i + 1};
             if(i == local) {
-                peer.id = gekko_add_actor(netplay.session, LocalPlayer, nullptr);
+                peer.id = gekko_add_actor(netplay.session, GekkoLocalPlayer, nullptr);
                 peer.conn.addr = "localhost";
             } else {
                 peer.conn.addr = remotes[remoteIdx++];
                 auto addr = GekkoNetAddress{ (void*)peer.conn.addr.data(), peer.conn.addr.size() };
-                peer.id = gekko_add_actor(netplay.session, RemotePlayer, &addr);
+                peer.id = gekko_add_actor(netplay.session, GekkoRemotePlayer, &addr);
             }
             netplay.peers.append(peer);
         }
@@ -86,7 +86,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
             peer.nickname = "spectator";
             peer.conn.addr = spectators[i];
             auto addr = GekkoNetAddress{ (void*)peer.conn.addr.data(), peer.conn.addr.size() };
-            peer.id = gekko_add_actor(netplay.session, Spectator, &addr);
+            peer.id = gekko_add_actor(netplay.session, GekkoSpectator, &addr);
             netplay.peers.append(peer);
         }
     } else {
@@ -95,7 +95,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
         peer.nickname = "P1";
         peer.conn.addr = remotes[0];
         auto addr = GekkoNetAddress{ (void*)peer.conn.addr.data(), peer.conn.addr.size() };
-        peer.id = gekko_add_actor(netplay.session, RemotePlayer, &addr);
+        peer.id = gekko_add_actor(netplay.session, GekkoRemotePlayer, &addr);
         netplay.peers.append(peer);
     }
 
@@ -153,17 +153,17 @@ auto Program::netplayRun() -> bool {
         auto event = events[i];
         int type = event->type;
         //print("EV: ", type);
-        if (event->type == PlayerDisconnected) {
+        if (event->type == GekkoPlayerDisconnected) {
             auto disco = event->data.disconnected;
             showMessage({"Peer Disconnected: ", disco.handle});
             continue;
         }
-        if (event->type == PlayerConnected) {
+        if (event->type == GekkoPlayerConnected) {
             auto conn = event->data.connected;
             showMessage({"Peer Connected: ", conn.handle});
             continue;
         }
-        if (event->type == SessionStarted) {
+        if (event->type == GekkoSessionStarted) {
             showMessage({"Netplay Session Started"});
             continue;
         }
@@ -176,7 +176,7 @@ auto Program::netplayRun() -> bool {
         auto serial = serializer();
 
         switch (ev->type) {
-        case SaveEvent:
+        case GekkoSaveEvent:
             // save the state ourselves
             serial = emulator->serialize(0);
             // pass the frame number so we can maybe use it later to get the right state
@@ -184,13 +184,13 @@ auto Program::netplayRun() -> bool {
             *ev->data.save.state_len = serial.size();
             memcpy(ev->data.save.state, serial.data(), serial.size());
             break;
-        case LoadEvent:
+        case GekkoLoadEvent:
             serial = serializer(ev->data.load.state, ev->data.load.state_len);
             emulator->unserialize(serial);
             program.mute |= Mute::Always;
             emulator->setRunAhead(true);
             break;
-        case AdvanceEvent:
+        case GekkoAdvanceEvent:
             if (!ev->data.adv.rolling_back) {
                 emulator->setRunAhead(false);
                 program.mute &= ~Mute::Always;

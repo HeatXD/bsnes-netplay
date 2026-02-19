@@ -7,8 +7,17 @@ include $(hiro.path)/GNUmakefile
 ruby.path := ../ruby
 include $(ruby.path)/GNUmakefile
 
-gekkonet.path := ../gekkonet
-include $(gekkonet.path)/GNUmakefile
+gekkonet.path := ../gekkonet/GekkoLib
+gekkonet.build := ../gekkonet/build
+# -DGEKKONET_STATIC is required: without it, gekkonet.h defaults to __declspec(dllimport)
+# on Windows, causing linker errors against the static lib
+gekkonet.flags := -I$(gekkonet.path)/include -DGEKKONET_STATIC
+gekkonet.lib := $(gekkonet.build)/GekkoLib/libGekkoNet_STATIC.a
+gekkonet.options :=
+ifeq ($(platform),windows)
+  gekkonet.cmake.generator := -G "MinGW Makefiles"
+  gekkonet.options += -lws2_32
+endif
 flags := $(flags) $(gekkonet.flags)
 
 objects += ui-bsnes ui-program ui-input ui-presentation
@@ -23,9 +32,16 @@ obj/ui-settings.o: $(ui)/settings/settings.cpp
 obj/ui-tools.o: $(ui)/tools/tools.cpp
 obj/ui-resource.o: $(ui)/resource/resource.cpp
 
-all: $(hiro.objects) $(ruby.objects) $(gekkonet.objects) $(objects)
+$(gekkonet.lib):
+ifeq ($(wildcard ../gekkonet/CMakeLists.txt),)
+	git -C .. submodule update --init
+endif
+	cmake -B $(gekkonet.build) -S ../gekkonet -DBUILD_SHARED_LIBS=OFF $(gekkonet.cmake.generator)
+	cmake --build $(gekkonet.build)
+
+all: $(gekkonet.lib) $(hiro.objects) $(ruby.objects) $(objects)
 	$(info Linking out/$(name) ...)
-	+@$(compiler) -o out/$(name) $(hiro.objects) $(ruby.objects) $(gekkonet.objects) $(objects) $(hiro.options) $(ruby.options) $(gekkonet.options) $(options)
+	+@$(compiler) -o out/$(name) $(hiro.objects) $(ruby.objects) $(objects) $(gekkonet.lib) $(hiro.options) $(ruby.options) $(gekkonet.options) $(options)
 ifeq ($(platform),macos)
 	rm -rf out/$(name).app
 	mkdir -p out/$(name).app/Contents/MacOS/

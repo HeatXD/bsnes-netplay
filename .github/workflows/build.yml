@@ -21,6 +21,8 @@ jobs:
     runs-on: ${{ matrix.os.name }}-${{ matrix.os.version }}
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: true
     - name: Install Dependencies
       if: matrix.os.name == 'ubuntu'
       run: |
@@ -38,12 +40,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: true
     - uses: vmactions/freebsd-vm@v1
       with:
         release: "14.3"
         usesh: true
         prepare: |
-          pkg install --yes gmake gdb gcc14 pkgconf sdl2 openal-soft gtk3 gtksourceview3 libXv zip
+          pkg install --yes gmake gdb gcc14 pkgconf sdl2 openal-soft gtk3 gtksourceview3 libXv zip cmake
         run: |
           gmake -j4 -C bsnes local=false
     - name: Upload
