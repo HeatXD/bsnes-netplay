@@ -34,7 +34,7 @@ namespace Emulator {
   static const string License   = "GPLv3 or later";
   static const string Website   = "https://github.com/bsnes-emu/bsnes/";
 
-  static const string NetplayVersion   = "2.HF1";
+  static const string NetplayVersion   = "2.HF2";
 
   //incremented only when serialization format changes
   static const string SerializerVersion = "115.2";
