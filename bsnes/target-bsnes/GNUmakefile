@@ -14,9 +14,12 @@ gekkonet.build := ../gekkonet/build
 gekkonet.flags := -I$(gekkonet.path)/include -DGEKKONET_STATIC
 gekkonet.lib := $(gekkonet.build)/GekkoLib/libGekkoNet_STATIC.a
 gekkonet.options :=
+gekkonet.cmake.args :=
 ifeq ($(platform),windows)
-  gekkonet.cmake.generator := -G "MinGW Makefiles"
+  gekkonet.cmake.args += -G "MinGW Makefiles"
   gekkonet.options += -lws2_32
+else ifeq ($(platform),bsd)
+  gekkonet.cmake.args += -DCMAKE_MAKE_PROGRAM=gmake
 endif
 flags := $(flags) $(gekkonet.flags)
 
@@ -36,10 +39,13 @@ $(gekkonet.lib):
 ifeq ($(wildcard ../gekkonet/CMakeLists.txt),)
 	git -C .. submodule update --init
 endif
-	cmake -B $(gekkonet.build) -S ../gekkonet -DBUILD_SHARED_LIBS=OFF $(gekkonet.cmake.generator)
-	cmake --build $(gekkonet.build)
+	cmake -B $(gekkonet.build) -S ../gekkonet -DBUILD_SHARED_LIBS=OFF $(gekkonet.cmake.args)
+	+cmake --build $(gekkonet.build)
 
-all: $(gekkonet.lib) $(hiro.objects) $(ruby.objects) $(objects)
+# order-only prerequisite: build gekkonet before any .o files
+$(hiro.objects) $(ruby.objects) $(objects): | $(gekkonet.lib)
+
+all: $(hiro.objects) $(ruby.objects) $(objects)
 	$(info Linking out/$(name) ...)
 	+@$(compiler) -o out/$(name) $(hiro.objects) $(ruby.objects) $(objects) $(gekkonet.lib) $(hiro.options) $(ruby.options) $(gekkonet.options) $(options)
 ifeq ($(platform),macos)
