@@ -19,7 +19,7 @@ ifeq ($(platform),windows)
   gekkonet.cmake.args += -G "MinGW Makefiles"
   gekkonet.options += -lws2_32
 else ifeq ($(platform),bsd)
-  gekkonet.cmake.args += -DCMAKE_MAKE_PROGRAM=gmake
+  gekkonet.cmake.args += -DCMAKE_MAKE_PROGRAM=gmake -DCMAKE_C_COMPILER=gcc14 -DCMAKE_CXX_COMPILER=g++14
 endif
 flags := $(flags) $(gekkonet.flags)
 
