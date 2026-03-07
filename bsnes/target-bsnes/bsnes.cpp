@@ -20,7 +20,11 @@ auto locate(string name) -> string {
 auto nall::main(Arguments arguments) -> void {
   settings.location = locate("settings.bml");
 
-  for(auto argument : arguments) {
+  vector<string> args;
+  for(auto argument : arguments) args.append(argument);
+
+  for(uint i = 0; i < args.size(); i++) {
+    auto argument = args[i];
     if(argument == "--fullscreen") {
       program.startFullScreen = true;
     } else if(argument.beginsWith("--locale=")) {
@@ -28,6 +32,20 @@ auto nall::main(Arguments arguments) -> void {
       Application::locale().select(argument.trimLeft("--locale=", 1L));
     } else if(argument.beginsWith("--settings=")) {
       settings.location = argument.trimLeft("--settings=", 1L);
+    } else if(argument == "--wl-udp-port" && i + 1 < args.size()) {
+      program.wlArgs.port = (uint16_t)args[++i].natural();
+    } else if(argument == "--wl-player-id" && i + 1 < args.size()) {
+      program.wlArgs.playerId = (uint8_t)args[++i].natural();
+    } else if(argument == "--wl-config" && i + 1 < args.size()) {
+      program.wlArgs.configJson = args[++i];
+      program.wlArgs.active = true;
+      try {
+        auto j = nlohmann::json::parse(program.wlArgs.configJson.data());
+        string folder = j.at("gamesFolder").get<std::string>().c_str();
+        string game   = j.at("game").get<std::string>().c_str();
+        string path   = {folder, "/", game};
+        if(inode::exists(path)) program.gameQueue.append({"Auto;", path});
+      } catch(...) {}
     } else if(inode::exists(argument)) {
       //game without option
       program.gameQueue.append({"Auto;", argument});
