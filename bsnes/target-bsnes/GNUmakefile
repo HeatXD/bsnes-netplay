@@ -23,6 +23,15 @@ else ifeq ($(platform),bsd)
 endif
 flags := $(flags) $(gekkonet.flags)
 
+wl.path    := ../weyvelength
+wl.flags   := -I$(wl.path)/include -I../util
+wl.lib     := $(wl.path)/lib/wl_sdk.dll.lib
+wl.options :=
+ifeq ($(platform),windows)
+  wl.options += $(wl.lib)
+endif
+flags := $(flags) $(wl.flags)
+
 objects += ui-bsnes ui-program ui-input ui-presentation
 objects += ui-settings ui-tools ui-resource
 objects := $(objects:%=obj/%.o)
@@ -47,7 +56,12 @@ $(hiro.objects) $(ruby.objects) $(objects): | $(gekkonet.lib)
 
 all: $(hiro.objects) $(ruby.objects) $(objects)
 	$(info Linking out/$(name) ...)
-	+@$(compiler) -o out/$(name) $(hiro.objects) $(ruby.objects) $(objects) $(gekkonet.lib) $(hiro.options) $(ruby.options) $(gekkonet.options) $(options)
+	+@$(compiler) -o out/$(name) $(hiro.objects) $(ruby.objects) $(objects) $(gekkonet.lib) $(hiro.options) $(ruby.options) $(gekkonet.options) $(wl.options) $(options)
+ifeq ($(platform),windows)
+	cmd /c copy /y "$(subst /,\,$(wl.path)\lib\wl_sdk.dll)" "$(subst /,\,out\)"
+else
+	cp $(wl.path)/lib/wl_sdk.dll out/
+endif
 ifeq ($(platform),macos)
 	rm -rf out/$(name).app
 	mkdir -p out/$(name).app/Contents/MacOS/

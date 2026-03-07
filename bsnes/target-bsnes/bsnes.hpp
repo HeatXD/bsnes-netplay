@@ -1,3 +1,4 @@
+#include <json.hpp>
 #include <ruby/ruby.hpp>
 using namespace ruby;
 extern Video video;
@@ -14,6 +15,7 @@ extern unique_pointer<Emulator::Interface> emulator;
 #include <lzma/lzma.hpp>
 
 #include <gekkonet.h>
+#include <wl_sdk.h>
 
 #include <nall/instance.hpp>
 #include <nall/decode/rle.hpp>
