@@ -7,6 +7,7 @@
 #include "states.cpp"
 #include "movies.cpp"
 #include "rewind.cpp"
+#include "wl-adapter.cpp"
 #include "netplay.cpp"
 #include "video.cpp"
 #include "audio.cpp"
@@ -70,6 +71,9 @@ auto Program::create() -> void {
   driverSettings.inputDriverChanged();
 
   if(gameQueue) load();
+  if(wlArgs.active && emulator->loaded()) {
+    wlArgs.pendingStart = true;
+  }
   if(startFullScreen && emulator->loaded()) {
     toggleVideoFullScreen();
   }
@@ -78,6 +82,11 @@ auto Program::create() -> void {
 }
 
 auto Program::main() -> void {
+  if(wlArgs.pendingStart) {
+    wlArgs.pendingStart = false;
+    netplayStartWl();
+  }
+
   updateStatus();
   video.poll();
 

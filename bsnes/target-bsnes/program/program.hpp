@@ -127,11 +127,14 @@ struct Program : Lock, Emulator::Platform {
     vector<Peer> peers;
     GekkoConfig config = {};
     GekkoSession* session = nullptr;
+    GekkoNetAdapter wlAdapter = {};
     uint counter = 0;
     double speedScale = 1.0;
   } netplay;
   auto netplayMode(Netplay::Mode) -> void;
+  auto netplayPrepare(int numPlayers) -> int;
   auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator) -> void;
+  auto netplayStartWl() -> void;
   auto netplayStop() -> void;
   auto netplayRun() -> bool;
   auto netplayPollLocalInput(Netplay::Buttons& localInput) -> void;
@@ -247,6 +250,14 @@ public:
   string statusFrameRate;
 
   bool startFullScreen = false;
+
+  struct WlArgs {
+    bool     active       = false;
+    bool     pendingStart = false;
+    uint16_t port     = 0;
+    uint8_t  playerId = 0;
+    string   configJson;
+  } wlArgs;
 
   struct Mute { enum : uint {
     Always      = 1 << 1,

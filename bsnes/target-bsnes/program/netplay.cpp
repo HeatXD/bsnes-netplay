@@ -1,30 +1,19 @@
 auto Program::netplayMode(Netplay::Mode mode) -> void {
     if(netplay.mode == mode) return;
     if(mode == Netplay::Running) {
-        // disable input when unfocused
         inputSettings.blockInput.setChecked();
     }
     netplay.mode = mode;
 }
 
-auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators) -> void {
-    if(netplay.mode != Netplay::Mode::Inactive) return;
-
-    int numPlayers = remotes.size();
-
-    // add local player
-    if(local < 5) numPlayers++;
-
+auto Program::netplayPrepare(int numPlayers) -> int {
     const int inpBufferLength = numPlayers > 2 ? 5 : numPlayers;
-    for(int i = 0; i < inpBufferLength; i++) {
+    for(int i = 0; i < inpBufferLength; i++)
         netplay.inputs.append(Netplay::Buttons());
-    }
 
-    // connect controllers
     emulator->connect(0, Netplay::Device::Gamepad);
     emulator->connect(1, numPlayers > 2 ? Netplay::Device::Multitap : Netplay::Device::Gamepad);
 
-    // force deterministic emulator settings so all peers match
     emulator->configure("Hacks/Entropy", "None");
     emulator->configure("Hacks/Hotfixes", "true");
     emulator->configure("Hacks/CPU/Overclock", "100");
@@ -40,21 +29,28 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     emulator->configure("Hacks/Coprocessor/PreferHLE", "false");
     emulator->configure("Hacks/SA1/Overclock", "100");
     emulator->configure("Hacks/SuperFX/Overclock", "100");
-
-    // power cycle with deterministic settings
     emulator->power();
 
-    // calculate state size AFTER power with forced settings
-    const int stateSize = emulator->serialize(0).size();
-
-    netplay.config.num_players = numPlayers;
-    netplay.config.input_size = sizeof(Netplay::Buttons);
-    netplay.config.state_size = stateSize;
-    netplay.config.max_spectators = spectators.size();
-    netplay.config.input_prediction_window = rollback;
-    netplay.config.spectator_delay = 5 * 60;
-
     netplay.netStats.resize(inpBufferLength);
+    return emulator->serialize(0).size();
+}
+
+auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators) -> void {
+    if(netplay.mode != Netplay::Mode::Inactive) return;
+
+    int numPlayers = remotes.size();
+
+    // add local player
+    if(local < 5) numPlayers++;
+
+    const int stateSize = netplayPrepare(numPlayers);
+
+    netplay.config.num_players             = numPlayers;
+    netplay.config.input_size              = sizeof(Netplay::Buttons);
+    netplay.config.state_size              = stateSize;
+    netplay.config.max_spectators          = spectators.size();
+    netplay.config.input_prediction_window = rollback;
+    netplay.config.spectator_delay         = 5 * 60;
 
     bool isSpectating = local >= numPlayers;
 
@@ -102,15 +98,111 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     netplayMode(Netplay::Running);
 }
 
+auto Program::netplayStartWl() -> void {
+    if(netplay.mode != Netplay::Mode::Inactive) return;
+    if(!wlArgs.active) return;
+
+    int numPlayers = 0;
+    int numSpectators = 0;
+    vector<uint8_t> remoteIds;
+    try {
+        auto j = nlohmann::json::parse(wlArgs.configJson.data());
+        for(auto& [name, member] : j.at("members").items()) {
+            if(member.at("role").get<std::string>() == "Player") {
+                numPlayers++;
+                uint8_t pid = member.at("playerId").get<uint8_t>();
+                if(pid != wlArgs.playerId) remoteIds.append(pid);
+            } else {
+                numSpectators++;
+            }
+        }
+    } catch(...) {
+        showMessage("WL: failed to parse session config");
+        return;
+    }
+
+    if(numPlayers < 2) {
+        showMessage("WL: session requires at least 2 players");
+        return;
+    }
+
+    if(wl_init(wlArgs.port, wlArgs.playerId) != 0) {
+        showMessage({"WL: init failed: ", wl_last_error()});
+        return;
+    }
+
+    const bool isSpectating = (wlArgs.playerId == 0);
+    const int stateSize = netplayPrepare(numPlayers);
+
+    netplay.config.num_players             = numPlayers;
+    netplay.config.input_size              = sizeof(Netplay::Buttons);
+    netplay.config.state_size              = stateSize;
+    netplay.config.max_spectators          = (wlArgs.playerId == 1) ? numSpectators : 0;
+    netplay.config.input_prediction_window = 8;
+    netplay.config.spectator_delay         = 5 * 60;
+
+    gekko_create(&netplay.session, isSpectating ? GekkoSpectateSession : GekkoGameSession);
+    gekko_start(netplay.session, &netplay.config);
+    netplay.wlAdapter = wlAdapterMake();
+    gekko_net_adapter_set(netplay.session, &netplay.wlAdapter);
+
+    if(!isSpectating) {
+        uint8_t localIndex = wlArgs.playerId - 1;
+        uint8_t remoteIdx  = 0;
+        for(int i = 0; i < numPlayers; i++) {
+            auto peer = Netplay::Peer();
+            peer.nickname = {"P", i + 1};
+            if(i == localIndex) {
+                peer.id = gekko_add_actor(netplay.session, GekkoLocalPlayer, nullptr);
+                peer.conn.addr = "localhost";
+            } else {
+                uint8_t rid = remoteIds[remoteIdx++];
+                GekkoNetAddress addr = {&rid, 1};
+                peer.id = gekko_add_actor(netplay.session, GekkoRemotePlayer, &addr);
+            }
+            netplay.peers.append(peer);
+        }
+        gekko_set_local_delay(netplay.session, localIndex, 2);
+
+        // player 1 hosts spectators — add each as a GekkoSpectator with wl player ID 0
+        if(wlArgs.playerId == 1) {
+            uint8_t specId = 0;
+            for(int i = 0; i < numSpectators; i++) {
+                auto peer = Netplay::Peer();
+                peer.nickname = "spectator";
+                GekkoNetAddress addr = {&specId, 1};
+                peer.id = gekko_add_actor(netplay.session, GekkoSpectator, &addr);
+                netplay.peers.append(peer);
+            }
+        }
+    } else {
+        // spectators always connect to player 1 as the host
+        uint8_t hostId = 1;
+        auto peer = Netplay::Peer();
+        peer.nickname = "P1";
+        GekkoNetAddress addr = {&hostId, 1};
+        peer.id = gekko_add_actor(netplay.session, GekkoRemotePlayer, &addr);
+        netplay.peers.append(peer);
+    }
+
+    netplayMode(Netplay::Running);
+}
+
 auto Program::netplayStop() -> void {
     if (netplay.mode == Netplay::Mode::Inactive) return;
 
     netplayMode(Netplay::Inactive);
-    
+
     gekko_destroy(&netplay.session);
-    netplay.session = nullptr; 
+    netplay.session = nullptr;
+
+    if(wlArgs.active) {
+        wlAdapterReset();
+        wl_shutdown();
+    }
 
     netplay.config = {};
+    netplay.wlAdapter = {};
     netplay.counter = 0;
     netplay.speedScale = 1.0;
 
@@ -152,7 +244,6 @@ auto Program::netplayRun() -> bool {
     for(int i = 0; i < count; i++) {
         auto event = events[i];
         int type = event->type;
-        //print("EV: ", type);
         if (event->type == GekkoPlayerDisconnected) {
             auto disco = event->data.disconnected;
             showMessage({"Peer Disconnected: ", disco.handle});
