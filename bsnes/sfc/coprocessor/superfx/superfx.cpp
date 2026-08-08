@@ -58,6 +58,7 @@ auto SuperFX::power() -> void {
   for(uint n : range(2)) {
     pixelcache[n].offset = ~0;
     pixelcache[n].bitpend = 0x00;
+    for(uint x : range(8)) pixelcache[n].data[x] = 0x00;
   }
 
   regs.romcl = 0;
