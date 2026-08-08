@@ -137,7 +137,7 @@ auto PPU::scanline() -> void {
 }
 
 auto PPU::refresh() -> void {
-  if(system.frameCounter == 0 && !system.runAhead) {
+  if(renderPixels()) {
     auto output = this->output;
     uint pitch, width, height;
     if(!hd()) {

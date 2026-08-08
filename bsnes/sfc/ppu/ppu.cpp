@@ -191,7 +191,7 @@ auto PPU::refresh() -> void {
     return ppufast.refresh();
   }
 
-  if(system.runAhead) return;
+  if(system.discardOutput()) return;
 
   auto output = this->output;
   auto pitch  = 512;
