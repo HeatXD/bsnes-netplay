@@ -21,7 +21,6 @@ struct PPU : PPUcounter {
   alwaysinline auto deinterlace() const -> bool;
   alwaysinline auto renderCycle() const -> uint;
   alwaysinline auto noVRAMBlocking() const -> bool;
-  //whether this frame's pixels are wanted; emulated state is produced either way
   inline auto renderPixels() const -> bool { return system.frameCounter == 0 && !system.discardOutput(); }
 
   //ppu.cpp
