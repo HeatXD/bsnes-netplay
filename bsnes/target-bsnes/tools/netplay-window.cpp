@@ -1,7 +1,7 @@
 auto NetplayWindow::isValidIP(const string& ip) -> bool {
     auto parts = ip.split(".");
     if(parts.size() != 4) return false;
-    
+
     for(auto& part : parts) {
         if(!part) return false;
         uint num = part.natural();
@@ -30,32 +30,41 @@ auto NetplayWindow::setValidationColor(LineEdit& field, bool valid, bool hasText
     field.setBackgroundColor(hasText && !valid ? Color{255, 200, 200} : Color{});
 }
 
-auto NetplayWindow::formatEntry(const string& role, const string& ip, const string& port) -> string {
-    return {role, " | ", ip, " | ", port};
+auto NetplayWindow::roleText(const PlayerEntry& entry) -> string {
+    if(entry.isSpectator) return "Spectator";
+    if(entry.playerNumber == 0) return "Player";
+    return {"Player ", entry.playerNumber};
 }
 
-auto NetplayWindow::parseEntry(const string& text, string& role, string& ip, string& port) -> bool {
-    auto parts = text.split("|");
-    if(parts.size() < 3) return false;
-    role = parts[0].strip();
-    ip = parts[1].strip();
-    port = parts[2].strip();
-    return true;
+auto NetplayWindow::rowText(const PlayerEntry& entry) -> string {
+    return {roleText(entry), " | ", entry.ip, " | ", entry.port};
+}
+
+auto NetplayWindow::rebuildList() -> void {
+    remotePlayersList.reset();
+    for(auto& entry : entries) {
+        remotePlayersList.append(ListViewItem().setText(rowText(entry)));
+    }
+}
+
+auto NetplayWindow::selectedIndex() -> maybe<uint> {
+    auto item = remotePlayersList.selected();
+    if(!item || item.offset() >= entries.size()) return nothing;
+    return item.offset();
 }
 
 auto NetplayWindow::updateEditingState() -> void {
-    auto item = remotePlayersList.selected();
-    bool hasSelection = (bool)item;
+    auto index = selectedIndex();
 
-    btnRemove.setEnabled(hasSelection);
-    editIPValue.setEnabled(hasSelection);
-    editPortValue.setEnabled(hasSelection);
+    btnRemove.setEnabled((bool)index);
+    editIPValue.setEnabled((bool)index);
+    editPortValue.setEnabled((bool)index);
 
-    string role, ip, port;
-    if(hasSelection && parseEntry(item.text(), role, ip, port)) {
-        editingLabel.setText({"Editing ", role, ":"});
-        editIPValue.setText(ip);
-        editPortValue.setText(port);
+    if(index) {
+        auto& entry = entries[index()];
+        editingLabel.setText({"Editing ", roleText(entry), ":"});
+        editIPValue.setText(entry.ip);
+        editPortValue.setText(entry.port);
     } else {
         editingLabel.setText("Select an entry to edit");
         editIPValue.setText("");
@@ -64,63 +73,31 @@ auto NetplayWindow::updateEditingState() -> void {
 }
 
 auto NetplayWindow::updateSelectedIP(const string& ip) -> void {
-    auto item = remotePlayersList.selected();
-    if(!item) return;
+    auto index = selectedIndex();
+    if(!index) return;
 
-    string role, oldIP, port;
-    if(!parseEntry(item.text(), role, oldIP, port)) return;
-
-    remotePlayersList.item(item.offset()).setText(formatEntry(role, ip, port));
+    auto& entry = entries[index()];
+    entry.ip = ip;
+    remotePlayersList.item(index()).setText(rowText(entry));
 }
 
 auto NetplayWindow::updateSelectedPort(const string& port) -> void {
-    auto item = remotePlayersList.selected();
-    if(!item) return;
+    auto index = selectedIndex();
+    if(!index) return;
 
-    string role, ip, oldPort;
-    if(!parseEntry(item.text(), role, ip, oldPort)) return;
-
-    remotePlayersList.item(item.offset()).setText(formatEntry(role, ip, port));
+    auto& entry = entries[index()];
+    entry.port = port;
+    remotePlayersList.item(index()).setText(rowText(entry));
 }
 
 auto NetplayWindow::sortPlayerList() -> void {
-    vector<string> entries;
-    for(uint i = 0; i < remotePlayersList.itemCount(); i++) {
-        entries.append(remotePlayersList.item(i).text());
-    }
-    
-    // Sort: Players by number first, then spectators
-    entries.sort([](const string& a, const string& b) -> bool {
-        auto aParts = a.split("|");
-        auto bParts = b.split("|");
-        if(aParts.size() < 1 || bParts.size() < 1) return false;
-
-        string aPlayer = aParts[0].strip();
-        string bPlayer = bParts[0].strip();
-        
-        bool aIsPlayer = aPlayer.beginsWith("Player ");
-        bool bIsPlayer = bPlayer.beginsWith("Player ");
-        
-        // Players come before spectators
-        if(aIsPlayer && !bIsPlayer) return true;
-        if(!aIsPlayer && bIsPlayer) return false;
-        
-        // Both players - sort by number
-        if(aIsPlayer && bIsPlayer) {
-            uint aNum = aPlayer.trimLeft("Player ", 1L).natural();
-            uint bNum = bPlayer.trimLeft("Player ", 1L).natural();
-            return aNum < bNum;
-        }
-        
-        // Both spectators - maintain order
+    entries.sort([](const PlayerEntry& a, const PlayerEntry& b) -> bool {
+        if(a.isSpectator != b.isSpectator) return !a.isSpectator;
+        if(!a.isSpectator) return a.playerNumber < b.playerNumber;
         return false;
     });
-    
-    // Rebuild list
-    remotePlayersList.reset();
-    for(auto& entry : entries) {
-        remotePlayersList.append(ListViewItem().setText(entry));
-    }
+
+    rebuildList();
 }
 
 auto NetplayWindow::create() -> void {
@@ -133,7 +110,7 @@ auto NetplayWindow::create() -> void {
     rolePlayer4.setText("Player 4").onActivate([&] { updateRole(Role::Player4); });
     rolePlayer5.setText("Player 5").onActivate([&] { updateRole(Role::Player5); });
     roleSpectator.setText("Spectator").onActivate([&] { updateRole(Role::Spectator); });
-    
+
     roleSpacer.setColor({192, 192, 192});
 
     connectionLabel.setText("Your Setup:").setFont(Font().setBold());
@@ -145,7 +122,7 @@ auto NetplayWindow::create() -> void {
         setValidationColor(portValue, valid, (bool)port);
         if(valid) config.localPort = port.natural();
     });
-    
+
     spectatorPlayerCountLabel.setText("Players in session:");
     spectatorPlayerCountValue.setText("2").onChange([&] {
         config.spectatorPlayerCount = spectatorPlayerCountValue.text().strip().integer();
@@ -158,7 +135,7 @@ auto NetplayWindow::create() -> void {
         rollbackValue.setText({frames});
         config.rollbackframes = frames;
     });
-    
+
     delayLabel.setText("Input Delay:");
     delayValue.setText("2").setAlignment(0.5);
     delaySlider.setLength(11).setPosition(2).onChange([&] {
@@ -166,12 +143,12 @@ auto NetplayWindow::create() -> void {
         delayValue.setText({delay});
         config.localDelay = delay;
     });
-    
+
     sliderSpacer.setColor({192, 192, 192});
 
     remotePlayersLabel.setText("Other Players:").setFont(Font().setBold());
     remotePlayersList.onChange([&] { updateEditingState(); });
-    
+
     editIPLabel.setText("IP:");
     editIPValue.setText("").setEnabled(false).onChange([&] {
         string ip = editIPValue.text().strip();
@@ -179,16 +156,16 @@ auto NetplayWindow::create() -> void {
         setValidationColor(editIPValue, valid, (bool)ip);
         if(valid) updateSelectedIP(ip);
     });
-    
+
     editPortLabel.setText("Port:");
     editPortValue.setText("").setEnabled(false).onChange([&] {
         string port = editPortValue.text().strip();
         bool valid = isValidPort(port);
-        
+
         setValidationColor(editPortValue, valid, (bool)port);
         if(valid) updateSelectedPort(port);
     });
-    
+
     btnAddPlayer.setText("Add Player").onActivate([&] { addPlayer(); });
     btnAddSpectator.setText("Add Spectator").onActivate([&] { addSpectator(); });
     btnRemove.setText("Remove").onActivate([&] { removeSelectedPlayer(); }).setEnabled(false);
@@ -197,9 +174,9 @@ auto NetplayWindow::create() -> void {
 
     rolePlayer1.setChecked();
     updateRole(Role::Player1);
-    
+
     bottomSpacer.setColor({192, 192, 192});
-    
+
     devModeCheck.setText("Dev Mode").setChecked(false).onToggle([&] {
         devMode = devModeCheck.checked();
         string ip = editIPValue.text().strip();
@@ -218,12 +195,13 @@ auto NetplayWindow::create() -> void {
 auto NetplayWindow::updateRole(Role role) -> void {
     currentRole = role;
     bool isSpectator = (role == Role::Spectator);
-    
+
     if(isSpectator) {
         remotePlayersLabel.setText("Player to Spectate:");
-        
-        remotePlayersList.reset();
-        remotePlayersList.append(ListViewItem().setText(formatEntry("Player", "127.0.0.1", "55435")));
+
+        entries.reset();
+        entries.append(PlayerEntry{false, 0, "127.0.0.1", "55435"});
+        rebuildList();
         remotePlayersList.item(0).setSelected();
 
         btnAddPlayer.setEnabled(false);
@@ -248,40 +226,37 @@ auto NetplayWindow::updateRole(Role role) -> void {
 }
 
 auto NetplayWindow::autoPopulatePlayerList() -> void {
-    remotePlayersList.reset();
+    entries.reset();
     uint myPlayerNum = roleToPlayerIndex(currentRole) + 1;
     uint maxPlayer = myPlayerNum < 2 ? 2 : myPlayerNum;
 
     for(uint p = 1; p <= maxPlayer; p++) {
         if(p != myPlayerNum) {
-            remotePlayersList.append(ListViewItem().setText(formatEntry({"Player ", p}, "127.0.0.1", "55435")));
+            entries.append(PlayerEntry{false, p, "127.0.0.1", "55435"});
         }
     }
+
+    rebuildList();
 }
 
 auto NetplayWindow::addPlayer() -> void {
     uint myPlayerNum = roleToPlayerIndex(currentRole) + 1;
     vector<uint> usedPlayers{myPlayerNum};
-    
-    for(uint i = 0; i < remotePlayersList.itemCount(); i++) {
-        string role, ip, port;
-        if(parseEntry(remotePlayersList.item(i).text(), role, ip, port)) {
-            if(role.beginsWith("Player ")) {
-                usedPlayers.append(role.trimLeft("Player ", 1L).natural());
-            }
-        }
+
+    for(auto& entry : entries) {
+        if(!entry.isSpectator && entry.playerNumber) usedPlayers.append(entry.playerNumber);
     }
 
     for(uint p = 1; p <= 5; p++) {
         if(!usedPlayers.find(p)) {
-            remotePlayersList.append(ListViewItem().setText(formatEntry({"Player ", p}, "127.0.0.1", "55435")));
+            entries.append(PlayerEntry{false, p, "127.0.0.1", "55435"});
             sortPlayerList();
             remotePlayersList.resizeColumn();
             updateEditingState();
             return;
         }
     }
-    
+
     MessageDialog()
         .setTitle("Maximum Players")
         .setText("All 5 player slots are already in use.\n\nYou can add spectators instead.")
@@ -289,14 +264,15 @@ auto NetplayWindow::addPlayer() -> void {
 }
 
 auto NetplayWindow::addSpectator() -> void {
-    remotePlayersList.append(ListViewItem().setText(formatEntry("Spectator", "127.0.0.1", "55435")));
+    entries.append(PlayerEntry{true, 0, "127.0.0.1", "55435"});
+    rebuildList();
     remotePlayersList.resizeColumn();
     updateEditingState();
 }
 
 auto NetplayWindow::removeSelectedPlayer() -> void {
-    auto item = remotePlayersList.selected();
-    if(!item) return;
+    auto index = selectedIndex();
+    if(!index) return;
 
     if(currentRole == Role::Spectator) {
         MessageDialog()
@@ -307,14 +283,12 @@ auto NetplayWindow::removeSelectedPlayer() -> void {
         return;
     }
 
-    string role, ip, port;
-    if(!parseEntry(item.text(), role, ip, port)) return;
+    auto& entry = entries[index()];
 
-    if(role.beginsWith("Player ")) {
+    if(!entry.isSpectator) {
         uint myPlayerNum = roleToPlayerIndex(currentRole) + 1;
-        uint pNum = role.trimLeft("Player ", 1L).natural();
 
-        if(pNum < myPlayerNum) {
+        if(entry.playerNumber < myPlayerNum) {
             MessageDialog()
                 .setTitle("Cannot Remove Player")
                 .setText({"You selected Player ", myPlayerNum, ", so you must have players 1-",
@@ -325,11 +299,8 @@ auto NetplayWindow::removeSelectedPlayer() -> void {
         }
 
         uint playerCount = 1;
-        for(uint i = 0; i < remotePlayersList.itemCount(); i++) {
-            string r, dummy1, dummy2;
-            if(parseEntry(remotePlayersList.item(i).text(), r, dummy1, dummy2) && r != "Spectator") {
-                playerCount++;
-            }
+        for(auto& e : entries) {
+            if(!e.isSpectator) playerCount++;
         }
 
         if(playerCount <= 2) {
@@ -342,7 +313,8 @@ auto NetplayWindow::removeSelectedPlayer() -> void {
         }
     }
 
-    remotePlayersList.remove(item);
+    entries.remove(index());
+    rebuildList();
     remotePlayersList.resizeColumn();
     updateEditingState();
 }
@@ -370,31 +342,39 @@ auto NetplayWindow::startSession() -> void {
 
     vector<string> remotes, spectators;
 
-    for(uint i = 0; i < remotePlayersList.itemCount(); i++) {
-        string player, ip, port;
-        if(!parseEntry(remotePlayersList.item(i).text(), player, ip, port)) continue;
-        if(!ip || !port) continue;
+    for(auto& entry : entries) {
+        if(!entry.ip || !entry.port) continue;
 
-        if(!isValidRemoteIP(ip)) {
+        if(!isValidRemoteIP(entry.ip)) {
             MessageDialog()
                 .setTitle("Invalid IP Address")
                 .setText({"Loopback addresses (127.x.x.x) are not allowed for netplay.\n\n",
-                         "Player: ", player, "\nIP: ", ip, "\n\n",
+                         "Player: ", roleText(entry), "\nIP: ", entry.ip, "\n\n",
                          "Please enter the actual network IP address of the remote player.\n",
                          "Or enable Developer Mode to allow loopback addresses."})
                 .information();
             return;
         }
 
-        if(player == "Spectator") {
-            spectators.append({ip, ":", port});
-        } else if(player.beginsWith("Player ")) {
-            uint playerNum = player.trimLeft("Player ", 1L).natural();
-            if(playerNum != myPlayerNum) {
-                remotes.append({ip, ":", port});
+        if(devMode && isLoopbackIP(entry.ip) && entry.port.natural() == config.localPort) {
+            MessageDialog()
+                .setTitle("Invalid Configuration")
+                .setText({"Player: ", roleText(entry), " is set to 127.0.0.1:", entry.port,
+                         ", the same address and port you're listening on yourself.\n\n",
+                         "Your own packets would loop back to you, falsely appearing as a connection.\n",
+                         "Use a different port for this entry (e.g. the other instance's own port)."})
+                .information();
+            return;
+        }
+
+        if(entry.isSpectator) {
+            spectators.append({entry.ip, ":", entry.port});
+        } else if(entry.playerNumber) {
+            if(entry.playerNumber != myPlayerNum) {
+                remotes.append({entry.ip, ":", entry.port});
             }
         } else {
-            remotes.append({ip, ":", port});
+            remotes.append({entry.ip, ":", entry.port});
         }
     }
 
@@ -408,7 +388,6 @@ auto NetplayWindow::startSession() -> void {
         return;
     }
 
-    // Add spectator fillers
     vector<string> finalRemotes = remotes;
     if(isSpectator && config.spectatorPlayerCount > 1) {
         for(uint i = 0; i < config.spectatorPlayerCount - 1; i++) {

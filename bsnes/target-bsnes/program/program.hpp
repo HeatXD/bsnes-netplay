@@ -95,7 +95,7 @@ struct Program : Lock, Emulator::Platform {
     // netplay peer
     struct Peer {
       uint8 id = 0;
-      string nickname;
+      GekkoPlayerType type = GekkoLocalPlayer;
       struct connection {
         string addr;
       } conn;

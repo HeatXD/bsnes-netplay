@@ -1,3 +1,20 @@
+static auto netplayStateChecksum(const uint8_t* data, uint size) -> uint32_t {
+    static uint32_t table[256];
+    static bool initialized = false;
+    if(!initialized) {
+        initialized = true;
+        for(uint n = 0; n < 256; n++) {
+            uint32_t crc = n;
+            for(uint bit = 0; bit < 8; bit++) crc = (crc >> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+            table[n] = crc;
+        }
+    }
+
+    uint32_t crc = ~0u;
+    for(uint i = 0; i < size; i++) crc = (crc >> 8) ^ table[(crc ^ data[i]) & 0xff];
+    return ~crc;
+}
+
 auto Program::netplayMode(Netplay::Mode mode) -> void {
     if(netplay.mode == mode) return;
     if(mode == Netplay::Running) {
@@ -53,6 +70,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     netplay.config.max_spectators = spectators.size();
     netplay.config.input_prediction_window = rollback;
     netplay.config.spectator_delay = 5 * 60;
+    netplay.config.desync_detection = true;
 
     netplay.netStats.resize(inpBufferLength);
 
@@ -67,11 +85,11 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
         int remoteIdx = 0;
         for(int i = 0; i < numPlayers; i++) {
             auto peer = Netplay::Peer();
-            peer.nickname = {"P", i + 1};
             if(i == local) {
+                peer.type = GekkoLocalPlayer;
                 peer.id = gekko_add_actor(netplay.session, GekkoLocalPlayer, nullptr);
-                peer.conn.addr = "localhost";
             } else {
+                peer.type = GekkoRemotePlayer;
                 peer.conn.addr = remotes[remoteIdx++];
                 auto addr = GekkoNetAddress{ (void*)peer.conn.addr.data(), peer.conn.addr.size() };
                 peer.id = gekko_add_actor(netplay.session, GekkoRemotePlayer, &addr);
@@ -83,7 +101,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
         // add spectators
         for(int i = 0; i < spectators.size(); i++) {
             auto peer = Netplay::Peer();
-            peer.nickname = "spectator";
+            peer.type = GekkoSpectator;
             peer.conn.addr = spectators[i];
             auto addr = GekkoNetAddress{ (void*)peer.conn.addr.data(), peer.conn.addr.size() };
             peer.id = gekko_add_actor(netplay.session, GekkoSpectator, &addr);
@@ -92,7 +110,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     } else {
         // spectator: connect to the host player
         auto peer = Netplay::Peer();
-        peer.nickname = "P1";
+        peer.type = GekkoRemotePlayer;
         peer.conn.addr = remotes[0];
         auto addr = GekkoNetAddress{ (void*)peer.conn.addr.data(), peer.conn.addr.size() };
         peer.id = gekko_add_actor(netplay.session, GekkoRemotePlayer, &addr);
@@ -135,37 +153,42 @@ auto Program::netplayRun() -> bool {
     netplayTimesync();
 
     for(int i = 0; i < netplay.peers.size(); i++) {
-        if(netplay.peers[i].conn.addr != "localhost"){
-            if(netplay.peers[i].nickname != "spectator"){
-                uint8 peerId = netplay.peers[i].id;
-                gekko_network_stats(netplay.session, peerId, &netplay.netStats[peerId]);
-            }
-            continue;
-        };
-        Netplay::Buttons input = {};
-        netplayPollLocalInput(input);
-        gekko_add_local_input(netplay.session, netplay.peers[i].id, &input);
+        auto& peer = netplay.peers[i];
+        switch(peer.type) {
+        case GekkoLocalPlayer: {
+            Netplay::Buttons input = {};
+            netplayPollLocalInput(input);
+            gekko_add_local_input(netplay.session, peer.id, &input);
+            break;
+        }
+        case GekkoRemotePlayer:
+            gekko_network_stats(netplay.session, peer.id, &netplay.netStats[peer.id]);
+            break;
+        case GekkoSpectator:
+            break;
+        }
     }
     
     int count = 0;
     auto events = gekko_session_events(netplay.session, &count);
     for(int i = 0; i < count; i++) {
         auto event = events[i];
-        int type = event->type;
-        //print("EV: ", type);
-        if (event->type == GekkoPlayerDisconnected) {
-            auto disco = event->data.disconnected;
-            showMessage({"Peer Disconnected: ", disco.handle});
-            continue;
-        }
-        if (event->type == GekkoPlayerConnected) {
-            auto conn = event->data.connected;
-            showMessage({"Peer Connected: ", conn.handle});
-            continue;
-        }
-        if (event->type == GekkoSessionStarted) {
+        switch(event->type) {
+        case GekkoPlayerDisconnected:
+            showMessage({"Peer Disconnected: ", event->data.disconnected.handle});
+            break;
+        case GekkoPlayerConnected:
+            showMessage({"Peer Connected: ", event->data.connected.handle});
+            break;
+        case GekkoSessionStarted:
             showMessage({"Netplay Session Started"});
-            continue;
+            break;
+        case GekkoDesyncDetected:
+            showMessage({"Desync Detected! Frame: ", event->data.desynced.frame,
+                " Peer: ", event->data.desynced.remote_handle});
+            break;
+        default:
+            break;
         }
     }
 
@@ -177,10 +200,8 @@ auto Program::netplayRun() -> bool {
 
         switch (ev->type) {
         case GekkoSaveEvent:
-            // save the state ourselves
             serial = emulator->serialize(0);
-            // pass the frame number so we can maybe use it later to get the right state
-            *ev->data.save.checksum = 0; // maybe can be helpful later.
+            *ev->data.save.checksum = netplayStateChecksum(serial.data(), serial.size());
             *ev->data.save.state_len = serial.size();
             memcpy(ev->data.save.state, serial.data(), serial.size());
             break;

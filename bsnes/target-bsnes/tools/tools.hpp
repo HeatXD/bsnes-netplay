@@ -207,6 +207,13 @@ struct NetplayWindow : Window {
     auto show() -> void;
 
 private:
+    struct PlayerEntry {
+        bool isSpectator = false;
+        uint playerNumber = 0;
+        string ip;
+        string port;
+    };
+
     auto updateRole(Role role) -> void;
     auto autoPopulatePlayerList() -> void;
     auto addPlayer() -> void;
@@ -214,18 +221,22 @@ private:
     auto removeSelectedPlayer() -> void;
     auto startSession() -> void;
     auto roleToPlayerIndex(Role role) -> uint8;
-    
+
     auto isValidIP(const string& ip) -> bool;
     auto isLoopbackIP(const string& ip) -> bool;
     auto isValidRemoteIP(const string& ip) -> bool;
     auto isValidPort(const string& port) -> bool;
     auto setValidationColor(LineEdit& field, bool valid, bool hasText) -> void;
-    auto formatEntry(const string& role, const string& ip, const string& port) -> string;
-    auto parseEntry(const string& text, string& role, string& ip, string& port) -> bool;
+    auto roleText(const PlayerEntry& entry) -> string;
+    auto rowText(const PlayerEntry& entry) -> string;
+    auto rebuildList() -> void;
+    auto selectedIndex() -> maybe<uint>;
     auto updateEditingState() -> void;
     auto updateSelectedIP(const string& ip) -> void;
     auto updateSelectedPort(const string& port) -> void;
     auto sortPlayerList() -> void;
+
+    vector<PlayerEntry> entries;
 
     Role currentRole = Role::Player1;
     bool devMode = false;
