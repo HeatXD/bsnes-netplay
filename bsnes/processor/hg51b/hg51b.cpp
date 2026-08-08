@@ -124,6 +124,7 @@ auto HG51B::busy() const -> bool {
 auto HG51B::power() -> void {
   r = {};
   io = {};
+  for(auto& value : stack) value = 0;
 }
 
 }
