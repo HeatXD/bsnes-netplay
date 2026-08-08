@@ -29,7 +29,7 @@ struct System {
   bool runAhead = 0;
   bool rollback = 0;
 
-  //frames whose audio and video are thrown away; emulated state is produced regardless
+  //frames whose audio and video are thrown away
   inline auto discardOutput() const -> bool { return runAhead || rollback; }
 
 private:
@@ -47,6 +47,7 @@ private:
     bool fastPPU = false;
   } hacks;
 
+  auto serializeHeader(serializer&, bool synchronize) -> void;
   auto serializeAll(serializer&, bool synchronize, vector<Emulator::SerializeComponent>* map = nullptr) -> void;
   auto serializeInit(bool synchronize) -> uint;
 

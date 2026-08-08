@@ -5,19 +5,8 @@ auto System::serialize(bool synchronize) -> serializer {
   if(!information.serializeSize[synchronize]) return {};  //should never occur
   if(synchronize) runToSave();
 
-  uint signature = 0x31545342;
-  uint serializeSize = information.serializeSize[synchronize];
-  char version[16] = {};
-  char description[512] = {};
-  memory::copy(&version, (const char*)Emulator::SerializerVersion, Emulator::SerializerVersion.size());
-
-  serializer s(serializeSize);
-  s.integer(signature);
-  s.integer(serializeSize);
-  s.array(version);
-  s.array(description);
-  s.boolean(synchronize);
-  s.boolean(hacks.fastPPU);
+  serializer s(information.serializeSize[synchronize]);
+  serializeHeader(s, synchronize);
   serializeAll(s, synchronize);
   return s;
 }
@@ -50,12 +39,14 @@ auto System::unserialize(serializer& s) -> bool {
 //internal
 
 auto System::serializeAll(serializer& s, bool synchronize, vector<Emulator::SerializeComponent>* map) -> void {
+  bool hostState = false;
+
   //records the range fn() wrote as a named component; transparent without a map
   auto mark = [&](const string& name, auto&& fn) {
     if(!map) return fn();
     uint start = s.size();
     fn();
-    map->append({name, start, s.size() - start});
+    map->append({name, start, s.size() - start, hostState});
   };
 
   mark("random", [&] { random.serialize(s); });
@@ -96,6 +87,7 @@ auto System::serializeAll(serializer& s, bool synchronize, vector<Emulator::Seri
   mark("expansionPort", [&] { expansionPort.serialize(s); });
 
   if(!synchronize) {
+    hostState = true;
     mark("cpu.stack", [&] { cpu.serializeStack(s); });
     mark("smp.stack", [&] { smp.serializeStack(s); });
     mark("ppu.stack", [&] { ppu.serializeStack(s); });
@@ -106,24 +98,28 @@ auto System::serializeAll(serializer& s, bool synchronize, vector<Emulator::Seri
   }
 }
 
-//dry-run serialize recording where each component lands in the state
-auto System::serializeMap(bool synchronize) -> vector<Emulator::SerializeComponent> {
-  vector<Emulator::SerializeComponent> map;
-
-  serializer s;
-  uint signature = 0;
-  uint serializeSize = 0;
+auto System::serializeHeader(serializer& s, bool synchronize) -> void {
+  uint signature = 0x31545342;
+  uint serializeSize = information.serializeSize[synchronize];
   char version[16] = {};
   char description[512] = {};
+  memory::copy(&version, (const char*)Emulator::SerializerVersion, Emulator::SerializerVersion.size());
 
-  uint start = s.size();
   s.integer(signature);
   s.integer(serializeSize);
   s.array(version);
   s.array(description);
   s.boolean(synchronize);
   s.boolean(hacks.fastPPU);
-  map.append({"header", start, s.size() - start});
+}
+
+//dry-run serialize recording where each component lands in the state
+auto System::serializeMap(bool synchronize) -> vector<Emulator::SerializeComponent> {
+  vector<Emulator::SerializeComponent> map;
+
+  serializer s;
+  serializeHeader(s, synchronize);
+  map.append({"header", 0, s.size(), false});
 
   serializeAll(s, synchronize, &map);
   return map;
@@ -134,18 +130,7 @@ auto System::serializeMap(bool synchronize) -> vector<Emulator::SerializeCompone
 //as amount varies per game (eg different RAM sizes, special chips, etc.)
 auto System::serializeInit(bool synchronize) -> uint {
   serializer s;
-
-  uint signature = 0;
-  uint serializeSize = 0;
-  char version[16] = {};
-  char description[512] = {};
-
-  s.integer(signature);
-  s.integer(serializeSize);
-  s.array(version);
-  s.array(description);
-  s.boolean(synchronize);
-  s.boolean(hacks.fastPPU);
+  serializeHeader(s, synchronize);
   serializeAll(s, synchronize);
   return s.size();
 }

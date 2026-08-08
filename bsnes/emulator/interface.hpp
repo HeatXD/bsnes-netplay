@@ -6,6 +6,8 @@ struct SerializeComponent {
   string name;
   uint offset;
   uint size;
+  //host-side data (coroutine stacks): not reproducible across runs or machines
+  bool hostState;
 };
 
 struct Interface {
