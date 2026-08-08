@@ -51,6 +51,7 @@ auto DSP::power(bool reset) -> void {
   stream = Emulator::audio.createStream(2, system.apuFrequency() / 768.0);
 
   if(!reset) {
+    random.array(apuram, sizeof(apuram));
     if(!configuration.hacks.dsp.echoShadow) {
       spc_dsp.init(apuram, apuram);
     } else {
