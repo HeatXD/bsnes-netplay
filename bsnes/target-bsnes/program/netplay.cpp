@@ -1,27 +1,28 @@
-static auto netplayStateChecksum(const uint8_t* data, uint size) -> uint32_t {
-    static uint32_t table[256];
-    static bool initialized = false;
-    if(!initialized) {
-        initialized = true;
-        for(uint n = 0; n < 256; n++) {
-            uint32_t crc = n;
-            for(uint bit = 0; bit < 8; bit++) crc = (crc >> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-            table[n] = crc;
-        }
-    }
-
-    uint32_t crc = ~0u;
-    for(uint i = 0; i < size; i++) crc = (crc >> 8) ^ table[(crc ^ data[i]) & 0xff];
-    return ~crc;
-}
-
 auto Program::netplayMode(Netplay::Mode mode) -> void {
     if(netplay.mode == mode) return;
-    if(mode == Netplay::Running) {
+    if(mode == Netplay::Running || mode == Netplay::Stress) {
         // disable input when unfocused
         inputSettings.blockInput.setChecked();
     }
     netplay.mode = mode;
+}
+
+auto Program::netplayApplyDeterministicSettings() -> void {
+    emulator->configure("Hacks/Entropy", "None");
+    emulator->configure("Hacks/Hotfixes", "true");
+    emulator->configure("Hacks/CPU/Overclock", "100");
+    emulator->configure("Hacks/CPU/FastMath", "false");
+    emulator->configure("Hacks/PPU/Fast", "true");
+    emulator->configure("Hacks/PPU/NoSpriteLimit", "false");
+    emulator->configure("Hacks/PPU/NoVRAMBlocking", "false");
+    emulator->configure("Hacks/PPU/RenderCycle", "512");
+    emulator->configure("Hacks/DSP/Fast", "true");
+    emulator->configure("Hacks/DSP/Cubic", "false");
+    emulator->configure("Hacks/DSP/EchoShadow", "false");
+    emulator->configure("Hacks/Coprocessor/DelayedSync", "true");
+    emulator->configure("Hacks/Coprocessor/PreferHLE", "false");
+    emulator->configure("Hacks/SA1/Overclock", "100");
+    emulator->configure("Hacks/SuperFX/Overclock", "100");
 }
 
 auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators) -> void {
@@ -42,21 +43,7 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     emulator->connect(1, numPlayers > 2 ? Netplay::Device::Multitap : Netplay::Device::Gamepad);
 
     // force deterministic emulator settings so all peers match
-    emulator->configure("Hacks/Entropy", "None");
-    emulator->configure("Hacks/Hotfixes", "true");
-    emulator->configure("Hacks/CPU/Overclock", "100");
-    emulator->configure("Hacks/CPU/FastMath", "false");
-    emulator->configure("Hacks/PPU/Fast", "true");
-    emulator->configure("Hacks/PPU/NoSpriteLimit", "false");
-    emulator->configure("Hacks/PPU/NoVRAMBlocking", "false");
-    emulator->configure("Hacks/PPU/RenderCycle", "512");
-    emulator->configure("Hacks/DSP/Fast", "true");
-    emulator->configure("Hacks/DSP/Cubic", "false");
-    emulator->configure("Hacks/DSP/EchoShadow", "false");
-    emulator->configure("Hacks/Coprocessor/DelayedSync", "true");
-    emulator->configure("Hacks/Coprocessor/PreferHLE", "false");
-    emulator->configure("Hacks/SA1/Overclock", "100");
-    emulator->configure("Hacks/SuperFX/Overclock", "100");
+    netplayApplyDeterministicSettings();
 
     // power cycle with deterministic settings
     emulator->power();
@@ -73,6 +60,12 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     netplay.config.desync_detection = true;
 
     netplay.netStats.resize(inpBufferLength);
+    netplay.stateCache.resize(256);
+    netplayBuildChecksumRanges();
+    netplay.desyncCount = 0;
+    netplay.crossPeerDesyncCount = 0;
+    netplayResetDesyncDirectory();
+    netplayLogger.start();
 
     bool isSpectating = local >= numPlayers;
 
@@ -135,9 +128,14 @@ auto Program::netplayStop() -> void {
     netplay.peers.reset();
     netplay.inputs.reset();
     netplay.netStats.reset();
+    netplay.stateCache.reset();
+    netplay.checksumRanges.reset();
+    netplayLogger.stop();
 
     inputSettings.pauseEmulation.setChecked();
 
+    video.setBlocking(settings.video.blocking);
+    audio.setBlocking(settings.audio.blocking);
     program.mute &= ~Mute::Always;
 
     // restore normal audio speed
@@ -145,19 +143,36 @@ auto Program::netplayStop() -> void {
 }
 
 auto Program::netplayRun() -> bool {
-    if (netplay.mode != Netplay::Mode::Running) return false;
+    if (netplay.mode != Netplay::Mode::Running && netplay.mode != Netplay::Mode::Stress) return false;
 
-    gekko_network_poll(netplay.session);
+    if(netplay.mode == Netplay::Running) {
+        gekko_network_poll(netplay.session);
+    }
 
     netplay.counter++;
-    netplayTimesync();
+
+    if(netplay.mode == Netplay::Stress && stressTestFrameLimit && netplay.counter >= stressTestFrameLimit) {
+        netplayLogger.log({"[netplay] stress test finished after ", netplay.counter, " frames, ",
+            netplay.desyncCount, " local resim desync(s), final checksum ", hex(netplay.lastChecksum, 8L), "\n"});
+        netplayStop();
+        quit();
+        return true;
+    }
+
+    if(netplay.mode == Netplay::Running) {
+        netplayTimesync();
+    }
 
     for(int i = 0; i < netplay.peers.size(); i++) {
         auto& peer = netplay.peers[i];
         switch(peer.type) {
         case GekkoLocalPlayer: {
             Netplay::Buttons input = {};
-            netplayPollLocalInput(input);
+            if(netplay.mode == Netplay::Stress) {
+                input = netplayRandomInput(peer.id);
+            } else {
+                netplayPollLocalInput(input);
+            }
             gekko_add_local_input(netplay.session, peer.id, &input);
             break;
         }
@@ -183,10 +198,23 @@ auto Program::netplayRun() -> bool {
         case GekkoSessionStarted:
             showMessage({"Netplay Session Started"});
             break;
-        case GekkoDesyncDetected:
-            showMessage({"Desync Detected! Frame: ", event->data.desynced.frame,
-                " Peer: ", event->data.desynced.remote_handle});
+        case GekkoDesyncDetected: {
+            auto& desync = event->data.desynced;
+            showMessage({"Desync Detected! Frame: ", desync.frame, " Peer: ", desync.remote_handle});
+            netplayLogger.log({"[netplay] cross-peer desync at frame ", desync.frame, ": local checksum ",
+                hex(desync.local_checksum, 8L), " remote checksum ", hex(desync.remote_checksum, 8L),
+                " (peer ", desync.remote_handle, ")\n"});
+
+            uint slotIndex = netplay.stateCache.size() ? (uint)desync.frame % netplay.stateCache.size() : 0;
+            if(netplay.stateCache.size() && netplay.stateCache[slotIndex].frame == desync.frame) {
+                if(++netplay.crossPeerDesyncCount <= Netplay::DesyncDumpLimit) {
+                    netplayDumpState(desync.frame, "netplay-local", desync.local_checksum, netplay.stateCache[slotIndex].data);
+                }
+            } else {
+                netplayLogger.log({"[netplay]   local state for frame ", desync.frame, " is no longer cached\n"});
+            }
             break;
+        }
         default:
             break;
         }
@@ -204,16 +232,17 @@ auto Program::netplayRun() -> bool {
             *ev->data.save.checksum = netplayStateChecksum(serial.data(), serial.size());
             *ev->data.save.state_len = serial.size();
             memcpy(ev->data.save.state, serial.data(), serial.size());
+            netplayCacheState(ev->data.save.frame, *ev->data.save.checksum, serial.data(), serial.size());
             break;
         case GekkoLoadEvent:
             serial = serializer(ev->data.load.state, ev->data.load.state_len);
             emulator->unserialize(serial);
             program.mute |= Mute::Always;
-            emulator->setRunAhead(true);
+            emulator->setRollback(true);
             break;
         case GekkoAdvanceEvent:
             if (!ev->data.adv.rolling_back) {
-                emulator->setRunAhead(false);
+                emulator->setRollback(false);
                 program.mute &= ~Mute::Always;
             }
             memcpy(netplay.inputs.data(), ev->data.adv.inputs, sizeof(Netplay::Buttons) * netplay.config.num_players);

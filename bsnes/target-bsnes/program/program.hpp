@@ -90,7 +90,7 @@ struct Program : Lock, Emulator::Platform {
 
   // netplay.cpp
   struct Netplay {
-    enum Mode : uint { Inactive, Running } mode = Mode::Inactive;
+    enum Mode : uint { Inactive, Running, Stress } mode = Mode::Inactive;
     enum Device : uint { Gamepad = 1, Multitap = 3};
     // netplay peer
     struct Peer {
@@ -99,6 +99,15 @@ struct Program : Lock, Emulator::Platform {
       struct connection {
         string addr;
       } conn;
+    };
+    struct ChecksumRange {
+      uint offset = 0;
+      uint size = 0;
+    };
+    struct StateSnapshot {
+      int frame = -1;
+      uint32 checksum = 0;
+      vector<uint8> data;
     };
     struct Buttons {
       union u {
@@ -125,15 +134,31 @@ struct Program : Lock, Emulator::Platform {
     vector<GekkoNetworkStats> netStats;
     vector<Buttons> inputs;
     vector<Peer> peers;
+    vector<StateSnapshot> stateCache;
+    vector<ChecksumRange> checksumRanges;
+    enum : uint { DesyncDumpLimit = 3 };
+    uint desyncCount = 0;
+    uint32 lastChecksum = 0;
+    uint crossPeerDesyncCount = 0;
     GekkoConfig config = {};
     GekkoSession* session = nullptr;
     uint counter = 0;
     double speedScale = 1.0;
   } netplay;
   auto netplayMode(Netplay::Mode) -> void;
+  auto netplayApplyDeterministicSettings() -> void;
   auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator) -> void;
+  auto netplayStressStart(uint8 players, uint8 checkDistance) -> void;
+  auto netplayRandomInput(uint player) -> Netplay::Buttons;
   auto netplayStop() -> void;
   auto netplayRun() -> bool;
+  auto netplayBuildChecksumRanges() -> void;
+  auto netplayPrintStateMap() -> void;
+  auto netplayResetDesyncDirectory() -> void;
+  auto netplayStateChecksum(const uint8_t* data, uint size) -> uint32_t;
+  auto netplayCacheState(int frame, uint32 checksum, const uint8* data, uint size) -> void;
+  auto netplayReportLocalDesync(int frame, uint32 checksumA, const vector<uint8>& bufA, uint32 checksumB, const vector<uint8>& bufB) -> void;
+  auto netplayDumpState(int frame, const string& tag, uint32 checksum, const vector<uint8>& data) -> void;
   auto netplayPollLocalInput(Netplay::Buttons& localInput) -> void;
   auto netplayGetInput(uint port, uint device, uint button) -> int16;
   auto netplayTimesync() -> void;
@@ -247,6 +272,10 @@ public:
   string statusFrameRate;
 
   bool startFullScreen = false;
+  uint stressTestFrameLimit = 0;
+  uint8 stressTestCheckDistance = 8;
+  uint8 stressTestPlayers = 2;
+  uint64 stressTestSeed = 0;
 
   struct Mute { enum : uint {
     Always      = 1 << 1,

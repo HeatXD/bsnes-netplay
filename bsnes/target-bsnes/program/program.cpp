@@ -7,6 +7,7 @@
 #include "states.cpp"
 #include "movies.cpp"
 #include "rewind.cpp"
+#include "netplay-stress.cpp"
 #include "netplay.cpp"
 #include "video.cpp"
 #include "audio.cpp"
