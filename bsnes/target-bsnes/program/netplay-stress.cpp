@@ -145,26 +145,38 @@ static auto netplayComponentAt(const vector<Emulator::SerializeComponent>& map, 
     return "unknown";
 }
 
+//per instance, so two peers on one machine do not clobber each other
+auto Program::netplayDesyncPath() -> string {
+    return {Path::userSettings(), "bsnes/desyncs/", netplay.instance, "/"};
+}
+
 auto Program::netplayResetDesyncDirectory() -> void {
-    string path = {Path::userSettings(), "bsnes/desyncs/"};
+    string path = netplayDesyncPath();
     for(auto& name : directory::files(path, "*.state")) remove(string{path, name});
     directory::create(path);
 }
 
 auto Program::netplayDumpState(int frame, const string& tag, uint32 checksum, const vector<uint8>& data) -> void {
-    string name = {Path::userSettings(), "bsnes/desyncs/frame", frame, "-", tag, "-", hex(checksum, 8L), ".state"};
+    string name = {netplayDesyncPath(), "frame", frame, "-", tag, "-", hex(checksum, 8L), ".state"};
     netplayLogger.dump(name, data.data(), data.size());
     netplayLogger.log({"[netplay]   queued ", data.size(), " byte state -> ", name, "\n"});
+}
+
+//rewritten as desyncs happen, so a killed session still leaves a record
+auto Program::netplayReport(const string& line) -> void {
+    netplay.report.append(line, "\n");
+    netplayLogger.log({"[netplay] ", line, "\n"});
+    string path = {netplayDesyncPath(), "report.txt"};
+    netplayLogger.dump(path, (const uint8_t*)netplay.report.data(), netplay.report.size());
 }
 
 auto Program::netplayReportLocalDesync(int frame, uint32 checksumA, const vector<uint8>& bufA, uint32 checksumB, const vector<uint8>& bufB) -> void {
     netplay.desyncCount++;
 
-    string report = {"[netplay] local resim desync at frame ", frame, ": checksum ",
-        hex(checksumA, 8L), " -> ", hex(checksumB, 8L), "\n"};
+    string report = {"local resim desync frame ", frame, ": ", hex(checksumA, 8L), " -> ", hex(checksumB, 8L)};
 
     if(bufA.size() != bufB.size()) {
-        report.append("[netplay]   state size differs: ", bufA.size(), " vs ", bufB.size(), " bytes\n");
+        report.append("\n  state size differs: ", bufA.size(), " vs ", bufB.size(), " bytes");
     }
 
     uint size = min(bufA.size(), bufB.size());
@@ -179,10 +191,10 @@ auto Program::netplayReportLocalDesync(int frame, uint32 checksumA, const vector
 
     if(diffCount > 0) {
         auto map = emulator->serializeMap(false);
-        report.append("[netplay]   ", diffCount, " byte(s) differ, first at offset ", firstDiff,
-            " -> ", netplayComponentAt(map, firstDiff), "\n");
+        report.append("\n  ", diffCount, " byte(s) differ, first at offset ", firstDiff,
+            " -> ", netplayComponentAt(map, firstDiff));
     }
-    netplayLogger.log(report);
+    netplayReport(report);
 
     if(netplay.desyncCount <= Netplay::DesyncDumpLimit) {
         netplayDumpState(frame, "resim-a", checksumA, bufA);
@@ -230,6 +242,7 @@ auto Program::netplayRandomInput(uint player) -> Netplay::Buttons {
 
 auto Program::netplayStressStart(uint8 players, uint8 checkDistance) -> void {
     if(netplay.mode != Netplay::Mode::Inactive) return;
+    netplay.instance = "stress";
     if(!emulator->loaded()) return;
 
     players = max((uint8)1, min((uint8)5, players));
@@ -277,8 +290,9 @@ auto Program::netplayStressStart(uint8 players, uint8 checkDistance) -> void {
     program.mute |= Mute::Always;
 
     netplayMode(Netplay::Stress);
-    netplayLogger.log({"[netplay] stress test started: ", players, " player(s), check distance ", checkDistance,
-        ", seed ", stressTestSeed, ", state ", stateSize, " bytes\n"});
+    netplay.report = "";
+    netplayReport({"session: ", emulator->title(), " stress ", players, " player(s) check distance ", checkDistance,
+        " seed ", stressTestSeed, " state ", stateSize, " bytes"});
     netplayPrintStateMap();
     showMessage({"Desync stress test started (", players, "p)"});
 }

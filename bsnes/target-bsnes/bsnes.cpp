@@ -25,6 +25,9 @@ auto nall::main(Arguments arguments) -> void {
       program.startFullScreen = true;
     } else if(argument.beginsWith("--stress-test=")) {
       program.stressTestFrameLimit = argument.trimLeft("--stress-test=", 1L).natural();
+      program.stressTestEnabled = true;
+    } else if(argument.beginsWith("--frames=")) {
+      program.stressTestFrameLimit = argument.trimLeft("--frames=", 1L).natural();
     } else if(argument.beginsWith("--stress-distance=")) {
       program.stressTestCheckDistance = argument.trimLeft("--stress-distance=", 1L).natural();
     } else if(argument.beginsWith("--stress-players=")) {
@@ -60,7 +63,7 @@ auto nall::main(Arguments arguments) -> void {
   emulator = new SuperFamicom::Interface;
   program.create();
 
-  if(program.stressTestFrameLimit && emulator->loaded()) {
+  if(program.stressTestEnabled && emulator->loaded()) {
     program.netplayStressStart(program.stressTestPlayers, program.stressTestCheckDistance);
   }
 

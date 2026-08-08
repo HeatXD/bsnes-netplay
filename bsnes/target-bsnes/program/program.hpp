@@ -137,6 +137,8 @@ struct Program : Lock, Emulator::Platform {
     vector<StateSnapshot> stateCache;
     vector<ChecksumRange> checksumRanges;
     enum : uint { DesyncDumpLimit = 3 };
+    string instance = "single";
+    string report;
     uint desyncCount = 0;
     uint32 lastChecksum = 0;
     uint crossPeerDesyncCount = 0;
@@ -152,6 +154,8 @@ struct Program : Lock, Emulator::Platform {
   auto netplayRandomInput(uint player) -> Netplay::Buttons;
   auto netplayStop() -> void;
   auto netplayRun() -> bool;
+  auto netplayDesyncPath() -> string;
+  auto netplayReport(const string& line) -> void;
   auto netplayBuildChecksumRanges() -> void;
   auto netplayPrintStateMap() -> void;
   auto netplayResetDesyncDirectory() -> void;
@@ -273,6 +277,7 @@ public:
 
   bool startFullScreen = false;
   uint stressTestFrameLimit = 0;
+  bool stressTestEnabled = false;
   uint8 stressTestCheckDistance = 8;
   uint8 stressTestPlayers = 2;
   uint64 stressTestSeed = 0;

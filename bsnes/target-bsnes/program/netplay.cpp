@@ -28,6 +28,8 @@ auto Program::netplayApplyDeterministicSettings() -> void {
 auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators) -> void {
     if(netplay.mode != Netplay::Mode::Inactive) return;
 
+    netplay.instance = {"p", port};
+
     int numPlayers = remotes.size();
 
     // add local player
@@ -66,6 +68,9 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     netplay.crossPeerDesyncCount = 0;
     netplayResetDesyncDirectory();
     netplayLogger.start();
+    netplay.report = "";
+    netplayReport({"session: ", emulator->title(), " port ", port, " local ", local, " players ", numPlayers,
+        " rollback ", rollback, " delay ", delay, " state ", stateSize, " bytes"});
 
     bool isSpectating = local >= numPlayers;
 
@@ -151,8 +156,8 @@ auto Program::netplayRun() -> bool {
 
     netplay.counter++;
 
-    if(netplay.mode == Netplay::Stress && stressTestFrameLimit && netplay.counter >= stressTestFrameLimit) {
-        netplayLogger.log({"[netplay] stress test finished after ", netplay.counter, " frames, ",
+    if(stressTestFrameLimit && netplay.counter >= stressTestFrameLimit) {
+        netplayLogger.log({"[netplay] finished after ", netplay.counter, " frames, ",
             netplay.desyncCount, " local resim desync(s), final checksum ", hex(netplay.lastChecksum, 8L), "\n"});
         netplayStop();
         quit();
@@ -191,19 +196,21 @@ auto Program::netplayRun() -> bool {
         switch(event->type) {
         case GekkoPlayerDisconnected:
             showMessage({"Peer Disconnected: ", event->data.disconnected.handle});
+            netplayLogger.log({"[netplay] peer disconnected: ", event->data.disconnected.handle, "\n"});
             break;
         case GekkoPlayerConnected:
             showMessage({"Peer Connected: ", event->data.connected.handle});
+            netplayLogger.log({"[netplay] peer connected: ", event->data.connected.handle, "\n"});
             break;
         case GekkoSessionStarted:
             showMessage({"Netplay Session Started"});
+            netplayLogger.log("[netplay] session started\n");
             break;
         case GekkoDesyncDetected: {
             auto& desync = event->data.desynced;
             showMessage({"Desync Detected! Frame: ", desync.frame, " Peer: ", desync.remote_handle});
-            netplayLogger.log({"[netplay] cross-peer desync at frame ", desync.frame, ": local checksum ",
-                hex(desync.local_checksum, 8L), " remote checksum ", hex(desync.remote_checksum, 8L),
-                " (peer ", desync.remote_handle, ")\n"});
+            netplayReport({"cross-peer desync frame ", desync.frame, " peer ", desync.remote_handle,
+                " local ", hex(desync.local_checksum, 8L), " remote ", hex(desync.remote_checksum, 8L)});
 
             uint slotIndex = netplay.stateCache.size() ? (uint)desync.frame % netplay.stateCache.size() : 0;
             if(netplay.stateCache.size() && netplay.stateCache[slotIndex].frame == desync.frame) {
@@ -211,7 +218,7 @@ auto Program::netplayRun() -> bool {
                     netplayDumpState(desync.frame, "netplay-local", desync.local_checksum, netplay.stateCache[slotIndex].data);
                 }
             } else {
-                netplayLogger.log({"[netplay]   local state for frame ", desync.frame, " is no longer cached\n"});
+                netplayReport({"  frame ", desync.frame, " state no longer cached"});
             }
             break;
         }
