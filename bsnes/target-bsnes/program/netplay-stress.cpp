@@ -8,7 +8,6 @@ struct NetplayLogger {
         std::lock_guard<std::mutex> lock(_mutex);
         if(_running) return;
         _running = true;
-        _dropped = 0;
         _worker = std::thread([this] { run(); });
     }
 
@@ -35,7 +34,7 @@ struct NetplayLogger {
         {
             std::lock_guard<std::mutex> lock(_mutex);
             if(!_running) return;
-            if(_queuedBytes + size > QueueLimit) { _dropped++; return; }
+            if(_queuedBytes + size > QueueLimit) return;
             Entry entry;
             entry.path = move(path);
             entry.data.resize(size);
@@ -86,7 +85,6 @@ private:
     std::deque<Entry> _queue;
     bool _running = false;
     uint _queuedBytes = 0;
-    uint _dropped = 0;
 };
 
 static NetplayLogger netplayLogger;
@@ -107,20 +105,43 @@ static auto netplayChecksumUpdate(uint32_t crc, const uint8_t* data, uint size) 
     return crc;
 }
 
-//coroutine stacks hold host pointers and stale bytes: never the same twice
-auto Program::netplayBuildChecksumRanges() -> void {
+//detection costs a full state copy and checksum per save, so it stays opt-in
+auto Program::netplayBeginDiagnostics(bool detectDesyncs) -> void {
+    netplay.detectDesyncs = detectDesyncs;
+    netplay.desyncCount = 0;
+    netplay.crossPeerDesyncCount = 0;
+    netplay.report = "";
+    netplayLogger.start();
+    if(!detectDesyncs) return;
+
+    netplay.stateCache.resize(Netplay::StateCacheFrames);
+    netplayBuildStateMap();
+    netplayResetDesyncDirectory();
+}
+
+auto Program::netplayBuildStateMap() -> void {
+    netplay.stateMap = emulator->serializeMap(false);
+
+    //kept ranges are adjacent, so they collapse into a handful of spans
     netplay.checksumRanges.reset();
-    for(auto& component : emulator->serializeMap(false)) {
-        if(component.name.endsWith(".stack")) continue;
+    for(auto& component : netplay.stateMap) {
+        if(component.hostState) continue;
+        if(netplay.checksumRanges) {
+            auto& last = netplay.checksumRanges.right();
+            if(last.offset + last.size == component.offset) {
+                last.size += component.size;
+                continue;
+            }
+        }
         netplay.checksumRanges.append({component.offset, component.size});
     }
 }
 
 auto Program::netplayPrintStateMap() -> void {
     netplayLogger.log("[netplay] serialize layout:\n");
-    for(auto& component : emulator->serializeMap(false)) {
+    for(auto& component : netplay.stateMap) {
         netplayLogger.log({"[netplay]   ", pad(component.name, -24), " offset ", pad(component.offset, 10),
-            "  size ", component.size, component.name.endsWith(".stack") ? "  (excluded from checksum)" : "", "\n"});
+            "  size ", component.size, component.hostState ? "  (excluded from checksum)" : "", "\n"});
     }
 }
 
@@ -152,7 +173,7 @@ auto Program::netplayDesyncPath() -> string {
 
 auto Program::netplayResetDesyncDirectory() -> void {
     string path = netplayDesyncPath();
-    for(auto& name : directory::files(path, "*.state")) remove(string{path, name});
+    for(auto& name : directory::files(path, "*.state")) file::remove({path, name});
     directory::create(path);
 }
 
@@ -164,8 +185,10 @@ auto Program::netplayDumpState(int frame, const string& tag, uint32 checksum, co
 
 //rewritten as desyncs happen, so a killed session still leaves a record
 auto Program::netplayReport(const string& line) -> void {
-    netplay.report.append(line, "\n");
     netplayLogger.log({"[netplay] ", line, "\n"});
+    if(!netplay.detectDesyncs) return;
+
+    netplay.report.append(line, "\n");
     string path = {netplayDesyncPath(), "report.txt"};
     netplayLogger.dump(path, (const uint8_t*)netplay.report.data(), netplay.report.size());
 }
@@ -190,7 +213,7 @@ auto Program::netplayReportLocalDesync(int frame, uint32 checksumA, const vector
     }
 
     if(diffCount > 0) {
-        auto map = emulator->serializeMap(false);
+        auto& map = netplay.stateMap;
         report.append("\n  ", diffCount, " byte(s) differ, first at offset ", firstDiff,
             " -> ", netplayComponentAt(map, firstDiff));
     }
@@ -268,12 +291,7 @@ auto Program::netplayStressStart(uint8 players, uint8 checkDistance) -> void {
     netplay.config.desync_detection = true;
     netplay.config.check_distance = checkDistance;
 
-    netplay.stateCache.resize(256);
-    netplayBuildChecksumRanges();
-    netplay.desyncCount = 0;
-    netplay.crossPeerDesyncCount = 0;
-    netplayResetDesyncDirectory();
-    netplayLogger.start();
+    netplayBeginDiagnostics(true);
 
     gekko_create(&netplay.session, GekkoStressSession);
     gekko_start(netplay.session, &netplay.config);
@@ -291,7 +309,6 @@ auto Program::netplayStressStart(uint8 players, uint8 checkDistance) -> void {
     program.mute |= Mute::Always;
 
     netplayMode(Netplay::Stress);
-    netplay.report = "";
     netplayReport({"session: ", emulator->title(), " stress ", players, " player(s) check distance ", checkDistance,
         " seed ", stressTestSeed, " state ", stateSize, " bytes"});
     netplayPrintStateMap();

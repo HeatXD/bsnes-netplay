@@ -25,7 +25,7 @@ auto Program::netplayApplyDeterministicSettings() -> void {
     emulator->configure("Hacks/SuperFX/Overclock", "100");
 }
 
-auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators) -> void {
+auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators, bool detectDesyncs) -> void {
     if(netplay.mode != Netplay::Mode::Inactive) return;
 
     netplay.instance = {"p", port};
@@ -59,18 +59,13 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     netplay.config.max_spectators = spectators.size();
     netplay.config.input_prediction_window = rollback;
     netplay.config.spectator_delay = 5 * 60;
-    netplay.config.desync_detection = true;
+    netplay.config.desync_detection = detectDesyncs;
 
     netplay.netStats.resize(inpBufferLength);
-    netplay.stateCache.resize(256);
-    netplayBuildChecksumRanges();
-    netplay.desyncCount = 0;
-    netplay.crossPeerDesyncCount = 0;
-    netplayResetDesyncDirectory();
-    netplayLogger.start();
-    netplay.report = "";
+    netplayBeginDiagnostics(detectDesyncs);
     netplayReport({"session: ", emulator->title(), " port ", port, " local ", local, " players ", numPlayers,
-        " rollback ", rollback, " delay ", delay, " state ", stateSize, " bytes"});
+        " rollback ", rollback, " delay ", delay, " state ", stateSize, " bytes",
+        detectDesyncs ? "" : " (desync detection off)"});
 
     bool isSpectating = local >= numPlayers;
 
@@ -237,7 +232,7 @@ auto Program::netplayRun() -> bool {
         switch (ev->type) {
         case GekkoSaveEvent:
             serial = emulator->serialize(0);
-            *ev->data.save.checksum = netplayStateChecksum(serial.data(), serial.size());
+            *ev->data.save.checksum = netplay.detectDesyncs ? netplayStateChecksum(serial.data(), serial.size()) : 0;
             *ev->data.save.state_len = serial.size();
             memcpy(ev->data.save.state, serial.data(), serial.size());
             netplayCacheState(ev->data.save.frame, *ev->data.save.checksum, serial.data(), serial.size());

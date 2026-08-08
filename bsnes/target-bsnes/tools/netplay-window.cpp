@@ -183,6 +183,12 @@ auto NetplayWindow::create() -> void {
         if(ip) setValidationColor(editIPValue, isValidRemoteIP(ip), true);
     });
 
+    desyncCheck.setText("Desync Detection").setChecked(false).setToolTip(
+        "Compares a checksum of the emulated state with the other players each frame.\n"
+        "Desyncs are written to the desyncs folder alongside the states that caused them.\n\n"
+        "Costs performance, so leave this off unless you are hunting a desync."
+    ).onToggle([&] { config.desyncDetection = desyncCheck.checked(); });
+
     btnStart.setText("Start Netplay").setIcon(Icon::Media::Play).onActivate([&] { startSession(); });
     btnCancel.setText("Cancel").setIcon(Icon::Action::Quit).onActivate([&] { doClose(); });
 
@@ -396,7 +402,7 @@ auto NetplayWindow::startSession() -> void {
     }
 
     program.netplayStart(config.localPort, localPlayer, config.rollbackframes,
-                        config.localDelay, finalRemotes, spectators);
+                        config.localDelay, finalRemotes, spectators, config.desyncDetection);
     doClose();
 }
 

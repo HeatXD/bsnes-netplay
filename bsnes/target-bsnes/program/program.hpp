@@ -137,9 +137,12 @@ struct Program : Lock, Emulator::Platform {
     vector<Peer> peers;
     vector<StateSnapshot> stateCache;
     vector<ChecksumRange> checksumRanges;
-    enum : uint { DesyncDumpLimit = 3 };
+    vector<Emulator::SerializeComponent> stateMap;
+    //only frames within the rollback window are ever compared; each slot holds a full state
+    enum : uint { StateCacheFrames = 32, DesyncDumpLimit = 3 };
     string instance = "single";
     string report;
+    bool detectDesyncs = false;
     uint desyncCount = 0;
     uint32 lastChecksum = 0;
     uint crossPeerDesyncCount = 0;
@@ -150,14 +153,15 @@ struct Program : Lock, Emulator::Platform {
   } netplay;
   auto netplayMode(Netplay::Mode) -> void;
   auto netplayApplyDeterministicSettings() -> void;
-  auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator) -> void;
+  auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator, bool detectDesyncs) -> void;
   auto netplayStressStart(uint8 players, uint8 checkDistance) -> void;
   auto netplayRandomInput(uint player) -> Netplay::Buttons;
   auto netplayStop() -> void;
   auto netplayRun() -> bool;
   auto netplayDesyncPath() -> string;
   auto netplayReport(const string& line) -> void;
-  auto netplayBuildChecksumRanges() -> void;
+  auto netplayBeginDiagnostics(bool detectDesyncs) -> void;
+  auto netplayBuildStateMap() -> void;
   auto netplayPrintStateMap() -> void;
   auto netplayResetDesyncDirectory() -> void;
   auto netplayStateChecksum(const uint8_t* data, uint size) -> uint32_t;

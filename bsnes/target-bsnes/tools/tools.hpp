@@ -311,6 +311,8 @@ private:
     HorizontalLayout bottomControlsLayout{&layout, Size{~0, 0}};
       // Dev mode checkbox
       CheckLabel devModeCheck{&bottomControlsLayout, Size{0, 0}};
+      Widget bottomCheckSpacer{&bottomControlsLayout, Size{10_sx, 0}};
+      CheckLabel desyncCheck{&bottomControlsLayout, Size{0, 0}};
       Widget bottomMiddleSpacer{&bottomControlsLayout, Size{~0, 0}};
       // Action buttons
       Button btnStart{&bottomControlsLayout, Size{120_sx, 0}};
@@ -322,6 +324,7 @@ public:
         uint rollbackframes = 8;
         uint localDelay = 2;
         uint spectatorPlayerCount = 2;
+        bool desyncDetection = false;
     } config;
 };
 
