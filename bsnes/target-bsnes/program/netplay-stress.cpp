@@ -208,7 +208,7 @@ auto Program::netplayCacheState(int frame, uint32 checksum, const uint8* data, u
     if(!netplay.stateCache.size()) return;
 
     auto& slot = netplay.stateCache[(uint)frame % netplay.stateCache.size()];
-    if(slot.frame == frame && slot.checksum != checksum) {
+    if(slot.valid && slot.frame == frame && slot.checksum != checksum) {
         vector<uint8> current;
         current.resize(size);
         memory::copy(current.data(), data, size);
@@ -216,6 +216,7 @@ auto Program::netplayCacheState(int frame, uint32 checksum, const uint8* data, u
     }
 
     netplay.lastChecksum = checksum;
+    slot.valid = true;
     slot.frame = frame;
     slot.checksum = checksum;
     slot.data.resize(size);

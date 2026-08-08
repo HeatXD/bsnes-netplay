@@ -213,7 +213,8 @@ auto Program::netplayRun() -> bool {
                 " local ", hex(desync.local_checksum, 8L), " remote ", hex(desync.remote_checksum, 8L)});
 
             uint slotIndex = netplay.stateCache.size() ? (uint)desync.frame % netplay.stateCache.size() : 0;
-            if(netplay.stateCache.size() && netplay.stateCache[slotIndex].frame == desync.frame) {
+            if(netplay.stateCache.size() && netplay.stateCache[slotIndex].valid
+            && netplay.stateCache[slotIndex].frame == desync.frame) {
                 if(++netplay.crossPeerDesyncCount <= Netplay::DesyncDumpLimit) {
                     netplayDumpState(desync.frame, "netplay-local", desync.local_checksum, netplay.stateCache[slotIndex].data);
                 }

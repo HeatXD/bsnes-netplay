@@ -105,7 +105,8 @@ struct Program : Lock, Emulator::Platform {
       uint size = 0;
     };
     struct StateSnapshot {
-      int frame = -1;
+      bool valid = false;
+      int frame = 0;
       uint32 checksum = 0;
       vector<uint8> data;
     };
