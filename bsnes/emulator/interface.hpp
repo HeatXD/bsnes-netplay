@@ -2,6 +2,12 @@
 
 namespace Emulator {
 
+struct SerializeComponent {
+  string name;
+  uint offset;
+  uint size;
+};
+
 struct Interface {
   struct Information {
     string manufacturer;
@@ -83,6 +89,7 @@ struct Interface {
   //state functions
   virtual auto serialize(bool synchronize = true) -> serializer { return {}; }
   virtual auto unserialize(serializer&) -> bool { return false; }
+  virtual auto serializeMap(bool synchronize = true) -> vector<SerializeComponent> { return {}; }
 
   //cheat functions
   virtual auto read(uint24 address) -> uint8 { return 0; }
@@ -104,6 +111,7 @@ struct Interface {
 
   virtual auto runAhead() -> bool { return false; }
   virtual auto setRunAhead(bool runAhead) -> void {}
+  virtual auto setRollback(bool rollback) -> void {}
 };
 
 }

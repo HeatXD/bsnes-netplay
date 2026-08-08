@@ -247,6 +247,10 @@ auto Interface::unserialize(serializer& s) -> bool {
   return system.unserialize(s);
 }
 
+auto Interface::serializeMap(bool synchronize) -> vector<Emulator::SerializeComponent> {
+  return system.serializeMap(synchronize);
+}
+
 auto Interface::read(uint24 address) -> uint8 {
   return cpu.readDisassembler(address);
 }
@@ -339,6 +343,10 @@ auto Interface::runAhead() -> bool {
 
 auto Interface::setRunAhead(bool runAhead) -> void {
   system.runAhead = runAhead;
+}
+
+auto Interface::setRollback(bool rollback) -> void {
+  system.rollback = rollback;
 }
 
 }
