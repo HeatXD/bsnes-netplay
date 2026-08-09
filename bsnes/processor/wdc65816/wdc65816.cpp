@@ -32,6 +32,10 @@ auto WDC65816::power() -> void {
   r.mdr = 0x00;
 
   r.vector = 0xfffc;  //reset vector address
+
+  r.u.d = 0;
+  r.v.d = 0;
+  r.w.d = 0;
 }
 
 #include "registers.hpp"

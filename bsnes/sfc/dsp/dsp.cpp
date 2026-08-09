@@ -18,7 +18,7 @@ auto DSP::main() -> void {
 
   int count = spc_dsp.sample_count();
   if(count > 0) {
-    if(!system.runAhead)
+    if(!system.discardOutput())
     for(uint n = 0; n < count; n += 2) {
       float left  = samplebuffer[n + 0] / 32768.0f;
       float right = samplebuffer[n + 1] / 32768.0f;
@@ -51,6 +51,7 @@ auto DSP::power(bool reset) -> void {
   stream = Emulator::audio.createStream(2, system.apuFrequency() / 768.0);
 
   if(!reset) {
+    random.array(apuram, sizeof(apuram));
     if(!configuration.hacks.dsp.echoShadow) {
       spc_dsp.init(apuram, apuram);
     } else {

@@ -1,10 +1,6 @@
-auto PPU::Line::renderObject(PPU::IO::Object& self) -> void {
+//builds the item/tile lists and the $213e overflow flags; runs even when this line is not rendered
+auto PPU::Line::evaluateObject(PPU::IO::Object& self) -> void {
   if(!self.aboveEnable && !self.belowEnable) return;
-
-  bool windowAbove[256];
-  bool windowBelow[256];
-  renderWindow(self.window, self.window.aboveEnable, windowAbove);
-  renderWindow(self.window, self.window.belowEnable, windowBelow);
 
   uint itemCount = 0;
   uint tileCount = 0;
@@ -92,8 +88,24 @@ auto PPU::Line::renderObject(PPU::IO::Object& self) -> void {
     }
   }
 
-  ppu.io.obj.rangeOver |= itemCount > ppu.ItemLimit;
-  ppu.io.obj.timeOver  |= tileCount > ppu.TileLimit;
+  objRangeOver |= itemCount > ppu.ItemLimit;
+  objTimeOver  |= tileCount > ppu.TileLimit;
+}
+
+auto PPU::Line::evaluateObjects() -> void {
+  if(io.displayDisable) return;
+  evaluateObject(io.obj);
+}
+
+auto PPU::Line::renderObject(PPU::IO::Object& self) -> void {
+  if(!self.aboveEnable && !self.belowEnable) return;
+
+  bool windowAbove[256];
+  bool windowBelow[256];
+  renderWindow(self.window, self.window.aboveEnable, windowAbove);
+  renderWindow(self.window, self.window.belowEnable, windowBelow);
+
+  evaluateObject(self);
 
   uint8_t palette[256] = {};
   uint8_t priority[256] = {};

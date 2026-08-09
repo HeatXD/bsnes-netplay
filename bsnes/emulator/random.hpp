@@ -11,7 +11,8 @@ struct Random {
 
   auto entropy(Entropy entropy) -> void {
     _entropy = entropy;
-    seed();
+    //_state is serialized, so a clock seed would leak into save states
+    _entropy == Entropy::None ? seed(0) : seed();
   }
 
   auto seed(maybe<uint32> seed = nothing, maybe<uint32> sequence = nothing) -> void {

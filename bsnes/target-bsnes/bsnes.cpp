@@ -23,6 +23,17 @@ auto nall::main(Arguments arguments) -> void {
   for(auto argument : arguments) {
     if(argument == "--fullscreen") {
       program.startFullScreen = true;
+    } else if(argument.beginsWith("--stress-test=")) {
+      program.stressTestFrameLimit = argument.trimLeft("--stress-test=", 1L).natural();
+      program.stressTestEnabled = true;
+    } else if(argument.beginsWith("--frames=")) {
+      program.stressTestFrameLimit = argument.trimLeft("--frames=", 1L).natural();
+    } else if(argument.beginsWith("--stress-distance=")) {
+      program.stressTestCheckDistance = argument.trimLeft("--stress-distance=", 1L).natural();
+    } else if(argument.beginsWith("--stress-players=")) {
+      program.stressTestPlayers = argument.trimLeft("--stress-players=", 1L).natural();
+    } else if(argument.beginsWith("--stress-seed=")) {
+      program.stressTestSeed = argument.trimLeft("--stress-seed=", 1L).natural();
     } else if(argument.beginsWith("--locale=")) {
       Application::locale().scan(locate("Locale/"));
       Application::locale().select(argument.trimLeft("--locale=", 1L));
@@ -51,6 +62,10 @@ auto nall::main(Arguments arguments) -> void {
   Instances::netplayWindow.construct();
   emulator = new SuperFamicom::Interface;
   program.create();
+
+  if(program.stressTestEnabled && emulator->loaded()) {
+    program.netplayStressStart(program.stressTestPlayers, program.stressTestCheckDistance);
+  }
 
   Application::run();
   Instances::presentation.destruct();

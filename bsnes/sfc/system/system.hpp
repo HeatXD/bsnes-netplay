@@ -22,10 +22,15 @@ struct System {
   //serialization.cpp
   auto serialize(bool synchronize) -> serializer;
   auto unserialize(serializer&) -> bool;
+  auto serializeMap(bool synchronize) -> vector<Emulator::SerializeComponent>;
 
   uint frameSkip = 0;
   uint frameCounter = 0;
   bool runAhead = 0;
+  bool rollback = 0;
+
+  //frames whose audio and video are thrown away
+  inline auto discardOutput() const -> bool { return runAhead || rollback; }
 
 private:
   Emulator::Interface* interface = nullptr;
@@ -42,7 +47,8 @@ private:
     bool fastPPU = false;
   } hacks;
 
-  auto serializeAll(serializer&, bool synchronize) -> void;
+  auto serializeHeader(serializer&, bool synchronize) -> void;
+  auto serializeAll(serializer&, bool synchronize, vector<Emulator::SerializeComponent>* map = nullptr) -> void;
   auto serializeInit(bool synchronize) -> uint;
 
   friend class Cartridge;

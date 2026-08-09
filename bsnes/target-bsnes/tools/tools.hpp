@@ -207,6 +207,13 @@ struct NetplayWindow : Window {
     auto show() -> void;
 
 private:
+    struct PlayerEntry {
+        bool isSpectator = false;
+        uint playerNumber = 0;
+        string ip;
+        string port;
+    };
+
     auto updateRole(Role role) -> void;
     auto autoPopulatePlayerList() -> void;
     auto addPlayer() -> void;
@@ -214,18 +221,22 @@ private:
     auto removeSelectedPlayer() -> void;
     auto startSession() -> void;
     auto roleToPlayerIndex(Role role) -> uint8;
-    
+
     auto isValidIP(const string& ip) -> bool;
     auto isLoopbackIP(const string& ip) -> bool;
     auto isValidRemoteIP(const string& ip) -> bool;
     auto isValidPort(const string& port) -> bool;
     auto setValidationColor(LineEdit& field, bool valid, bool hasText) -> void;
-    auto formatEntry(const string& role, const string& ip, const string& port) -> string;
-    auto parseEntry(const string& text, string& role, string& ip, string& port) -> bool;
+    auto roleText(const PlayerEntry& entry) -> string;
+    auto rowText(const PlayerEntry& entry) -> string;
+    auto rebuildList() -> void;
+    auto selectedIndex() -> maybe<uint>;
     auto updateEditingState() -> void;
     auto updateSelectedIP(const string& ip) -> void;
     auto updateSelectedPort(const string& port) -> void;
     auto sortPlayerList() -> void;
+
+    vector<PlayerEntry> entries;
 
     Role currentRole = Role::Player1;
     bool devMode = false;
@@ -300,6 +311,8 @@ private:
     HorizontalLayout bottomControlsLayout{&layout, Size{~0, 0}};
       // Dev mode checkbox
       CheckLabel devModeCheck{&bottomControlsLayout, Size{0, 0}};
+      Widget bottomCheckSpacer{&bottomControlsLayout, Size{10_sx, 0}};
+      CheckLabel desyncCheck{&bottomControlsLayout, Size{0, 0}};
       Widget bottomMiddleSpacer{&bottomControlsLayout, Size{~0, 0}};
       // Action buttons
       Button btnStart{&bottomControlsLayout, Size{120_sx, 0}};
@@ -311,6 +324,7 @@ public:
         uint rollbackframes = 8;
         uint localDelay = 2;
         uint spectatorPlayerCount = 2;
+        bool desyncDetection = false;
     } config;
 };
 

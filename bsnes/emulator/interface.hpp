@@ -2,6 +2,14 @@
 
 namespace Emulator {
 
+struct SerializeComponent {
+  string name;
+  uint offset;
+  uint size;
+  //host-side data (coroutine stacks): not reproducible across runs or machines
+  bool hostState;
+};
+
 struct Interface {
   struct Information {
     string manufacturer;
@@ -83,6 +91,7 @@ struct Interface {
   //state functions
   virtual auto serialize(bool synchronize = true) -> serializer { return {}; }
   virtual auto unserialize(serializer&) -> bool { return false; }
+  virtual auto serializeMap(bool synchronize = true) -> vector<SerializeComponent> { return {}; }
 
   //cheat functions
   virtual auto read(uint24 address) -> uint8 { return 0; }
@@ -104,6 +113,7 @@ struct Interface {
 
   virtual auto runAhead() -> bool { return false; }
   virtual auto setRunAhead(bool runAhead) -> void {}
+  virtual auto setRollback(bool rollback) -> void {}
 };
 
 }

@@ -190,6 +190,16 @@ auto Presentation::create() -> void {
   stopNetplay.setIcon(Icon::Prompt::Question).setText({tr("Stop")}).onActivate([&] {
     program.netplayStop();
   });
+  stressNetplay.setIcon(Icon::Action::Refresh).setText({tr("Desync Stress Test")}).onActivate([&] {
+    if(program.netplay.mode != Program::Netplay::Inactive) {
+      MessageDialog("Please stop netplay before starting a desync stress test.")
+      .setTitle("Netplay")
+      .setAlignment(*this)
+      .warning();
+      return;
+    }
+    program.netplayStressStart(2, 8);
+  });
   helpMenu.setText(tr("Help"));
   aboutSameBoy.setIcon(Icon::Prompt::Question).setText({tr("About SameBoy"), " ..."}).onActivate([&] {
     AboutDialog()

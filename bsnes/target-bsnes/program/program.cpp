@@ -7,6 +7,7 @@
 #include "states.cpp"
 #include "movies.cpp"
 #include "rewind.cpp"
+#include "netplay-stress.cpp"
 #include "netplay.cpp"
 #include "video.cpp"
 #include "audio.cpp"
@@ -83,8 +84,12 @@ auto Program::main() -> void {
 
   if(Application::modal()) {
     audio.clear();
+    //keep netplay alive during window drags/resizes, muted since frame pacing is irregular here
+    mute |= Mute::Modal;
+    netplayRun();
     return;
   }
+  mute &= ~Mute::Modal;
 
   inputManager.poll();
   inputManager.pollHotkeys();

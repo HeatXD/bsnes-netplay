@@ -120,6 +120,7 @@ struct Presentation : Window {
     Menu netplayMenu{&menuBar};
         MenuItem setupNetplay{&netplayMenu};
         MenuItem stopNetplay{&netplayMenu};
+        MenuItem stressNetplay{&netplayMenu};
     Menu helpMenu{&menuBar};
       MenuItem aboutSameBoy{&helpMenu};
       MenuItem aboutBsnes{&helpMenu};

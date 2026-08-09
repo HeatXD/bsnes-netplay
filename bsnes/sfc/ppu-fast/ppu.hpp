@@ -21,6 +21,7 @@ struct PPU : PPUcounter {
   alwaysinline auto deinterlace() const -> bool;
   alwaysinline auto renderCycle() const -> uint;
   alwaysinline auto noVRAMBlocking() const -> bool;
+  inline auto renderPixels() const -> bool { return system.frameCounter == 0 && !system.discardOutput(); }
 
   //ppu.cpp
   PPU();
@@ -320,6 +321,8 @@ public:
 
     //object.cpp
     auto renderObject(PPU::IO::Object&) -> void;
+    auto evaluateObject(PPU::IO::Object&) -> void;
+    auto evaluateObjects() -> void;
 
     //window.cpp
     auto renderWindow(PPU::IO::WindowLayer&, bool enable, bool output[256]) -> void;
@@ -328,6 +331,10 @@ public:
   //unserialized:
     uint y;  //constant
     bool fieldID;
+
+    //per-line sprite overflow, folded into io.obj serially by flush()
+    bool objRangeOver = 0;
+    bool objTimeOver = 0;
 
     IO io;
     uint16 cgram[256];

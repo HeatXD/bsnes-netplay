@@ -13,6 +13,37 @@ Cx4 cx4;
 auto Cx4::power() -> void {
   memset(ram, 0, 0x0c00);
   memset(reg, 0, 0x0100);
+
+  r0 = 0;
+  r1 = 0;
+  r2 = 0;
+  r3 = 0;
+  r4 = 0;
+  r5 = 0;
+  r6 = 0;
+  r7 = 0;
+  r8 = 0;
+  r9 = 0;
+  r10 = 0;
+  r11 = 0;
+  r12 = 0;
+  r13 = 0;
+  r14 = 0;
+  r15 = 0;
+
+  C4WFXVal = 0;
+  C4WFYVal = 0;
+  C4WFZVal = 0;
+  C4WFX2Val = 0;
+  C4WFY2Val = 0;
+  C4WFDist = 0;
+  C4WFScale = 0;
+
+  C41FXVal = 0;
+  C41FYVal = 0;
+  C41FAngleRes = 0;
+  C41FDist = 0;
+  C41FDistVal = 0;
 }
 
 uint32 Cx4::ldr(uint8 r) {

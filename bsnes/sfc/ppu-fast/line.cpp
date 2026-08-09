@@ -3,23 +3,40 @@ uint PPU::Line::count = 0;
 
 auto PPU::Line::flush() -> void {
   if(Line::count) {
-    if(ppu.hdScale() > 1) cacheMode7HD();
-    #pragma omp parallel for if(Line::count >= 8)
-    for(uint y = 0; y < Line::count; y++) {
-      if(ppu.deinterlace()) {
-        if(!ppu.interlace()) {
-          //some games enable interlacing in 240p mode, just force these to even fields
-          ppu.lines[Line::start + y].render(0);
+    if(ppu.renderPixels()) {
+      if(ppu.hdScale() > 1) cacheMode7HD();
+      #pragma omp parallel for if(Line::count >= 8)
+      for(uint y = 0; y < Line::count; y++) {
+        if(ppu.deinterlace()) {
+          if(!ppu.interlace()) {
+            //some games enable interlacing in 240p mode, just force these to even fields
+            ppu.lines[Line::start + y].render(0);
+          } else {
+            //for actual interlaced frames, render both fields every farme for 480i -> 480p
+            ppu.lines[Line::start + y].render(0);
+            ppu.lines[Line::start + y].render(1);
+          }
         } else {
-          //for actual interlaced frames, render both fields every farme for 480i -> 480p
-          ppu.lines[Line::start + y].render(0);
-          ppu.lines[Line::start + y].render(1);
+          //standard 240p (progressive) and 480i (interlaced) rendering
+          ppu.lines[Line::start + y].render(ppu.field());
         }
-      } else {
-        //standard 240p (progressive) and 480i (interlaced) rendering
-        ppu.lines[Line::start + y].render(ppu.field());
+      }
+    } else {
+      //pixels discarded, but the emulated state is still owed
+      for(uint y = 0; y < Line::count; y++) {
+        ppu.lines[Line::start + y].evaluateObjects();
       }
     }
+
+    //folded in serially; inside the parallel loop this races
+    for(uint y = 0; y < Line::count; y++) {
+      auto& line = ppu.lines[Line::start + y];
+      ppu.io.obj.rangeOver |= line.objRangeOver;
+      ppu.io.obj.timeOver  |= line.objTimeOver;
+      line.objRangeOver = false;
+      line.objTimeOver = false;
+    }
+
     Line::start = 0;
     Line::count = 0;
   }

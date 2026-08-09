@@ -90,15 +90,25 @@ struct Program : Lock, Emulator::Platform {
 
   // netplay.cpp
   struct Netplay {
-    enum Mode : uint { Inactive, Running } mode = Mode::Inactive;
+    enum Mode : uint { Inactive, Running, Stress } mode = Mode::Inactive;
     enum Device : uint { Gamepad = 1, Multitap = 3};
     // netplay peer
     struct Peer {
       uint8 id = 0;
-      string nickname;
+      GekkoPlayerType type = GekkoLocalPlayer;
       struct connection {
         string addr;
       } conn;
+    };
+    struct ChecksumRange {
+      uint offset = 0;
+      uint size = 0;
+    };
+    struct StateSnapshot {
+      bool valid = false;
+      int frame = 0;
+      uint32 checksum = 0;
+      vector<uint8> data;
     };
     struct Buttons {
       union u {
@@ -125,15 +135,39 @@ struct Program : Lock, Emulator::Platform {
     vector<GekkoNetworkStats> netStats;
     vector<Buttons> inputs;
     vector<Peer> peers;
+    vector<StateSnapshot> stateCache;
+    vector<ChecksumRange> checksumRanges;
+    vector<Emulator::SerializeComponent> stateMap;
+    //only frames within the rollback window are ever compared; each slot holds a full state
+    enum : uint { StateCacheFrames = 32, DesyncDumpLimit = 3 };
+    string instance = "single";
+    string report;
+    bool detectDesyncs = false;
+    uint desyncCount = 0;
+    uint32 lastChecksum = 0;
+    uint crossPeerDesyncCount = 0;
     GekkoConfig config = {};
     GekkoSession* session = nullptr;
     uint counter = 0;
     double speedScale = 1.0;
   } netplay;
   auto netplayMode(Netplay::Mode) -> void;
-  auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator) -> void;
+  auto netplayApplyDeterministicSettings() -> void;
+  auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator, bool detectDesyncs) -> void;
+  auto netplayStressStart(uint8 players, uint8 checkDistance) -> void;
+  auto netplayRandomInput(uint player) -> Netplay::Buttons;
   auto netplayStop() -> void;
   auto netplayRun() -> bool;
+  auto netplayDesyncPath() -> string;
+  auto netplayReport(const string& line) -> void;
+  auto netplayBeginDiagnostics(bool detectDesyncs) -> void;
+  auto netplayBuildStateMap() -> void;
+  auto netplayPrintStateMap() -> void;
+  auto netplayResetDesyncDirectory() -> void;
+  auto netplayStateChecksum(const uint8_t* data, uint size) -> uint32_t;
+  auto netplayCacheState(int frame, uint32 checksum, const uint8* data, uint size) -> void;
+  auto netplayReportLocalDesync(int frame, uint32 checksumA, const vector<uint8>& bufA, uint32 checksumB, const vector<uint8>& bufB) -> void;
+  auto netplayDumpState(int frame, const string& tag, uint32 checksum, const vector<uint8>& data) -> void;
   auto netplayPollLocalInput(Netplay::Buttons& localInput) -> void;
   auto netplayGetInput(uint port, uint device, uint button) -> int16;
   auto netplayTimesync() -> void;
@@ -247,12 +281,18 @@ public:
   string statusFrameRate;
 
   bool startFullScreen = false;
+  uint stressTestFrameLimit = 0;
+  bool stressTestEnabled = false;
+  uint8 stressTestCheckDistance = 8;
+  uint8 stressTestPlayers = 2;
+  uint64 stressTestSeed = 0;
 
   struct Mute { enum : uint {
     Always      = 1 << 1,
     Unfocused   = 1 << 2,
     FastForward = 1 << 3,
     Rewind      = 1 << 4,
+    Modal       = 1 << 5,
   };};
   uint mute = 0;
 
