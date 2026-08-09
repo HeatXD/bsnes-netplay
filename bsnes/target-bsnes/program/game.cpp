@@ -55,7 +55,6 @@ auto Program::load() -> void {
   presentation.resetSystem.setEnabled(true);
   presentation.unloadGame.setEnabled(true);
   presentation.toolsMenu.setVisible(true);
-  presentation.netplayMenu.setVisible(true);
   presentation.updateStateMenus();
   presentation.speedNormal.setChecked();
   presentation.runEmulation.setChecked().doActivate();
@@ -344,7 +343,6 @@ auto Program::unload() -> void {
   presentation.resetSystem.setEnabled(false);
   presentation.unloadGame.setEnabled(false);
   presentation.toolsMenu.setVisible(false);
-  presentation.netplayMenu.setVisible(false);
   presentation.updateProgramIcon();
   presentation.updateStatusIcon();
 }

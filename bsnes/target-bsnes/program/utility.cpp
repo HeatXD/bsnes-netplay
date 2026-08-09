@@ -59,6 +59,8 @@ auto Program::showFrameRate(string text) -> void {
 }
 
 auto Program::updateStatus() -> void {
+  presentation.updateNetplayMenu();
+
   string message;
   if(chrono::millisecond() - statusTime <= 2000) {
     message = statusMessage;

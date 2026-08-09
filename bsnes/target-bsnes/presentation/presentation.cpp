@@ -110,6 +110,7 @@ auto Presentation::create() -> void {
   enhancementSettings.setIcon(Icon::Action::Add).setText("Enhancements ...").onActivate([&] { settingsWindow.show(6); });
   compatibilitySettings.setIcon(Icon::Action::Remove).setText("Compatibility ...").onActivate([&] { settingsWindow.show(7); });
   driverSettings.setIcon(Icon::Place::Settings).setText("Drivers ...").onActivate([&] { settingsWindow.show(8); });
+  netplaySettingsItem.setIcon(Icon::Device::Network).setText("Netplay ...").onActivate([&] { settingsWindow.show(9); });
 
   toolsMenu.setText(tr("Tools")).setVisible(false);
   saveState.setIcon(Icon::Media::Record).setText("Save State");
@@ -176,29 +177,18 @@ auto Presentation::create() -> void {
   cheatEditor.setIcon(Icon::Edit::Replace).setText("Cheat Editor ...").onActivate([&] { toolsWindow.show(1); });
   stateManager.setIcon(Icon::Application::FileManager).setText("State Manager ...").onActivate([&] { toolsWindow.show(2); });
   manifestViewer.setIcon(Icon::Emblem::Text).setText("Manifest Viewer ...").onActivate([&] { toolsWindow.show(3); });
-  netplayMenu.setText(tr("Netplay")).setVisible(false);
-  setupNetplay.setIcon(Icon::Device::Network).setText({tr("Setup")}).onActivate([&] {
-    if(program.netplay.mode != Program::Netplay::Inactive) {
-      MessageDialog("Please stop netplay before setting up a new session.")
-      .setTitle("Netplay Setup")
-      .setAlignment(*this)
-      .warning();
-      return;
-    }
+  netplayMenu.setText(tr("Netplay"));
+  setupNetplay.setEnabled(false).setIcon(Icon::Device::Network).setText({tr("Direct Connect"), " ..."}).onActivate([&] {
     netplayWindow.show();
   });
   stopNetplay.setIcon(Icon::Prompt::Question).setText({tr("Stop")}).onActivate([&] {
     program.netplayStop();
   });
-  stressNetplay.setIcon(Icon::Action::Refresh).setText({tr("Desync Stress Test")}).onActivate([&] {
-    if(program.netplay.mode != Program::Netplay::Inactive) {
-      MessageDialog("Please stop netplay before starting a desync stress test.")
-      .setTitle("Netplay")
-      .setAlignment(*this)
-      .warning();
-      return;
-    }
+  stressNetplay.setEnabled(false).setIcon(Icon::Action::Refresh).setText({tr("Desync Stress Test")}).onActivate([&] {
     program.netplayStressStart(2, 8);
+  });
+  onlineRooms.setIcon(Icon::Device::Network).setText({tr("Online Rooms"), " ..."}).onActivate([&] {
+    weyveWindow.show();
   });
   helpMenu.setText(tr("Help"));
   aboutSameBoy.setIcon(Icon::Prompt::Question).setText({tr("About SameBoy"), " ..."}).onActivate([&] {
@@ -342,6 +332,22 @@ auto Presentation::resizeWindow() -> void {
 
   setMinimumSize({width, height + statusHeight});
   setSize({width * multiplier, height * multiplier + statusHeight});
+}
+
+// two mutually exclusive paths: whichever is live locks the other out
+auto Presentation::updateNetplayMenu() -> void {
+  bool loaded = emulator->loaded();
+  bool directSession = program.netplay.mode != Program::Netplay::Inactive && !program.weyveSessionActive();
+  bool weyveBusy = program.weyveConnected();  // connected to a room server
+
+  int state = loaded | directSession << 1 | weyveBusy << 2;
+  if(state == lastNetplayMenuState) return;
+  lastNetplayMenuState = state;
+
+  setupNetplay.setEnabled(loaded && !directSession && !weyveBusy);
+  stopNetplay.setEnabled(directSession);
+  stressNetplay.setEnabled(loaded && !directSession && !weyveBusy);
+  onlineRooms.setEnabled(!directSession);
 }
 
 auto Presentation::updateDeviceMenu() -> void {

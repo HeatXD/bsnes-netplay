@@ -5,11 +5,14 @@ struct Presentation : Window {
   enum : uint { RecentGames = 9, QuickStates = 9 };
   enum : uint { StatusHeight = 24 };
 
+  int lastNetplayMenuState = -1;  // packed direct/weyve/loaded flags; -1 forces the first refresh
+
   auto onDrop(vector<string> locations) -> void;
   auto updateProgramIcon() -> void;
   auto updateStatusIcon() -> void;
   auto resizeWindow() -> void;
   auto updateStatus() -> void;
+  auto updateNetplayMenu() -> void;
   auto updateDeviceMenu() -> void;
   auto updateDeviceSelections() -> void;
   auto updateSizeMenu() -> void;
@@ -90,6 +93,7 @@ struct Presentation : Window {
       MenuItem enhancementSettings{&settingsMenu};
       MenuItem compatibilitySettings{&settingsMenu};
       MenuItem driverSettings{&settingsMenu};
+      MenuItem netplaySettingsItem{&settingsMenu};
     Menu toolsMenu{&menuBar};
       Menu saveState{&toolsMenu};
       Menu loadState{&toolsMenu};
@@ -120,6 +124,9 @@ struct Presentation : Window {
     Menu netplayMenu{&menuBar};
         MenuItem setupNetplay{&netplayMenu};
         MenuItem stopNetplay{&netplayMenu};
+        MenuSeparator netplaySeparator{&netplayMenu};
+        MenuItem onlineRooms{&netplayMenu};
+        MenuSeparator netplaySeparatorB{&netplayMenu};
         MenuItem stressNetplay{&netplayMenu};
     Menu helpMenu{&menuBar};
       MenuItem aboutSameBoy{&helpMenu};
