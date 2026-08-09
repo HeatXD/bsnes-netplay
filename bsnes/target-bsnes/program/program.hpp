@@ -197,6 +197,7 @@ struct Program : Lock, Emulator::Platform {
     bool pendingListed = false;  // applied once WEYVE_EVENT_ROOM_ID_ASSIGNED fires
     bool rolesDirty = true;  // host reassigns roles on the next poll
     bool libraryScanned = false;
+    string lastGamesFolder;  // folder the library was scanned from
     vector<GameEntry> library;  // scanned from settings.weyvelength.gamesFolder, sorted by title
     enum : uint { LogLimit = 200, PlayerCap = 5 };
     vector<string> log;  // lobby event/chat feed, oldest first
@@ -231,6 +232,7 @@ struct Program : Lock, Emulator::Platform {
   auto weyveNicknameOf(uint32 id) -> string;
   auto weyveGameFingerprint() -> string;
   auto weyveScanLibrary() -> void;
+  auto weyveLibraryStale() -> bool;
   auto weyveHasGame(const string& hash) -> maybe<string>;
   auto weyveSelectGame(uint index) -> void;
   auto netplayStartWeyve() -> void;

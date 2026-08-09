@@ -233,6 +233,7 @@ auto Program::weyveGameFingerprint() -> string {
 auto Program::weyveScanLibrary() -> void {
     weyve.library.reset();
     weyve.libraryScanned = true;
+    weyve.lastGamesFolder = settings.weyvelength.gamesFolder;
     if(!settings.weyvelength.gamesFolder) return;
 
     string rootFolder = settings.weyvelength.gamesFolder;
@@ -248,9 +249,14 @@ auto Program::weyveScanLibrary() -> void {
     });
 }
 
+// rescans if never scanned, or if the games folder changed under us
+auto Program::weyveLibraryStale() -> bool {
+    return !weyve.libraryScanned || settings.weyvelength.gamesFolder != weyve.lastGamesFolder;
+}
+
 auto Program::weyveHasGame(const string& hash) -> maybe<string> {
     if(!hash) return nothing;
-    if(!weyve.libraryScanned) weyveScanLibrary();
+    if(weyveLibraryStale()) weyveScanLibrary();
     for(auto& entry : weyve.library) {
         if(entry.hash == hash) return entry.path;
     }
@@ -445,7 +451,7 @@ auto Program::weyvePoll() -> void {
     }
 
     string targetHash = weyveRoomDataString("game_hash");
-    if(targetHash != weyve.lastGameHash) {
+    if(targetHash != weyve.lastGameHash || weyveLibraryStale()) {
         weyve.lastGameHash = targetHash;
         bool hasGame = (bool)weyveHasGame(targetHash);
         weyve_set_member_data(weyve.client, "hasGame", hasGame ? "1" : "0");

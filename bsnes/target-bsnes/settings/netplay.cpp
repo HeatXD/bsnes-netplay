@@ -32,7 +32,6 @@ auto NetplaySettings::create() -> void {
     if(auto location = program.selectPath()) {
       settings.weyvelength.gamesFolder = location;
       gamesFolderPath.setText(location);
-      program.weyve.libraryScanned = false;
     }
   });
 }

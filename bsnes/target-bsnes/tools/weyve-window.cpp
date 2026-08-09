@@ -253,7 +253,7 @@ auto WeyveWindow::refresh() -> void {
     string roomGameHash = program.weyveRoomDataString("game_hash");
 
     if(isHost) {
-        if(!program.weyve.libraryScanned) program.weyveScanLibrary();
+        if(program.weyveLibraryStale()) program.weyveScanLibrary();
         if(gameLibrarySize != program.weyve.library.size()) {
             gameLibrarySize = program.weyve.library.size();
             gameCombo.reset();
