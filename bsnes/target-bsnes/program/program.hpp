@@ -91,7 +91,9 @@ struct Program : Lock, Emulator::Platform {
   // netplay.cpp
   struct Netplay {
     enum Mode : uint { Inactive, Running, Stress } mode = Mode::Inactive;
-    enum Device : uint { Gamepad = 1, Multitap = 3};
+    // picks the GekkoNet adapter and which Peer address field is live
+    enum Transport : uint { Direct, Weyvelength } transport = Transport::Direct;
+    enum Device : uint { None = 0, Gamepad = 1, Multitap = 3};
     // netplay peer
     struct Peer {
       uint8 id = 0;
@@ -171,6 +173,7 @@ struct Program : Lock, Emulator::Platform {
   auto netplayPollLocalInput(Netplay::Buttons& localInput) -> void;
   auto netplayGetInput(uint port, uint device, uint button) -> int16;
   auto netplayTimesync() -> void;
+  auto netplayBeginSession(int numPlayers, uint8 rollback, uint8 delay, int maxSpectators, bool detectDesyncs, bool isSpectating, uint spectatorDelay = 5 * 60) -> void;
 
   //video.cpp
   auto updateVideoDriver(Window parent) -> void;

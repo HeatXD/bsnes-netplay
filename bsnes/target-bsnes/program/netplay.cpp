@@ -25,24 +25,18 @@ auto Program::netplayApplyDeterministicSettings() -> void {
     emulator->configure("Hacks/SuperFX/Overclock", "100");
 }
 
-auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators, bool detectDesyncs) -> void {
-    if(netplay.mode != Netplay::Mode::Inactive) return;
-
-    netplay.instance = {"p", port};
-
-    int numPlayers = remotes.size();
-
-    // add local player
-    if(local < 5) numPlayers++;
-
+// connection-agnostic session bring-up; callers still set the adapter and add actors
+auto Program::netplayBeginSession(int numPlayers, uint8 rollback, uint8 delay, int maxSpectators, bool detectDesyncs, bool isSpectating, uint spectatorDelay) -> void {
     const int inpBufferLength = numPlayers > 2 ? 5 : numPlayers;
     for(int i = 0; i < inpBufferLength; i++) {
         netplay.inputs.append(Netplay::Buttons());
     }
 
-    // connect controllers
+    // a lone player has no port 2, and inputs[] is sized to match
     emulator->connect(0, Netplay::Device::Gamepad);
-    emulator->connect(1, numPlayers > 2 ? Netplay::Device::Multitap : Netplay::Device::Gamepad);
+    emulator->connect(1, numPlayers > 2 ? Netplay::Device::Multitap
+                       : numPlayers > 1 ? Netplay::Device::Gamepad
+                       : Netplay::Device::None);
 
     // force deterministic emulator settings so all peers match
     netplayApplyDeterministicSettings();
@@ -56,21 +50,36 @@ auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay
     netplay.config.num_players = numPlayers;
     netplay.config.input_size = sizeof(Netplay::Buttons);
     netplay.config.state_size = stateSize;
-    netplay.config.max_spectators = spectators.size();
+    netplay.config.max_spectators = maxSpectators;
     netplay.config.input_prediction_window = rollback;
-    netplay.config.spectator_delay = 5 * 60;
+    netplay.config.spectator_delay = spectatorDelay;
     netplay.config.desync_detection = detectDesyncs;
 
     netplay.netStats.resize(inpBufferLength);
     netplayBeginDiagnostics(detectDesyncs);
-    netplayReport({"session: ", emulator->title(), " port ", port, " local ", local, " players ", numPlayers,
+    netplayReport({"session: ", emulator->title(), " players ", numPlayers,
         " rollback ", rollback, " delay ", delay, " state ", stateSize, " bytes",
         detectDesyncs ? "" : " (desync detection off)"});
 
-    bool isSpectating = local >= numPlayers;
-
     gekko_create(&netplay.session, isSpectating ? GekkoSpectateSession : GekkoGameSession);
     gekko_start(netplay.session, &netplay.config);
+}
+
+auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators, bool detectDesyncs) -> void {
+    if(netplay.mode != Netplay::Mode::Inactive) return;
+
+    netplay.instance = {"p", port};
+    netplay.transport = Netplay::Transport::Direct;
+
+    int numPlayers = remotes.size();
+
+    // add local player
+    if(local < 5) numPlayers++;
+
+    bool isSpectating = local >= numPlayers;
+
+    netplayReport({"p2p: port ", port, " local player ", local});
+    netplayBeginSession(numPlayers, rollback, delay, spectators.size(), detectDesyncs, isSpectating);
     gekko_net_adapter_set(netplay.session, gekko_default_adapter(port));
 
     if(!isSpectating) {
@@ -122,6 +131,7 @@ auto Program::netplayStop() -> void {
     netplay.session = nullptr; 
 
     netplay.config = {};
+    netplay.transport = Netplay::Transport::Direct;
     netplay.counter = 0;
     netplay.speedScale = 1.0;
 
@@ -177,7 +187,9 @@ auto Program::netplayRun() -> bool {
             break;
         }
         case GekkoRemotePlayer:
-            gekko_network_stats(netplay.session, peer.id, &netplay.netStats[peer.id]);
+            if(peer.id >= 0 && peer.id < netplay.netStats.size()) {
+                gekko_network_stats(netplay.session, peer.id, &netplay.netStats[peer.id]);
+            }
             break;
         case GekkoSpectator:
             break;
@@ -279,6 +291,7 @@ auto Program::netplayGetInput(uint port, uint device, uint button) -> int16 {
         port += (button / Netplay::SnesButton::Count);
         button = button % Netplay::SnesButton::Count;
     }
+    if(port >= netplay.inputs.size()) return 0;  // unoccupied port reads as neutral
 
     switch (button) {
         case Netplay::SnesButton::B: return netplay.inputs[port].u.btn.b;
