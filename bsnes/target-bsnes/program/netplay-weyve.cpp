@@ -72,6 +72,16 @@ auto Program::weyveJoinRoom(string id, string password) -> void {
     if(weyve.client) weyve_join_room(weyve.client, id.data(), password.data());
 }
 
+// drops everything scoped to one room; kicks and bans never reach weyveLeaveRoom
+auto Program::weyveResetRoomState() -> void {
+    weyve.lastGameHash = "";
+    weyve.lastStartToken = 0;
+    weyve.lastStopToken = 0;
+    weyve.pendingIdentityLogs.reset();
+    weyve.log.reset();  // history belongs to the room we left
+    weyve.logEpoch++;   // a matching line count alone can't prove the feed is unchanged
+}
+
 auto Program::weyveLeaveRoom() -> void {
     if(!weyve.client) return;
 
@@ -79,11 +89,7 @@ auto Program::weyveLeaveRoom() -> void {
     if(weyveSessionActive()) netplayStop();
 
     weyve_leave_room(weyve.client);
-    weyve.lastGameHash = "";
-    weyve.lastStartToken = 0;
-    weyve.lastStopToken = 0;
-    weyve.pendingIdentityLogs.reset();
-    weyve.log.reset();  // history belongs to the room we left
+    weyveResetRoomState();
 }
 
 // players by slot; slots stay contiguous so the index is also the GekkoNet handle
@@ -350,6 +356,7 @@ auto Program::weyvePoll() -> void {
         switch(event.type) {
         case WEYVE_EVENT_ROOM_ID_ASSIGNED:
             weyve.rolesDirty = true;
+            weyveResetRoomState();  // a room always starts on a clean feed
             weyveLog("You joined the room");
             if(weyve.pendingListed) {
                 weyve.pendingListed = false;
@@ -408,9 +415,13 @@ auto Program::weyvePoll() -> void {
             break;
         }
         case WEYVE_EVENT_KICKED:
+            if(weyveSessionActive()) netplayStop();
+            weyveResetRoomState();
             weyveLog("You were kicked from the room");
             break;
         case WEYVE_EVENT_BANNED:
+            if(weyveSessionActive()) netplayStop();
+            weyveResetRoomState();
             weyveLog("You were banned from the room");
             break;
         case WEYVE_EVENT_ROOM_ACCESS_CHANGED:

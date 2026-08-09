@@ -319,8 +319,9 @@ auto WeyveWindow::refresh() -> void {
         memberList.setToolTip(ids.stripRight());
     }
 
-    if(loggedLines != program.weyve.log.size()) {
+    if(loggedLines != program.weyve.log.size() || lastLogEpoch != program.weyve.logEpoch) {
         loggedLines = program.weyve.log.size();
+        lastLogEpoch = program.weyve.logEpoch;
         eventLog.reset();
         for(uint i = loggedLines; i-- > 0;) eventLog.append(ListViewItem().setText(program.weyve.log[i]));
     }

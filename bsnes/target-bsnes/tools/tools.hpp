@@ -412,6 +412,7 @@ private:
         Button btnLeave{&lobbyButtons, Size{100_sx, 0}};
 
     uint loggedLines = 0;
+    uint lastLogEpoch = 0;
 };
 
 struct WeyveHostSettings : Window {

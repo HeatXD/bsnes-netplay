@@ -201,6 +201,7 @@ struct Program : Lock, Emulator::Platform {
     vector<GameEntry> library;  // scanned from settings.weyvelength.gamesFolder, sorted by title
     enum : uint { LogLimit = 200, PlayerCap = 5 };
     vector<string> log;  // lobby event/chat feed, oldest first
+    uint logEpoch = 0;  // bumped whenever the feed is cleared
     struct PendingIdentityLog { uint32 id; string suffix; uint64 queuedAt; };
     vector<PendingIdentityLog> pendingIdentityLogs;  // lines waiting on a nickname
   } weyve;
@@ -209,6 +210,7 @@ struct Program : Lock, Emulator::Platform {
   auto weyveCreateRoom(bool listed) -> void;
   auto weyveJoinRoom(string id, string password) -> void;
   auto weyveLeaveRoom() -> void;
+  auto weyveResetRoomState() -> void;
   auto weyveSessionActive() -> bool;
   auto weyveConnected() -> bool;
   auto weyveRoleOf(uint32 memberId) -> string;
