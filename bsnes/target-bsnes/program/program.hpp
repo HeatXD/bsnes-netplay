@@ -292,6 +292,7 @@ public:
     Unfocused   = 1 << 2,
     FastForward = 1 << 3,
     Rewind      = 1 << 4,
+    Modal       = 1 << 5,
   };};
   uint mute = 0;
 
