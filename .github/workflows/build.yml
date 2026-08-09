@@ -1,10 +1,10 @@
 name: Build
 on:
   push:
-    branches: [ master ]
+    branches: [ master, weyve ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, weyve ]
 permissions:
   contents: write
 jobs:
@@ -22,7 +22,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        submodules: true
+        submodules: recursive
     - name: Install Dependencies
       if: matrix.os.name == 'ubuntu'
       run: |
