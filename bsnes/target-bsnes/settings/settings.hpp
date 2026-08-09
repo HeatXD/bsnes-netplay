@@ -147,6 +147,13 @@ struct Settings : Markup::Node {
     bool crashed = false;
     bool nativeFileDialogs = false;
   } general;
+
+  struct Weyvelength {
+    string host = "127.0.0.1";
+    uint port = 5555;
+    string gamesFolder;
+    string nickname = "BSNES GAMER";
+  } weyvelength;
 };
 
 struct VideoSettings : VerticalLayout {
@@ -490,6 +497,26 @@ public:
     Button dynamicRateControlMode{&modeLayout, Size{0, 0}};
 };
 
+struct NetplaySettings : VerticalLayout {
+  auto create() -> void;
+
+public:
+  Label weyvelengthLabel{this, Size{~0, 0}, 2};
+  HorizontalLayout weyvelengthLayout{this, Size{~0, 0}};
+    Label hostLabel{&weyvelengthLayout, Size{0, 0}};
+    LineEdit hostValue{&weyvelengthLayout, Size{~0, 0}};
+    Label portLabel{&weyvelengthLayout, Size{0, 0}};
+    LineEdit portValue{&weyvelengthLayout, Size{80_sx, 0}};
+  HorizontalLayout nicknameLayout{this, Size{~0, 0}};
+    Label nicknameLabel{&nicknameLayout, Size{0, 0}};
+    LineEdit nicknameValue{&nicknameLayout, Size{~0, 0}};
+  HorizontalLayout gamesFolderLayout{this, Size{~0, 0}};
+    Label gamesFolderLabel{&gamesFolderLayout, Size{0, 0}};
+    LineEdit gamesFolderPath{&gamesFolderLayout, Size{~0, 0}};
+    Button gamesFolderAssign{&gamesFolderLayout, Size{0, 0}};
+  Widget spacer{this, Size{~0, ~0}, 0};
+};
+
 struct SettingsWindow : Window, Lock {
   auto create() -> void;
   auto setVisible(bool visible = true) -> SettingsWindow&;
@@ -513,5 +540,6 @@ extern EmulatorSettings emulatorSettings;
 extern EnhancementSettings enhancementSettings;
 extern CompatibilitySettings compatibilitySettings;
 extern DriverSettings driverSettings;
+extern NetplaySettings netplaySettings;
 namespace Instances { extern Instance<SettingsWindow> settingsWindow; }
 extern SettingsWindow& settingsWindow;

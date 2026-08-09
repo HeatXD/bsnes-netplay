@@ -9,6 +9,7 @@
 #include "rewind.cpp"
 #include "netplay-stress.cpp"
 #include "netplay.cpp"
+#include "netplay-weyve.cpp"
 #include "video.cpp"
 #include "audio.cpp"
 #include "input.cpp"
@@ -36,6 +37,7 @@ auto Program::create() -> void {
   enhancementSettings.create();
   compatibilitySettings.create();
   driverSettings.create();
+  netplaySettings.create();
 
   toolsWindow.create();
   cheatFinder.create();
@@ -47,6 +49,8 @@ auto Program::create() -> void {
   manifestViewer.create();
 
   netplayWindow.create();
+  weyveWindow.create();
+  weyveHostSettings.create();
 
   if(settings.general.crashed) {
     MessageDialog(
@@ -82,11 +86,18 @@ auto Program::main() -> void {
   updateStatus();
   video.poll();
 
+  // before inactive() is sampled, or this frame runs the emulator on freed ROM
+  if(pendingUnload) {
+    pendingUnload = false;
+    unload();
+  }
+
   if(Application::modal()) {
     audio.clear();
     //keep netplay alive during window drags/resizes, muted since frame pacing is irregular here
     mute |= Mute::Modal;
     netplayRun();
+    weyvePoll();
     return;
   }
   mute &= ~Mute::Modal;
@@ -105,11 +116,13 @@ auto Program::main() -> void {
 
   if(currentlyInactive) {
     audio.clear();
+    weyvePoll();
     usleep(20 * 1000);
     if(settings.emulator.runAhead.frames == 0) viewportRefresh();
     return;
   }
 
+  weyvePoll();
   if(netplayRun()) return;
 
   rewindRun();

@@ -328,6 +328,126 @@ public:
     } config;
 };
 
+struct WeyveWindow : Window {
+    auto create() -> void;
+    auto setVisible(bool visible = true) -> WeyveWindow&;
+    auto show() -> void;
+    auto refresh() -> void;
+
+private:
+    auto attemptConnect() -> void;
+    auto createRoomPressed() -> void;
+    auto joinRoomPressed() -> void;
+    auto refreshRoomList() -> void;
+    auto sendChat() -> void;
+    auto memberRow(uint32_t id, bool roomHasGame, uint32_t hostId, uint32_t selfId) -> string;
+    auto selectedMemberId() -> maybe<uint32_t>;
+
+    uint gameLibrarySize = 0;
+    Timer refreshTimer;
+    bool lastConnected = false;
+    bool lastInRoom = false;
+    int lastIsHost = -1;
+    bool gameAutoSelectDone = false;
+    vector<string> lastMemberRows;
+    vector<string> lastRoomListRows;
+    string lastNonHostGame;
+    string lastStartReason;
+    int lastRunning = -1;
+    uint lastRoleCount = 0;
+    uint8 lastShownRollback = 0;
+    uint8 lastShownDelay = 0;
+
+    VerticalLayout layout{this};
+
+    VerticalLayout connectScreen{&layout, Size{~0, ~0}};
+      Label connectStatus{&connectScreen, Size{~0, 0}};
+      Button btnRetry{&connectScreen, Size{~0, 0}};
+      Widget connectSpacer{&connectScreen, Size{~0, ~0}};  // vertical layouts need one Maximum-height cell
+
+    VerticalLayout browseScreen{&layout, Size{~0, ~0}};
+      HorizontalLayout browseButtons{&browseScreen, Size{~0, 0}};
+        Button btnRefreshRooms{&browseButtons, Size{100_sx, 0}};
+        Button btnCreateRoom{&browseButtons, Size{100_sx, 0}};
+        CheckLabel publicCheck{&browseButtons, Size{0, 0}};
+        Widget browseSpacer{&browseButtons, Size{~0, 0}};
+        Button btnDisconnect{&browseButtons, Size{100_sx, 0}};
+      ListView roomList{&browseScreen, Size{~0, ~0}};
+      HorizontalLayout joinLayout{&browseScreen, Size{~0, 0}};
+        Label joinCodeLabel{&joinLayout, Size{70_sx, 0}};
+        LineEdit joinCodeValue{&joinLayout, Size{~0, 0}};
+        Label joinPasswordLabel{&joinLayout, Size{70_sx, 0}};
+        LineEdit joinPasswordValue{&joinLayout, Size{~0, 0}};
+        Button btnJoinRoom{&joinLayout, Size{100_sx, 0}};
+
+    VerticalLayout lobbyScreen{&layout, Size{~0, ~0}};
+      HorizontalLayout roomHeader{&lobbyScreen, Size{~0, 0}};
+        Label roomLabel{&roomHeader, Size{~0, 0}};
+        Button btnCopyCode{&roomHeader, Size{0, 0}};
+      HorizontalLayout gameLayout{&lobbyScreen, Size{~0, 0}};
+        Label gameSelectLabel{&gameLayout, Size{0, 0}};
+        ComboButton gameCombo{&gameLayout, Size{~0, 0}};  // enabled host-only
+        Button btnHostSettings{&gameLayout, Size{0, 0}};  // host-only, opens WeyveHostSettings popup
+      HorizontalLayout localLayout{&lobbyScreen, Size{~0, 0}};
+        Label rollbackLabel{&localLayout, Size{0, 0}};
+        LineEdit rollbackValue{&localLayout, Size{~0, 0}};
+        Label delayLabel{&localLayout, Size{0, 0}};
+        LineEdit delayValue{&localLayout, Size{~0, 0}};
+        Label runAheadLabel{&localLayout, Size{0, 0}};  // local only, never synced
+        LineEdit runAheadValue{&localLayout, Size{~0, 0}};
+      ListView memberList{&lobbyScreen, Size{~0, 70_sy}};
+      HorizontalLayout roleLayout{&lobbyScreen, Size{~0, 0}};  // host-only
+        ComboButton roleCombo{&roleLayout, Size{100_sx, 0}};
+        Button btnAssignRole{&roleLayout, Size{90_sx, 0}};
+        Button btnKick{&roleLayout, Size{70_sx, 0}};
+        Widget roleSpacer{&roleLayout, Size{~0, 0}};
+      ListView eventLog{&lobbyScreen, Size{~0, ~0}};
+      HorizontalLayout chatLayout{&lobbyScreen, Size{~0, 0}};
+        LineEdit chatValue{&chatLayout, Size{~0, 0}};
+        Button btnChatSend{&chatLayout, Size{80_sx, 0}};
+      HorizontalLayout lobbyButtons{&lobbyScreen, Size{~0, 0}};
+        Button btnStart{&lobbyButtons, Size{100_sx, 0}};  // host-only
+        Button btnStop{&lobbyButtons, Size{100_sx, 0}};  // host-only, ends the session for everyone
+        Label startStatus{&lobbyButtons, Size{~0, 0}};  // host-only; fills the spacer role, shows why Start is disabled
+        Button btnLeave{&lobbyButtons, Size{100_sx, 0}};
+
+    uint loggedLines = 0;
+};
+
+struct WeyveHostSettings : Window {
+    auto create() -> void;
+    auto setVisible(bool visible = true) -> WeyveHostSettings&;
+    auto show() -> void;
+    auto refresh() -> void;
+
+private:
+    Timer refreshTimer;
+    int lastListed = -1;
+    int lastOpen = -1;
+    int lastDesync = -1;
+    int lastRunning = -1;
+
+    VerticalLayout layout{this};
+      HorizontalLayout roomSettingsLayout{&layout, Size{~0, 0}};
+        CheckLabel listedCheck{&roomSettingsLayout, Size{0, 0}};
+        CheckLabel openCheck{&roomSettingsLayout, Size{0, 0}};
+        CheckLabel desyncCheck{&roomSettingsLayout, Size{0, 0}};
+        Widget roomSettingsSpacer{&roomSettingsLayout, Size{~0, 0}};
+      HorizontalLayout passwordLayout{&layout, Size{~0, 0}};
+        Label passwordLabel{&passwordLayout, Size{70_sx, 0}};
+        LineEdit passwordValue{&passwordLayout, Size{~0, 0}};
+        Button btnSetPassword{&passwordLayout, Size{80_sx, 0}};
+      HorizontalLayout baselineLayout{&layout, Size{~0, 0}};
+        Label rollbackMinLabel{&baselineLayout, Size{0, 0}};
+        LineEdit rollbackMinValue{&baselineLayout, Size{~0, 0}};
+        Label delayMinLabel{&baselineLayout, Size{0, 0}};
+        LineEdit delayMinValue{&baselineLayout, Size{~0, 0}};
+      HorizontalLayout spectatorLayout{&layout, Size{~0, 0}};
+        Label spectatorDelayLabel{&spectatorLayout, Size{0, 0}};
+        LineEdit spectatorDelayValue{&spectatorLayout, Size{~0, 0}};
+      Widget spacer{&layout, Size{~0, ~0}};
+};
+
 namespace Instances { extern Instance<CheatDatabase> cheatDatabase; }
 extern CheatFinder cheatFinder;
 extern CheatDatabase& cheatDatabase;
@@ -342,3 +462,7 @@ namespace Instances { extern Instance<ToolsWindow> toolsWindow; }
 extern ToolsWindow& toolsWindow;
 namespace Instances { extern Instance<NetplayWindow> netplayWindow; }
 extern NetplayWindow& netplayWindow;
+namespace Instances { extern Instance<WeyveWindow> weyveWindow; }
+extern WeyveWindow& weyveWindow;
+namespace Instances { extern Instance<WeyveHostSettings> weyveHostSettings; }
+extern WeyveHostSettings& weyveHostSettings;

@@ -14,6 +14,7 @@ extern unique_pointer<Emulator::Interface> emulator;
 #include <lzma/lzma.hpp>
 
 #include <gekkonet.h>
+#include <weyvelength.h>
 
 #include <nall/instance.hpp>
 #include <nall/decode/rle.hpp>
@@ -21,6 +22,7 @@ extern unique_pointer<Emulator::Interface> emulator;
 #include <nall/encode/rle.hpp>
 #include <nall/encode/zip.hpp>
 #include <nall/hash/crc16.hpp>
+#include <nall/hash/crc32.hpp>
 
 #include "program/program.hpp"
 #include "input/input.hpp"

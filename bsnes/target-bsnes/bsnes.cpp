@@ -60,6 +60,8 @@ auto nall::main(Arguments arguments) -> void {
   Instances::stateWindow.construct();
   Instances::toolsWindow.construct();
   Instances::netplayWindow.construct();
+  Instances::weyveWindow.construct();
+  Instances::weyveHostSettings.construct();
   emulator = new SuperFamicom::Interface;
   program.create();
 

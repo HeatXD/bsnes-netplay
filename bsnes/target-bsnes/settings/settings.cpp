@@ -8,6 +8,7 @@
 #include "enhancements.cpp"
 #include "compatibility.cpp"
 #include "drivers.cpp"
+#include "netplay.cpp"
 Settings settings;
 VideoSettings videoSettings;
 AudioSettings audioSettings;
@@ -18,6 +19,7 @@ EmulatorSettings emulatorSettings;
 EnhancementSettings enhancementSettings;
 CompatibilitySettings compatibilitySettings;
 DriverSettings driverSettings;
+NetplaySettings netplaySettings;
 namespace Instances { Instance<SettingsWindow> settingsWindow; }
 SettingsWindow& settingsWindow = Instances::settingsWindow();
 
@@ -143,6 +145,11 @@ auto Settings::process(bool load) -> void {
   bind(boolean, "General/Crashed",           general.crashed);
   bind(boolean, "General/NativeFileDialogs", general.nativeFileDialogs);
 
+  bind(text,    "Weyvelength/Host",        weyvelength.host);
+  bind(natural, "Weyvelength/Port",        weyvelength.port);
+  bind(text,    "Weyvelength/Nickname",    weyvelength.nickname);
+  bind(text,    "Weyvelength/GamesFolder", weyvelength.gamesFolder);
+
   #undef bind
 }
 
@@ -182,6 +189,7 @@ auto SettingsWindow::create() -> void {
   panelList.append(ListViewItem().setText("Enhancements").setIcon(Icon::Action::Add));
   panelList.append(ListViewItem().setText("Compatibility").setIcon(Icon::Action::Remove));
   panelList.append(ListViewItem().setText("Drivers").setIcon(Icon::Place::Settings));
+  panelList.append(ListViewItem().setText("Netplay").setIcon(Icon::Device::Network));
   panelList.onChange([&] {
     if(auto item = panelList.selected()) {
       show(item.offset());
@@ -199,10 +207,11 @@ auto SettingsWindow::create() -> void {
   panelContainer.append(enhancementSettings, Size{~0, ~0});
   panelContainer.append(compatibilitySettings, Size{~0, ~0});
   panelContainer.append(driverSettings, Size{~0, ~0});
+  panelContainer.append(netplaySettings, Size{~0, ~0});
   statusBar.setFont(Font().setBold());
 
   setTitle("Settings");
-  setSize({680_sx, 400_sy});
+  setSize({680_sx, 430_sy});
   setAlignment({0.0, 1.0});
   setDismissable();
 
@@ -233,6 +242,7 @@ auto SettingsWindow::show(int index) -> void {
   enhancementSettings.setVisible(false);
   compatibilitySettings.setVisible(false);
   driverSettings.setVisible(false);
+  netplaySettings.setVisible(false);
   panelList.item(index).setSelected();
   if(index ==-1) settingsHome.setVisible(true);
   if(index == 0) videoSettings.setVisible(true);
@@ -244,6 +254,7 @@ auto SettingsWindow::show(int index) -> void {
   if(index == 6) enhancementSettings.setVisible(true);
   if(index == 7) compatibilitySettings.setVisible(true);
   if(index == 8) driverSettings.setVisible(true);
+  if(index == 9) netplaySettings.setVisible(true);
   panelContainer.resize();
   setVisible();
   setFocused();

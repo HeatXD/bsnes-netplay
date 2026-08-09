@@ -5,6 +5,7 @@ struct Program : Lock, Emulator::Platform {
   auto create() -> void;
   auto main() -> void;
   auto quit() -> void;
+  bool pendingUnload = false;  // unloading mid-frame frees ROM the emulator thread reads
 
   //platform.cpp
   auto open(uint id, string name, vfs::file::mode mode, bool required) -> shared_pointer<vfs::file> override;
@@ -101,6 +102,7 @@ struct Program : Lock, Emulator::Platform {
       struct connection {
         string addr;
       } conn;
+      uint32 weyveId = 0;  // Weyvelength path: address is this id, not conn.addr
     };
     struct ChecksumRange {
       uint offset = 0;
@@ -174,6 +176,64 @@ struct Program : Lock, Emulator::Platform {
   auto netplayGetInput(uint port, uint device, uint button) -> int16;
   auto netplayTimesync() -> void;
   auto netplayBeginSession(int numPlayers, uint8 rollback, uint8 delay, int maxSpectators, bool detectDesyncs, bool isSpectating, uint spectatorDelay = 5 * 60) -> void;
+
+  //netplay-weyve.cpp
+  struct Weyve {
+    struct GameEntry {
+      string title;
+      string path;
+      string hash;
+    };
+
+    WeyveClient* client = nullptr;
+    string lastPublishedNickname;
+    string lastGameHash;  // last game_hash we checked our library against
+    uint32 lastStartToken = 0;
+    uint32 lastStopToken = 0;
+    uint8 localRollback = 8;  // client-side override, clamped >= the host's baseline
+    uint8 localDelay = 2;
+    uint8 lastPublishedRollback = 0;
+    uint8 lastPublishedDelay = 0;
+    bool pendingListed = false;  // applied once WEYVE_EVENT_ROOM_ID_ASSIGNED fires
+    bool rolesDirty = true;  // host reassigns roles on the next poll
+    bool libraryScanned = false;
+    vector<GameEntry> library;  // scanned from settings.weyvelength.gamesFolder, sorted by title
+    enum : uint { LogLimit = 200, PlayerCap = 5 };
+    vector<string> log;  // lobby event/chat feed, oldest first
+    struct PendingIdentityLog { uint32 id; string suffix; uint64 queuedAt; };
+    vector<PendingIdentityLog> pendingIdentityLogs;  // lines waiting on a nickname
+  } weyve;
+  auto weyveConnect(string host, uint16 port) -> bool;
+  auto weyveDisconnect() -> void;
+  auto weyveCreateRoom(bool listed) -> void;
+  auto weyveJoinRoom(string id, string password) -> void;
+  auto weyveLeaveRoom() -> void;
+  auto weyveSessionActive() -> bool;
+  auto weyveConnected() -> bool;
+  auto weyveRoleOf(uint32 memberId) -> string;
+  auto weyveRoleLabel(const string& role) -> string;
+  auto weyvePlayerOrder() -> vector<uint32>;
+  auto weyveCompactRoles(const vector<uint32>& players) -> void;
+  auto weyveAutoAssignRoles() -> void;
+  auto weyveSetRole(uint32 memberId, string role) -> void;
+  auto weyveSetBaseline(uint8 rollback, uint8 delay) -> void;
+  auto weyveKick(uint32 memberId) -> void;
+  auto weyveStartBlockedReason() -> string;
+  auto weyveStartGame() -> void;
+  auto weyveStopGame() -> void;
+  auto weyveApplyLocalDelay() -> void;
+  auto weyvePoll() -> void;
+  auto weyveLog(string line) -> void;
+  auto weyveLogIdentity(uint32 id, string suffix) -> void;
+  auto weyveRoomDataString(const string& key) -> string;
+  auto weyveMemberDataString(uint32 memberId, const string& key) -> string;
+  auto weyveCopyRoomCode() -> void;
+  auto weyveNicknameOf(uint32 id) -> string;
+  auto weyveGameFingerprint() -> string;
+  auto weyveScanLibrary() -> void;
+  auto weyveHasGame(const string& hash) -> maybe<string>;
+  auto weyveSelectGame(uint index) -> void;
+  auto netplayStartWeyve() -> void;
 
   //video.cpp
   auto updateVideoDriver(Window parent) -> void;
