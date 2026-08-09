@@ -1,3 +1,6 @@
 [submodule "gekkonet"]
 	path = gekkonet
 	url = https://github.com/HeatXD/GekkoNet.git
+[submodule "weyvelength"]
+	path = weyvelength
+	url = https://github.com/HeatXD/Weyvelength.git

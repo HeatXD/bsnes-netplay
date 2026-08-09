@@ -23,6 +23,21 @@ else ifeq ($(platform),bsd)
 endif
 flags := $(flags) $(gekkonet.flags)
 
+weyvelength.path := ../weyvelength/Client
+weyvelength.build := ../weyvelength/build
+weyvelength.flags := -I$(weyvelength.path)/include
+weyvelength.lib := $(weyvelength.build)/Client/libweyvelength_client.a
+weyvelength.juicelib := $(weyvelength.build)/Client/thirdparty/libjuice/libjuice-static.a
+weyvelength.options :=
+weyvelength.cmake.args := -DWEYVELENGTH_BUILD_TESTS=OFF
+ifeq ($(platform),windows)
+  weyvelength.cmake.args += -G "MinGW Makefiles"
+  weyvelength.options += -lws2_32 -lbcrypt -lmswsock
+else ifeq ($(platform),bsd)
+  weyvelength.cmake.args += -DCMAKE_MAKE_PROGRAM=gmake -DCMAKE_C_COMPILER=gcc14 -DCMAKE_CXX_COMPILER=g++14
+endif
+flags := $(flags) $(weyvelength.flags)
+
 objects += ui-bsnes ui-program ui-input ui-presentation
 objects += ui-settings ui-tools ui-resource
 objects := $(objects:%=obj/%.o)
@@ -42,12 +57,22 @@ endif
 	cmake -B $(gekkonet.build) -S ../gekkonet -DBUILD_SHARED_LIBS=OFF $(gekkonet.cmake.args)
 	+cmake --build $(gekkonet.build)
 
-# order-only prerequisite: build gekkonet before any .o files
-$(hiro.objects) $(ruby.objects) $(objects): | $(gekkonet.lib)
+$(weyvelength.lib):
+ifeq ($(wildcard ../weyvelength/CMakeLists.txt),)
+	git -C .. submodule update --init --recursive
+endif
+	cmake -B $(weyvelength.build) -S ../weyvelength -DBUILD_SHARED_LIBS=OFF $(weyvelength.cmake.args)
+	+cmake --build $(weyvelength.build) --target weyvelength_client
+
+# libjuice-static.a is a side effect of the weyvelength_client build above, not its own recipe
+$(weyvelength.juicelib): $(weyvelength.lib)
+
+# order-only prerequisite: build gekkonet/weyvelength before any .o files
+$(hiro.objects) $(ruby.objects) $(objects): | $(gekkonet.lib) $(weyvelength.lib) $(weyvelength.juicelib)
 
 all: $(hiro.objects) $(ruby.objects) $(objects)
 	$(info Linking out/$(name) ...)
-	+@$(compiler) -o out/$(name) $(hiro.objects) $(ruby.objects) $(objects) $(gekkonet.lib) $(hiro.options) $(ruby.options) $(gekkonet.options) $(options)
+	+@$(compiler) -o out/$(name) $(hiro.objects) $(ruby.objects) $(objects) $(gekkonet.lib) $(weyvelength.lib) $(weyvelength.juicelib) $(hiro.options) $(ruby.options) $(gekkonet.options) $(weyvelength.options) $(options)
 ifeq ($(platform),macos)
 	rm -rf out/$(name).app
 	mkdir -p out/$(name).app/Contents/MacOS/
