@@ -39,9 +39,27 @@ auto Program::weyveConnected() -> bool {
     return weyve.client != nullptr;
 }
 
+static auto weyveRoomErrorText(uint code) -> string {
+    switch(code) {
+    case WEYVE_ROOM_ERROR_ALREADY_IN_ROOM: return "You are already in a room";
+    case WEYVE_ROOM_ERROR_NO_SUCH_ROOM:    return "No room with that code";
+    case WEYVE_ROOM_ERROR_NOT_IN_ROOM:     return "You are not in a room";
+    case WEYVE_ROOM_ERROR_NOT_HOST:        return "Only the host can do that";
+    case WEYVE_ROOM_ERROR_BAD_ROOM_DATA:   return "The server rejected that room data";
+    case WEYVE_ROOM_ERROR_NO_SUCH_MEMBER:  return "That member is no longer in the room";
+    case WEYVE_ROOM_ERROR_ROOM_CLOSED:     return "That room is not joinable right now";
+    case WEYVE_ROOM_ERROR_BAD_PASSWORD:    return "Wrong password";
+    case WEYVE_ROOM_ERROR_BANNED:          return "You are banned from that room";
+    case WEYVE_ROOM_ERROR_RATE_LIMITED:    return "Too many attempts, try again shortly";
+    }
+    return {"Room error ", code};
+}
+
 auto Program::weyveConnect(string host, uint16 port) -> bool {
     if(weyve.client) weyveDisconnect();
 
+    weyve.lastError = "";
+    weyve.idleSince = chrono::timestamp();
     weyve.client = weyve_client_create();
     if(!weyve_connect(weyve.client, host.data(), port)) {
         weyve_client_destroy(weyve.client);
@@ -68,31 +86,36 @@ auto Program::weyveCreateRoom(bool listed) -> void {
     weyve_create_room(weyve.client);
 }
 
-auto Program::weyveJoinRoom(string id, string password) -> void {
-    if(weyve.client) weyve_join_room(weyve.client, id.data(), password.data());
+auto Program::weyveMarkActive() -> void {
+    weyve.idleSince = chrono::timestamp();
 }
 
-// drops everything scoped to one room; kicks and bans never reach weyveLeaveRoom
+auto Program::weyveJoinRoom(string id, string password) -> void {
+    if(!weyve.client) return;
+    weyve.lastError = "";
+    weyve_join_room(weyve.client, id.data(), password.data());
+}
+
 auto Program::weyveResetRoomState() -> void {
     weyve.lastGameHash = "";
     weyve.lastStartToken = 0;
     weyve.lastStopToken = 0;
     weyve.pendingIdentityLogs.reset();
-    weyve.log.reset();  // history belongs to the room we left
-    weyve.logEpoch++;   // a matching line count alone can't prove the feed is unchanged
+    weyve.log.reset();
+    weyve.logEpoch++;  // a line count alone can't prove the feed changed
 }
 
 auto Program::weyveLeaveRoom() -> void {
     if(!weyve.client) return;
 
-    if(weyve_is_host(weyve.client)) weyveStopGame();  // ends it for everyone
+    if(weyve_is_host(weyve.client)) weyveStopGame();
     if(weyveSessionActive()) netplayStop();
 
     weyve_leave_room(weyve.client);
     weyveResetRoomState();
 }
 
-// players by slot; slots stay contiguous so the index is also the GekkoNet handle
+// slots stay contiguous, so the index is also the GekkoNet handle
 auto Program::weyvePlayerOrder() -> vector<uint32> {
     struct Entry { uint slot; uint32 id; };
     vector<Entry> entries;
@@ -111,7 +134,7 @@ auto Program::weyvePlayerOrder() -> vector<uint32> {
     return players;
 }
 
-// host-only: squeezes out gaps left by departures so slot N is always port N
+// host-only: keeps slot N on port N after departures
 auto Program::weyveCompactRoles(const vector<uint32>& players) -> void {
     for(uint i = 0; i < players.size(); i++) {
         if(weyveRoleOf(players[i]).natural() == i) continue;
@@ -120,7 +143,7 @@ auto Program::weyveCompactRoles(const vector<uint32>& players) -> void {
     }
 }
 
-// host-only: new members take the next free slot, or spectate once the room is full
+// host-only
 auto Program::weyveAutoAssignRoles() -> void {
     uint32 count = 0;
     const uint32* members = weyve_members(weyve.client, &count);
@@ -128,7 +151,7 @@ auto Program::weyveAutoAssignRoles() -> void {
     uint assigned = players.size();
 
     for(uint32 i = 0; i < count; i++) {
-        if(weyveRoomDataString({"role:", members[i]})) continue;  // already assigned
+        if(weyveRoomDataString({"role:", members[i]})) continue;
 
         string key = {"role:", members[i]};
         bool play = assigned < Weyve::PlayerCap;
@@ -143,7 +166,7 @@ auto Program::weyveSetRole(uint32 memberId, string role) -> void {
     if(!weyve.client || !weyve_is_host(weyve.client)) return;
 
     if(role != "spec") {
-        // slots are unique: whoever holds this one swaps into memberId's old role
+        // slots are unique, so this swaps the two members
         uint32 count = 0;
         const uint32* members = weyve_members(weyve.client, &count);
         for(uint32 i = 0; i < count; i++) {
@@ -209,7 +232,6 @@ auto Program::weyveMemberDataString(uint32 memberId, const string& key) -> strin
     return val && len ? string{string_view{val, len}} : string{};
 }
 
-// slot number as a string, or "spec"
 auto Program::weyveRoleOf(uint32 memberId) -> string {
     auto role = weyveRoomDataString({"role:", memberId});
     return role ? role : string{"spec"};
@@ -219,7 +241,7 @@ auto Program::weyveRoleLabel(const string& role) -> string {
     return role == "spec" ? string{"Spectator"} : string{"Player ", role.natural() + 1};
 }
 
-// raw file bytes, so library and loaded-game hashes match
+// raw file bytes, so both hash paths agree
 static auto weyveHashFile(const string& path) -> string {
     auto data = file::read(path);
     if(!data) return "";
@@ -255,7 +277,6 @@ auto Program::weyveScanLibrary() -> void {
     });
 }
 
-// rescans if never scanned, or if the games folder changed under us
 auto Program::weyveLibraryStale() -> bool {
     return !weyve.libraryScanned || settings.weyvelength.gamesFolder != weyve.lastGamesFolder;
 }
@@ -339,7 +360,6 @@ auto Program::weyveLog(string line) -> void {
     if(weyve.log.size() > Weyve::LogLimit) weyve.log.removeLeft();
 }
 
-// waits for the nickname to arrive if we don't have it yet
 auto Program::weyveLogIdentity(uint32 id, string suffix) -> void {
     if(weyveMemberDataString(id, "nickname")) {
         weyveLog({weyveNicknameOf(id), suffix});
@@ -354,6 +374,7 @@ auto Program::weyvePoll() -> void {
     if(!weyve_poll(weyve.client)) {
         weyve_client_destroy(weyve.client);
         weyve.client = nullptr;
+        weyve.lastError = "The server closed the connection";
         return;
     }
 
@@ -362,7 +383,7 @@ auto Program::weyvePoll() -> void {
         switch(event.type) {
         case WEYVE_EVENT_ROOM_ID_ASSIGNED:
             weyve.rolesDirty = true;
-            weyveResetRoomState();  // a room always starts on a clean feed
+            weyveResetRoomState();
             weyveLog("You joined the room");
             if(weyve.pendingListed) {
                 weyve.pendingListed = false;
@@ -370,7 +391,8 @@ auto Program::weyvePoll() -> void {
             }
             break;
         case WEYVE_EVENT_ROOM_ERROR:
-            weyveLog({"Room error ", (int)event.data.room_error.code});
+            weyve.lastError = weyveRoomErrorText(event.data.room_error.code);
+            weyveLog(weyve.lastError);
             break;
         case WEYVE_EVENT_CHAT:
             weyveLog({weyveNicknameOf(event.data.chat.from), ": ", string{string_view{event.data.chat.text, event.data.chat.text_len}}});
@@ -441,7 +463,6 @@ auto Program::weyvePoll() -> void {
         }
     }
 
-    // fall back to the placeholder name after a couple seconds
     if(weyve.pendingIdentityLogs) {
         uint64 now = chrono::timestamp();
         for(uint i = 0; i < weyve.pendingIdentityLogs.size();) {
@@ -455,6 +476,16 @@ auto Program::weyvePoll() -> void {
 
     uint32 idLen = 0;
     weyve_room_id(weyve.client, &idLen);
+
+    // browsing without joining anything just costs the server a slot; a room keeps us
+    if(idLen) {
+        weyveMarkActive();
+    } else if(chrono::timestamp() - weyve.idleSince >= Weyve::IdleTimeout) {
+        weyveDisconnect();
+        weyve.lastError = "Disconnected after idling in the room browser";
+        return;
+    }
+
     if(!idLen) return;
 
     if(weyve.rolesDirty && weyve_is_host(weyve.client)) {
@@ -537,7 +568,7 @@ auto Program::netplayStartWeyve() -> void {
     for(uint32 i = 0; i < count; i++) {
         if(weyveRoleOf(members[i]) == "spec") spectatorIds.append(members[i]);
     }
-    // member order varies per client; sort so everyone derives the same assignment
+    // sort so every client derives the same assignment
     spectatorIds.sort([](uint32 a, uint32 b) { return a < b; });
 
     int numPlayers = rolePlayers.size();

@@ -7,13 +7,17 @@ static auto weyveHostClient() -> WeyveClient* {
 auto WeyveHostSettings::create() -> void {
     layout.setPadding(5_sx, 5_sx);
 
-    listedCheck.setText("Room Listed").setToolTip(
+    roomGroupLabel.setText("Room").setFont(Font().setBold());
+    roomGroupSpacer.setColor({192, 192, 192});
+    baselineGroupLabel.setText("Session Floor").setFont(Font().setBold());
+
+    listedCheck.setText("Listed").setToolTip(
         "Show this room in the public room browser.\n"
         "When off, players can still join by typing the room code."
     ).onToggle([&] {
         if(auto client = weyveHostClient()) weyve_set_room_listed(client, listedCheck.checked());
     });
-    openCheck.setText("Room Open").setToolTip(
+    openCheck.setText("Open").setToolTip(
         "Allow new members to join.\n"
         "Closed automatically while a session is running."
     ).onToggle([&] {
@@ -33,14 +37,14 @@ auto WeyveHostSettings::create() -> void {
         passwordValue.setText("");
     });
 
-    rollbackMinLabel.setText("Room Rollback:");
+    rollbackMinLabel.setText("Rollback:");
     rollbackMinValue.setText("8").setToolTip(
         "Minimum rollback frames for everyone in the room.\n"
         "Clients may raise their own value but never go below this."
     ).onChange([&] {
         program.weyveSetBaseline((uint8)rollbackMinValue.text().strip().natural(), (uint8)delayMinValue.text().strip().natural());
     });
-    delayMinLabel.setText("Room Delay:");
+    delayMinLabel.setText("Delay:");
     delayMinValue.setText("2").setToolTip(
         "Minimum input delay for everyone in the room.\n"
         "Clients may raise their own value but never go below this."
@@ -48,7 +52,7 @@ auto WeyveHostSettings::create() -> void {
         program.weyveSetBaseline((uint8)rollbackMinValue.text().strip().natural(), (uint8)delayMinValue.text().strip().natural());
     });
 
-    spectatorDelayLabel.setText("Spectator Delay:");
+    spectatorDelayLabel.setText("Spectators:");
     spectatorDelayValue.setText("300").setToolTip(
         "Frames spectators lag behind live play (300 = 5 seconds at 60fps).\n"
         "Higher absorbs network jitter; lower is more current but stutters more."
@@ -62,7 +66,7 @@ auto WeyveHostSettings::create() -> void {
     refreshTimer.onActivate([&] { refresh(); }).setInterval(200);
 
     setTitle("Room Settings");
-    setSize({480_sx, 160_sy});
+    setSize({460_sx, 190_sy});
     setAlignment({0.5, 0.5});
     setDismissable();
     onClose([&] { setVisible(false); });

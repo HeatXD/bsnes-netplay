@@ -342,6 +342,9 @@ private:
     auto sendChat() -> void;
     auto memberRow(uint32_t id, bool roomHasGame, uint32_t hostId, uint32_t selfId) -> string;
     auto selectedMemberId() -> maybe<uint32_t>;
+    auto selectedRoomCode() -> string;
+    auto updateRoleControls() -> void;
+    auto updateJoinControls() -> void;
 
     uint gameLibrarySize = 0;
     Timer refreshTimer;
@@ -355,8 +358,6 @@ private:
     string lastStartReason;
     int lastRunning = -1;
     uint lastRoleCount = 0;
-    uint8 lastShownRollback = 0;
-    uint8 lastShownDelay = 0;
 
     VerticalLayout layout{this};
 
@@ -367,18 +368,19 @@ private:
 
     VerticalLayout browseScreen{&layout, Size{~0, ~0}};
       HorizontalLayout browseButtons{&browseScreen, Size{~0, 0}};
+        Label nicknameLabel{&browseButtons, Size{0, 0}};
+        LineEdit nicknameValue{&browseButtons, Size{110_sx, 0}};
         Button btnRefreshRooms{&browseButtons, Size{100_sx, 0}};
         Button btnCreateRoom{&browseButtons, Size{100_sx, 0}};
         CheckLabel publicCheck{&browseButtons, Size{0, 0}};
-        Widget browseSpacer{&browseButtons, Size{~0, 0}};
-        Button btnDisconnect{&browseButtons, Size{100_sx, 0}};
-      ListView roomList{&browseScreen, Size{~0, ~0}};
+        Label browseStatus{&browseButtons, Size{~0, 0}};
       HorizontalLayout joinLayout{&browseScreen, Size{~0, 0}};
-        Label joinCodeLabel{&joinLayout, Size{70_sx, 0}};
+        Label joinCodeLabel{&joinLayout, Size{0, 0}};
         LineEdit joinCodeValue{&joinLayout, Size{~0, 0}};
-        Label joinPasswordLabel{&joinLayout, Size{70_sx, 0}};
+        Label joinPasswordLabel{&joinLayout, Size{0, 0}};
         LineEdit joinPasswordValue{&joinLayout, Size{~0, 0}};
         Button btnJoinRoom{&joinLayout, Size{100_sx, 0}};
+      ListView roomList{&browseScreen, Size{~0, ~0}};
 
     VerticalLayout lobbyScreen{&layout, Size{~0, ~0}};
       HorizontalLayout roomHeader{&lobbyScreen, Size{~0, 0}};
@@ -387,28 +389,31 @@ private:
       HorizontalLayout gameLayout{&lobbyScreen, Size{~0, 0}};
         Label gameSelectLabel{&gameLayout, Size{0, 0}};
         ComboButton gameCombo{&gameLayout, Size{~0, 0}};  // enabled host-only
-        Button btnHostSettings{&gameLayout, Size{0, 0}};  // host-only, opens WeyveHostSettings popup
+        Button btnHostSettings{&gameLayout, Size{0, 0}};
       HorizontalLayout localLayout{&lobbyScreen, Size{~0, 0}};
         Label rollbackLabel{&localLayout, Size{0, 0}};
-        LineEdit rollbackValue{&localLayout, Size{~0, 0}};
+        LineEdit rollbackValue{&localLayout, Size{40_sx, 0}};
         Label delayLabel{&localLayout, Size{0, 0}};
-        LineEdit delayValue{&localLayout, Size{~0, 0}};
+        LineEdit delayValue{&localLayout, Size{40_sx, 0}};
         Label runAheadLabel{&localLayout, Size{0, 0}};
-        LineEdit runAheadValue{&localLayout, Size{~0, 0}};
-      ListView memberList{&lobbyScreen, Size{~0, 70_sy}};
-      HorizontalLayout roleLayout{&lobbyScreen, Size{~0, 0}};  // host-only
-        ComboButton roleCombo{&roleLayout, Size{100_sx, 0}};
-        Button btnAssignRole{&roleLayout, Size{90_sx, 0}};
-        Button btnKick{&roleLayout, Size{70_sx, 0}};
-        Widget roleSpacer{&roleLayout, Size{~0, 0}};
-      ListView eventLog{&lobbyScreen, Size{~0, ~0}};
-      HorizontalLayout chatLayout{&lobbyScreen, Size{~0, 0}};
-        LineEdit chatValue{&chatLayout, Size{~0, 0}};
-        Button btnChatSend{&chatLayout, Size{80_sx, 0}};
+        LineEdit runAheadValue{&localLayout, Size{40_sx, 0}};
+        Widget localSpacer{&localLayout, Size{~0, 0}};
+      HorizontalLayout lobbyBody{&lobbyScreen, Size{~0, ~0}};
+        VerticalLayout memberColumn{&lobbyBody, Size{~0, ~0}};
+          ListView memberList{&memberColumn, Size{~0, ~0}};
+          HorizontalLayout roleLayout{&memberColumn, Size{~0, 0}};  // host-only
+            ComboButton roleCombo{&roleLayout, Size{~0, 0}};
+            Button btnAssignRole{&roleLayout, Size{90_sx, 0}};
+            Button btnKick{&roleLayout, Size{70_sx, 0}};
+        VerticalLayout feedColumn{&lobbyBody, Size{~0, ~0}};
+          ListView eventLog{&feedColumn, Size{~0, ~0}};
+          HorizontalLayout chatLayout{&feedColumn, Size{~0, 0}};
+            LineEdit chatValue{&chatLayout, Size{~0, 0}};
+            Button btnChatSend{&chatLayout, Size{60_sx, 0}};
       HorizontalLayout lobbyButtons{&lobbyScreen, Size{~0, 0}};
         Button btnStart{&lobbyButtons, Size{100_sx, 0}};  // host-only
         Button btnStop{&lobbyButtons, Size{100_sx, 0}};  // host-only, ends the session for everyone
-        Label startStatus{&lobbyButtons, Size{~0, 0}};  // host-only; fills the spacer role, shows why Start is disabled
+        Label startStatus{&lobbyButtons, Size{~0, 0}};  // host-only; shows why Start is disabled
         Button btnLeave{&lobbyButtons, Size{100_sx, 0}};
 
     uint loggedLines = 0;
@@ -429,23 +434,26 @@ private:
     int lastRunning = -1;
 
     VerticalLayout layout{this};
+      Label roomGroupLabel{&layout, Size{~0, 0}, 2};
       HorizontalLayout roomSettingsLayout{&layout, Size{~0, 0}};
         CheckLabel listedCheck{&roomSettingsLayout, Size{0, 0}};
         CheckLabel openCheck{&roomSettingsLayout, Size{0, 0}};
         CheckLabel desyncCheck{&roomSettingsLayout, Size{0, 0}};
         Widget roomSettingsSpacer{&roomSettingsLayout, Size{~0, 0}};
       HorizontalLayout passwordLayout{&layout, Size{~0, 0}};
-        Label passwordLabel{&passwordLayout, Size{70_sx, 0}};
+        Label passwordLabel{&passwordLayout, Size{0, 0}};
         LineEdit passwordValue{&passwordLayout, Size{~0, 0}};
-        Button btnSetPassword{&passwordLayout, Size{80_sx, 0}};
+        Button btnSetPassword{&passwordLayout, Size{60_sx, 0}};
+      Canvas roomGroupSpacer{&layout, Size{~0, 1}};
+      Label baselineGroupLabel{&layout, Size{~0, 0}, 2};
       HorizontalLayout baselineLayout{&layout, Size{~0, 0}};
         Label rollbackMinLabel{&baselineLayout, Size{0, 0}};
-        LineEdit rollbackMinValue{&baselineLayout, Size{~0, 0}};
+        LineEdit rollbackMinValue{&baselineLayout, Size{40_sx, 0}};
         Label delayMinLabel{&baselineLayout, Size{0, 0}};
-        LineEdit delayMinValue{&baselineLayout, Size{~0, 0}};
-      HorizontalLayout spectatorLayout{&layout, Size{~0, 0}};
-        Label spectatorDelayLabel{&spectatorLayout, Size{0, 0}};
-        LineEdit spectatorDelayValue{&spectatorLayout, Size{~0, 0}};
+        LineEdit delayMinValue{&baselineLayout, Size{40_sx, 0}};
+        Label spectatorDelayLabel{&baselineLayout, Size{0, 0}};
+        LineEdit spectatorDelayValue{&baselineLayout, Size{50_sx, 0}};
+        Widget baselineSpacer{&baselineLayout, Size{~0, 0}};
       Widget spacer{&layout, Size{~0, ~0}};
 };
 

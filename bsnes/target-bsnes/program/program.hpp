@@ -158,6 +158,7 @@ struct Program : Lock, Emulator::Platform {
   } netplay;
   auto netplayMode(Netplay::Mode) -> void;
   auto netplayApplyDeterministicSettings() -> void;
+  auto netplaySetRunAhead(uint8 frames) -> void;
   auto netplayApplyRunAhead() -> void;
   auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator, bool detectDesyncs) -> void;
   auto netplayStressStart(uint8 players, uint8 checkDistance) -> void;
@@ -190,6 +191,9 @@ struct Program : Lock, Emulator::Platform {
     WeyveClient* client = nullptr;
     string lastPublishedNickname;
     string lastGameHash;  // last game_hash we checked our library against
+    string lastError;
+    uint64 idleSince = 0;
+    enum : uint { IdleTimeout = 5 * 60 };
     uint32 lastStartToken = 0;
     uint32 lastStopToken = 0;
     uint8 localRollback = 8;
@@ -210,6 +214,7 @@ struct Program : Lock, Emulator::Platform {
   auto weyveConnect(string host, uint16 port) -> bool;
   auto weyveDisconnect() -> void;
   auto weyveCreateRoom(bool listed) -> void;
+  auto weyveMarkActive() -> void;
   auto weyveJoinRoom(string id, string password) -> void;
   auto weyveLeaveRoom() -> void;
   auto weyveResetRoomState() -> void;

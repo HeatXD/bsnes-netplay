@@ -66,6 +66,11 @@ auto Program::netplayBeginSession(int numPlayers, uint8 rollback, uint8 delay, i
     netplayApplyRunAhead();
 }
 
+auto Program::netplaySetRunAhead(uint8 frames) -> void {
+    netplay.localRunAhead = min((uint8)4, frames);
+    netplayApplyRunAhead();
+}
+
 auto Program::netplayApplyRunAhead() -> void {
     if(!netplay.session) return;
     gekko_set_runahead(netplay.session, netplay.localRunAhead);

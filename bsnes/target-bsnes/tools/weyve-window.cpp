@@ -1,16 +1,16 @@
-// room-wide values are passed in; the caller hoists them out of the loop
 auto WeyveWindow::memberRow(uint32_t id, bool roomHasGame, uint32_t hostId, uint32_t selfId) -> string {
-    string label = {program.weyveNicknameOf(id), "  ", program.weyveRoleLabel(program.weyveRoleOf(id))};
-    if(id == hostId) label.append(" (host)");
-    if(id == selfId) label.append(" (you)");
+    string label;
+    if(id == hostId) label.append("[host] ");
+    if(id == selfId) label.append("[you] ");
+    label.append(program.weyveNicknameOf(id), " | ", program.weyveRoleLabel(program.weyveRoleOf(id)));
 
-    if(roomHasGame && program.weyveMemberDataString(id, "hasGame") != "1") label.append("  [no game]");
+    if(roomHasGame && program.weyveMemberDataString(id, "hasGame") != "1") label.append(" | no game");
 
     if(program.weyveSessionActive()) {
         for(auto& peer : program.netplay.peers) {
             if(peer.weyveId != id || peer.type != GekkoRemotePlayer) continue;
             auto& stats = program.netplay.netStats[peer.id];
-            label.append({"  [ping ", (uint)stats.last_ping, "ms jitter ", (uint)stats.jitter, "ms]"});
+            label.append({" | P: ", (uint)stats.last_ping, "ms | J: ", (uint)stats.jitter, "ms"});
             break;
         }
     }
@@ -24,6 +24,34 @@ auto WeyveWindow::selectedMemberId() -> maybe<uint32_t> {
     const uint32* members = weyve_members(program.weyve.client, &count);
     if(item.offset() >= count) return nothing;
     return members[item.offset()];
+}
+
+// snaps the field back when the value was clamped; empty means mid-edit
+static auto weyveSyncField(LineEdit& edit, uint8 value) -> void {
+    string text = edit.text().strip();
+    if(text && text.natural() != value) edit.setText({value});
+}
+
+auto WeyveWindow::selectedRoomCode() -> string {
+    if(string code = joinCodeValue.text().strip()) return code;
+    if(!program.weyve.client) return {};
+    if(auto item = roomList.selected()) {
+        uint32 len = 0;
+        const char* id = weyve_room_list_id(program.weyve.client, item.offset(), &len);
+        return {string_view{id, len}};
+    }
+    return {};
+}
+
+auto WeyveWindow::updateJoinControls() -> void {
+    btnJoinRoom.setEnabled((bool)selectedRoomCode());
+}
+
+auto WeyveWindow::updateRoleControls() -> void {
+    bool hasSelection = (bool)memberList.selected();
+    roleCombo.setEnabled(hasSelection);
+    btnAssignRole.setEnabled(hasSelection);
+    btnKick.setEnabled(hasSelection);
 }
 
 auto WeyveWindow::attemptConnect() -> void {
@@ -45,26 +73,20 @@ auto WeyveWindow::attemptConnect() -> void {
 }
 
 auto WeyveWindow::createRoomPressed() -> void {
+    program.weyveMarkActive();
     program.weyveCreateRoom(publicCheck.checked());
 }
 
 auto WeyveWindow::joinRoomPressed() -> void {
-    if(!program.weyve.client) return;
-
-    string code = joinCodeValue.text().strip();
-    if(!code) {
-        if(auto item = roomList.selected()) {
-            uint32 len = 0;
-            const char* id = weyve_room_list_id(program.weyve.client, item.offset(), &len);
-            code = string{string_view{id, len}};
-        }
+    if(string code = selectedRoomCode()) {
+        program.weyveJoinRoom(code, joinPasswordValue.text().strip());
     }
-    if(!code) return;
-    program.weyveJoinRoom(code, joinPasswordValue.text().strip());
 }
 
 auto WeyveWindow::refreshRoomList() -> void {
-    if(program.weyve.client) weyve_list_rooms(program.weyve.client, nullptr, 0);
+    if(!program.weyve.client) return;
+    program.weyveMarkActive();
+    weyve_list_rooms(program.weyve.client, nullptr, 0);
 }
 
 auto WeyveWindow::sendChat() -> void {
@@ -84,6 +106,13 @@ auto WeyveWindow::create() -> void {
     connectStatus.setText("Connecting...");
     btnRetry.setText("Retry").setIcon(Icon::Device::Network).onActivate([&] { attemptConnect(); });
 
+    nicknameLabel.setText("Name:");
+    nicknameValue.setText(settings.weyvelength.nickname).setToolTip(
+        "Name other players see in the member list and chat."
+    ).onChange([&] {
+        settings.weyvelength.nickname = nicknameValue.text().strip();
+    });
+
     btnRefreshRooms.setText("Refresh").setToolTip("Re-query the server for public rooms.")
         .onActivate([&] { refreshRoomList(); });
     btnCreateRoom.setText("Create Room").setToolTip("Create a room and become its host.")
@@ -92,13 +121,14 @@ auto WeyveWindow::create() -> void {
         "List the new room publicly so anyone can find it.\n"
         "Uncheck to make it join-by-code only."
     );
-    btnDisconnect.setText("Disconnect").setToolTip("Disconnect from the room server.")
-        .onActivate([&] { program.weyveDisconnect(); refresh(); });
     joinCodeLabel.setText("Code:");
-    joinCodeValue.setToolTip("Join a room directly by its code, listed or not.\nLeave empty to join the room selected above.");
+    joinCodeValue.setToolTip("Join a room directly by its code, listed or not.\nLeave empty to join the room selected below.")
+        .onChange([&] { program.weyveMarkActive(); updateJoinControls(); });
     joinPasswordLabel.setText("Password:");
     joinPasswordValue.setToolTip("Only needed for rooms marked as locked.");
     btnJoinRoom.setText("Join").onActivate([&] { joinRoomPressed(); });
+    roomList.onChange([&] { program.weyveMarkActive(); updateJoinControls(); });
+    roomList.onActivate([&] { joinRoomPressed(); });
 
     btnCopyCode.setText("Copy Code").setToolTip("Copy the room code to the clipboard so you can share it.")
         .onActivate([&] { program.weyveCopyRoomCode(); });
@@ -109,8 +139,8 @@ auto WeyveWindow::create() -> void {
         "Local only: it is never synced, and each player can pick their own.\n"
         "Costs CPU, since every run-ahead frame re-simulates the emulator."
     ).onChange([&] {
-        program.netplay.localRunAhead = min((uint8)4, (uint8)runAheadValue.text().strip().natural());
-        program.netplayApplyRunAhead();
+        program.netplaySetRunAhead((uint8)runAheadValue.text().strip().natural());
+        weyveSyncField(runAheadValue, program.netplay.localRunAhead);
     });
 
     rollbackLabel.setText("Rollback:");
@@ -119,17 +149,19 @@ auto WeyveWindow::create() -> void {
         "Cannot go below the room's value; locked once the session starts."
     ).onChange([&] {
         program.weyveSetLocalRollback((uint8)rollbackValue.text().strip().natural());
+        weyveSyncField(rollbackValue, program.weyve.localRollback);
     });
     delayLabel.setText("Delay:");
-    lastShownDelay = program.weyve.localDelay;
     delayValue.setText({program.weyve.localDelay}).setToolTip(
         "Frames of input delay you add locally. Higher means fewer rollbacks but laggier input.\n"
         "Cannot go below the room's value; this is the only setting adjustable mid-session."
     ).onChange([&] {
         program.weyveSetLocalDelay((uint8)delayValue.text().strip().natural());
+        weyveSyncField(delayValue, program.weyve.localDelay);
     });
 
     memberList.setToolTip("Everyone in the room. Numeric ids are shown per member.");
+    memberList.onChange([&] { updateRoleControls(); });
     roleCombo.setToolTip("Pick a slot, then press Assign Role. Player N is controller port N.");
     btnAssignRole.setText("Assign Role").setToolTip(
         "Give the selected member this role.\n"
@@ -197,6 +229,7 @@ auto WeyveWindow::refresh() -> void {
         browseScreen.setVisible(connected && !inRoom);
         lobbyScreen.setVisible(inRoom);
         layout.resize();
+        if(!connected && program.weyve.lastError) connectStatus.setText(program.weyve.lastError);
         if(enteringBrowse) refreshRoomList();
         if(enteringRoom) {
             gameAutoSelectDone = false;
@@ -219,13 +252,17 @@ auto WeyveWindow::refresh() -> void {
             string gameName = game && gameLen ? string{string_view{game, gameLen}} : string{"?"};
 
             rows.append({string{string_view{id, idLen}}, " | ", gameName,
-                " | ", members, " players", locked ? " | locked" : ""});
+                " | ", members, " player(s)", locked ? " | locked" : ""});
         }
         if(rows != lastRoomListRows) {
             lastRoomListRows = rows;
             roomList.reset();
             for(auto& row : rows) roomList.append(ListViewItem().setText(row));
+            updateJoinControls();
         }
+
+        if(browseStatus.text() != program.weyve.lastError) browseStatus.setText(program.weyve.lastError);
+        if(nicknameValue.text() != settings.weyvelength.nickname) nicknameValue.setText(settings.weyvelength.nickname);
         return;
     }
 
@@ -259,7 +296,7 @@ auto WeyveWindow::refresh() -> void {
             for(auto& entry : program.weyve.library) gameCombo.append(ComboButtonItem().setText(entry.title));
         }
         if(!gameAutoSelectDone && program.weyve.library.size() && !roomGameHash) {
-            program.weyveSelectGame(0);  // retry until it lands; a manual pick or a confirmed hash stops this
+            program.weyveSelectGame(0);  // retried until a pick or a confirmed hash lands
         }
         if(roomGameHash) gameAutoSelectDone = true;
 
@@ -270,7 +307,6 @@ auto WeyveWindow::refresh() -> void {
             startStatus.setText(sessionLive ? string{"Session running"} : reason);
         }
 
-        // cap slots at how many members could actually play
         uint32 memberCount = 0;
         weyve_members(client, &memberCount);
         uint slots = min(memberCount, (uint32)Program::Weyve::PlayerCap);
@@ -299,16 +335,17 @@ auto WeyveWindow::refresh() -> void {
     uint32 selfId = weyve_id(client);
     vector<string> memberRows;
     for(uint32 i = 0; i < count; i++) memberRows.append(memberRow(members[i], (bool)roomGameHash, hostId, selfId));
-    if(memberRows != lastMemberRows) {
+    if(memberRows.size() == lastMemberRows.size()) {
+        // ping digits churn every tick; patching keeps the selection and avoids flicker
+        for(uint i : range(memberRows.size())) {
+            if(memberRows[i] != lastMemberRows[i]) memberList.item(i).setText(memberRows[i]);
+        }
         lastMemberRows = memberRows;
-        // ping digits churn every tick; keep the selection across the rebuild
-        auto selected = memberList.selected();
-        int selectedOffset = selected ? (int)selected.offset() : -1;
+    } else if(memberRows != lastMemberRows) {
+        lastMemberRows = memberRows;
         memberList.reset();
         for(auto& row : memberRows) memberList.append(ListViewItem().setText(row));
-        if(selectedOffset >= 0 && selectedOffset < (int)memberRows.size()) {
-            memberList.item(selectedOffset).setSelected();
-        }
+        updateRoleControls();
 
         // no per-row tooltip on Windows, so ids go on the list itself
         string ids;
@@ -325,14 +362,9 @@ auto WeyveWindow::refresh() -> void {
         for(uint i = loggedLines; i-- > 0;) eventLog.append(ListViewItem().setText(program.weyve.log[i]));
     }
 
-    if(program.weyve.localRollback != lastShownRollback) {
-        lastShownRollback = program.weyve.localRollback;
-        rollbackValue.setText({lastShownRollback});
-    }
-    if(program.weyve.localDelay != lastShownDelay) {
-        lastShownDelay = program.weyve.localDelay;
-        delayValue.setText({lastShownDelay});
-    }
+    weyveSyncField(rollbackValue, program.weyve.localRollback);
+    weyveSyncField(delayValue, program.weyve.localDelay);
+    weyveSyncField(runAheadValue, program.netplay.localRunAhead);
 }
 
 auto WeyveWindow::setVisible(bool visible) -> WeyveWindow& {
@@ -346,7 +378,7 @@ auto WeyveWindow::setVisible(bool visible) -> WeyveWindow& {
         if(program.weyve.client) {
             uint32 roomLen = 0;
             weyve_room_id(program.weyve.client, &roomLen);
-            if(roomLen) program.weyveLeaveRoom();  // also stops the session, and ends it for everyone if we host
+            if(roomLen) program.weyveLeaveRoom();  // as host this ends it for everyone
         }
     }
     return Window::setVisible(visible), *this;
