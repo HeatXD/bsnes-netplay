@@ -189,7 +189,6 @@ struct Program : Lock, Emulator::Platform {
     };
 
     WeyveClient* client = nullptr;
-    string lastPublishedNickname;
     string lastGameHash;  // last game_hash we checked our library against
     string lastError;
     uint64 idleSince = 0;
@@ -198,8 +197,8 @@ struct Program : Lock, Emulator::Platform {
     uint32 lastStopToken = 0;
     uint8 localRollback = 8;
     uint8 localDelay = 2;
-    uint8 lastPublishedRollback = 0;
-    uint8 lastPublishedDelay = 0;
+    struct Published { string key; string value; };
+    vector<Published> published;
     bool pendingListed = false;  // applied once WEYVE_EVENT_ROOM_ID_ASSIGNED fires
     bool rolesDirty = true;  // host reassigns roles on the next poll
     bool libraryScanned = false;
@@ -216,6 +215,7 @@ struct Program : Lock, Emulator::Platform {
   auto weyveConnect(string host, uint16 port) -> bool;
   auto weyveDisconnect() -> void;
   auto weyveCreateRoom(bool listed) -> void;
+  auto weyvePublish(const string& key, const string& value) -> void;
   auto weyveMarkActive() -> void;
   auto weyveListRooms() -> void;
   auto weyveJoinRoom(string id, string password) -> void;
@@ -242,6 +242,7 @@ struct Program : Lock, Emulator::Platform {
   auto weyveRoomDataString(const string& key) -> string;
   auto weyveMemberDataString(uint32 memberId, const string& key) -> string;
   auto weyveCopyRoomCode() -> void;
+  auto weyveRememberName(uint32 id, const string& nickname) -> void;
   auto weyveNicknameOf(uint32 id) -> string;
   auto weyveGameFingerprint() -> string;
   auto weyveScanLibrary() -> void;

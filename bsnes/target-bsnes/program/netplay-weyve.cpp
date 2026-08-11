@@ -93,6 +93,19 @@ auto Program::weyveListRooms() -> void {
     weyve_list_rooms(weyve.client, nullptr, 0);
 }
 
+// member data only travels when it changes; the cache is per room
+auto Program::weyvePublish(const string& key, const string& value) -> void {
+    for(auto& entry : weyve.published) {
+        if(entry.key != key) continue;
+        if(entry.value == value) return;
+        entry.value = value;
+        weyve_set_member_data(weyve.client, key.data(), value.data());
+        return;
+    }
+    weyve.published.append({key, value});
+    weyve_set_member_data(weyve.client, key.data(), value.data());
+}
+
 auto Program::weyveMarkActive() -> void {
     weyve.idleSince = chrono::timestamp();
 }
@@ -105,6 +118,7 @@ auto Program::weyveJoinRoom(string id, string password) -> void {
 }
 
 auto Program::weyveResetRoomState() -> void {
+    weyve.published.reset();  // member data is per room
     weyve.lastGameHash = "";
     weyve.lastStartToken = 0;
     weyve.lastStopToken = 0;
@@ -257,21 +271,26 @@ static auto weyveHashFile(const string& path) -> string {
     return nall::Hash::CRC32(data).digest();
 }
 
-// remembered so a member can still be named in the feed after they leave
-auto Program::weyveNicknameOf(uint32 id) -> string {
-    if(auto nickname = weyveMemberDataString(id, "nickname")) {
-        for(auto& known : weyve.knownNames) {
-            if(known.id != id) continue;
-            known.nickname = nickname;
-            return nickname;
-        }
-        weyve.knownNames.append({id, nickname});
-        return nickname;
-    }
+// remembered so a member can still be named after they leave
+auto Program::weyveRememberName(uint32 id, const string& nickname) -> void {
     for(auto& known : weyve.knownNames) {
-        if(known.id == id) return known.nickname;
+        if(known.id != id) continue;
+        known.nickname = nickname;
+        return;
     }
-    return {"Player #", id};
+    weyve.knownNames.append({id, nickname});
+}
+
+auto Program::weyveNicknameOf(uint32 id) -> string {
+    auto nickname = weyveMemberDataString(id, "nickname");
+    for(auto& known : weyve.knownNames) {
+        if(known.id != id) continue;
+        if(nickname) known.nickname = nickname;
+        return known.nickname;
+    }
+    if(!nickname) return {"Player #", id};
+    weyve.knownNames.append({id, nickname});
+    return nickname;
 }
 
 auto Program::weyveGameFingerprint() -> string {
@@ -446,6 +465,7 @@ auto Program::weyvePoll() -> void {
             string key{string_view{event.data.member_data.key, event.data.member_data.key_len}};
             string value{string_view{event.data.member_data.value, event.data.member_data.value_len}};
             if(key == "nickname") {
+                weyveRememberName(event.data.member_data.id, value);
                 for(uint i = 0; i < weyve.pendingIdentityLogs.size();) {
                     if(weyve.pendingIdentityLogs[i].id == event.data.member_data.id) {
                         weyveLog({value, weyve.pendingIdentityLogs[i].suffix});
@@ -513,10 +533,7 @@ auto Program::weyvePoll() -> void {
         weyveAutoAssignRoles();
     }
 
-    if(settings.weyvelength.nickname != weyve.lastPublishedNickname) {
-        weyve.lastPublishedNickname = settings.weyvelength.nickname;
-        weyve_set_member_data(weyve.client, "nickname", weyve.lastPublishedNickname.data());
-    }
+    weyvePublish("nickname", settings.weyvelength.nickname);
 
     string targetHash = weyveRoomDataString("game_hash");
     if(targetHash != weyve.lastGameHash || weyveLibraryStale()) {
@@ -533,14 +550,8 @@ auto Program::weyvePoll() -> void {
     uint8 delayFloor = (uint8)weyveRoomDataString("delay_min").natural();
     if(weyve.localRollback < rollbackFloor) weyveSetLocalRollback(rollbackFloor);
     if(weyve.localDelay < delayFloor) weyveSetLocalDelay(delayFloor);
-    if(weyve.localRollback != weyve.lastPublishedRollback) {
-        weyve.lastPublishedRollback = weyve.localRollback;
-        weyve_set_member_data(weyve.client, "rollback", string{weyve.localRollback}.data());
-    }
-    if(weyve.localDelay != weyve.lastPublishedDelay) {
-        weyve.lastPublishedDelay = weyve.localDelay;
-        weyve_set_member_data(weyve.client, "delay", string{weyve.localDelay}.data());
-    }
+    weyvePublish("rollback", {weyve.localRollback});
+    weyvePublish("delay", {weyve.localDelay});
 
     uint32 token = weyveRoomDataString("start_token").natural();
     if(token != weyve.lastStartToken) {

@@ -345,19 +345,18 @@ private:
     auto selectedRoomCode() -> string;
     auto updateRoleControls() -> void;
     auto applyScreens(bool connected, bool inRoom) -> void;
+    auto applyLobbyControls(bool sessionLive, bool isHost) -> void;
     auto updateJoinControls() -> void;
 
     uint gameLibrarySize = 0;
     Timer refreshTimer;
     bool lastConnected = false;
     bool lastInRoom = false;
-    int lastIsHost = -1;
     bool gameAutoSelectDone = false;
     vector<string> lastMemberRows;
     vector<string> lastRoomListRows;
     string lastNonHostGame;
-    string lastStartReason;
-    int lastRunning = -1;
+    string lastStartStatus;
     uint lastRoleCount = 0;
 
     VerticalLayout layout{this};

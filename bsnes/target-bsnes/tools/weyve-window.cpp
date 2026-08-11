@@ -45,11 +45,25 @@ auto WeyveWindow::selectedRoomCode() -> string {
 
 // screens start out visible, so this has to run before the first transition too
 auto WeyveWindow::applyScreens(bool connected, bool inRoom) -> void {
-    if(connectScreen.visible() == !connected && lobbyScreen.visible() == inRoom) return;
+    bool showBrowse = connected && !inRoom;
+    if(connectScreen.visible() == !connected && browseScreen.visible() == showBrowse
+    && lobbyScreen.visible() == inRoom) return;
     connectScreen.setVisible(!connected);
-    browseScreen.setVisible(connected && !inRoom);
+    browseScreen.setVisible(showBrowse);
     lobbyScreen.setVisible(inRoom);
     layout.resize();
+}
+
+// recomputed from both inputs, so no control depends on which changed last
+auto WeyveWindow::applyLobbyControls(bool sessionLive, bool isHost) -> void {
+    rollbackValue.setEnabled(!sessionLive);  // only Delay is adjustable mid-session
+    roleLayout.setEnabled(!sessionLive);
+    gameCombo.setEnabled(isHost && !sessionLive);
+    btnStop.setEnabled(sessionLive);
+    roleLayout.setVisible(isHost);
+    btnHostSettings.setVisible(isHost);
+    btnStart.setVisible(isHost);
+    btnStop.setVisible(isHost);
 }
 
 auto WeyveWindow::updateJoinControls() -> void {
@@ -235,10 +249,7 @@ auto WeyveWindow::refresh() -> void {
         lastInRoom = inRoom;
         if(!connected && program.weyve.lastError) connectStatus.setText(program.weyve.lastError);
         if(enteringBrowse) refreshRoomList();
-        if(enteringRoom) {
-            gameAutoSelectDone = false;
-            lastIsHost = -1;
-        }
+        if(enteringRoom) gameAutoSelectDone = false;
     }
     if(!connected) return;
 
@@ -269,7 +280,7 @@ auto WeyveWindow::refresh() -> void {
             // tinted only while it says something, so the empty spacer stays invisible
             bool failed = (bool)program.weyve.lastError;
             browseStatus.setText(program.weyve.lastError);
-            browseStatus.setBackgroundColor(failed ? Color{255, 228, 228} : Color{});
+            browseStatus.setBackgroundColor(failed ? Color{255, 224, 224} : Color{});
             browseStatus.setForegroundColor(failed ? Color{144, 0, 0} : Color{});
         }
         if(nicknameValue.text().strip() != settings.weyvelength.nickname) nicknameValue.setText(settings.weyvelength.nickname);
@@ -277,24 +288,8 @@ auto WeyveWindow::refresh() -> void {
     }
 
     bool sessionLive = program.weyveSessionActive();
-    if((int)sessionLive != lastRunning) {
-        lastRunning = sessionLive;
-        rollbackValue.setEnabled(!sessionLive);  // only Delay is adjustable mid-session
-        btnStop.setEnabled(sessionLive);
-        gameCombo.setEnabled(!sessionLive && weyve_is_host(client));
-        roleLayout.setEnabled(!sessionLive);
-    }
-
     bool isHost = weyve_is_host(client);
-    if((int)isHost != lastIsHost) {
-        lastIsHost = isHost;
-        gameCombo.setEnabled(isHost && !sessionLive);
-        btnHostSettings.setVisible(isHost);
-        roleLayout.setVisible(isHost);
-        btnStart.setVisible(isHost);
-        btnStop.setVisible(isHost);
-        if(!isHost) { startStatus.setText(""); lastStartReason = ""; }
-    }
+    applyLobbyControls(sessionLive, isHost);
 
     string roomGameHash = program.weyveRoomDataString("game_hash");
 
@@ -310,12 +305,10 @@ auto WeyveWindow::refresh() -> void {
         }
         if(roomGameHash) gameAutoSelectDone = true;
 
-        string reason = sessionLive ? string{} : program.weyveStartBlockedReason();
-        btnStart.setEnabled(!sessionLive && !reason);
-
-        string status = sessionLive ? string{"Session running"} : reason;
-        if(status != lastStartReason) {
-            lastStartReason = status;
+        string status = sessionLive ? string{"Session running"} : program.weyveStartBlockedReason();
+        btnStart.setEnabled(!status);
+        if(status != lastStartStatus) {
+            lastStartStatus = status;
             startStatus.setText(status);
         }
 
