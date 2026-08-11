@@ -6,14 +6,6 @@ auto WeyveWindow::memberRow(uint32_t id, bool roomHasGame, uint32_t hostId, uint
 
     if(roomHasGame && program.weyveMemberDataString(id, "hasGame") != "1") label.append(" | no game");
 
-    if(program.weyveSessionActive()) {
-        for(auto& peer : program.netplay.peers) {
-            if(peer.weyveId != id || peer.type != GekkoRemotePlayer) continue;
-            auto& stats = program.netplay.netStats[peer.id];
-            label.append({" | P: ", (uint)stats.last_ping, "ms | J: ", (uint)stats.jitter, "ms"});
-            break;
-        }
-    }
     return label;
 }
 
@@ -273,6 +265,7 @@ auto WeyveWindow::refresh() -> void {
             lastRoomListRows = rows;
             roomList.reset();
             for(auto& row : rows) roomList.append(ListViewItem().setText(row));
+            roomList.resizeColumn();
             updateJoinControls();
         }
 
@@ -351,6 +344,7 @@ auto WeyveWindow::refresh() -> void {
             for(auto& row : memberRows) memberList.append(ListViewItem().setText(row));
             updateRoleControls();
         }
+        memberList.resizeColumn();
         lastMemberRows = move(memberRows);
 
         // no per-row tooltip on Windows, so ids go on the list itself
@@ -366,6 +360,7 @@ auto WeyveWindow::refresh() -> void {
         lastLogEpoch = program.weyve.logEpoch;
         eventLog.reset();
         for(uint i = loggedLines; i-- > 0;) eventLog.append(ListViewItem().setText(program.weyve.log[i]));
+        eventLog.resizeColumn();
     }
 
     weyveSyncField(rollbackValue, program.weyve.localRollback);
