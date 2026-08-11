@@ -231,6 +231,7 @@ struct Program : Lock, Emulator::Platform {
   auto weyveSetRole(uint32 memberId, string role) -> void;
   auto weyveSetBaseline(uint8 rollback, uint8 delay) -> void;
   auto weyveKick(uint32 memberId) -> void;
+  auto weyveTransferHost(uint32 memberId) -> void;
   auto weyveStartBlockedReason() -> string;
   auto weyveStartGame() -> void;
   auto weyveStopGame() -> void;

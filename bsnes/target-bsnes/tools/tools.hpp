@@ -352,6 +352,8 @@ private:
     Timer refreshTimer;
     bool lastConnected = false;
     bool lastInRoom = false;
+    int lastIsHost = -1;  // -1 so the first refresh applies
+    int lastSessionLive = -1;
     bool gameAutoSelectDone = false;
     vector<string> lastMemberRows;
     vector<string> lastRoomListRows;

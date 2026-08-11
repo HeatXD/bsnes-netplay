@@ -1,3 +1,6 @@
+// roleCombo item order
+enum : uint { RoleItemSpectator = 0, RoleItemHost = 1, RoleItemPlayer = 2 };
+
 auto WeyveWindow::memberRow(uint32_t id, bool roomHasGame, uint32_t hostId, uint32_t selfId) -> string {
     string label;
     if(id == hostId) label.append("[host] ");
@@ -63,10 +66,12 @@ auto WeyveWindow::updateJoinControls() -> void {
 }
 
 auto WeyveWindow::updateRoleControls() -> void {
-    bool hasSelection = (bool)memberList.selected();
+    auto id = selectedMemberId();
+    bool hasSelection = (bool)id;
+    bool other = hasSelection && program.weyve.client && id() != weyve_id(program.weyve.client);
     roleCombo.setEnabled(hasSelection);
     btnAssignRole.setEnabled(hasSelection);
-    btnKick.setEnabled(hasSelection);
+    btnKick.setEnabled(other);
 }
 
 auto WeyveWindow::attemptConnect() -> void {
@@ -174,14 +179,18 @@ auto WeyveWindow::create() -> void {
 
     memberList.setToolTip("Everyone in the room. Numeric ids are shown per member.");
     memberList.onChange([&] { updateRoleControls(); });
-    roleCombo.setToolTip("Pick a slot, then press Assign Role. Player N is controller port N.");
+    roleCombo.setToolTip(
+        "Pick a slot, then press Assign Role. Player N is controller port N.\n"
+        "Host hands over the room instead: you lose the host-only controls, their slot is unchanged."
+    );
     btnAssignRole.setText("Assign Role").setToolTip(
         "Give the selected member this role.\n"
         "Slots are unique: assigning an occupied one swaps the two members."
     ).onActivate([&] {
         if(auto id = selectedMemberId()) {
             uint sel = roleCombo.selected().offset();
-            program.weyveSetRole(id(), sel == 0 ? string{"spec"} : string{sel - 1});
+            if(sel == RoleItemHost) program.weyveTransferHost(id());
+            else program.weyveSetRole(id(), sel == RoleItemSpectator ? string{"spec"} : string{sel - RoleItemPlayer});
         }
     });
     btnKick.setText("Kick").setToolTip("Remove the selected member from the room.").onActivate([&] {
@@ -282,7 +291,13 @@ auto WeyveWindow::refresh() -> void {
 
     bool sessionLive = program.weyveSessionActive();
     bool isHost = weyve_is_host(client);
-    applyLobbyControls(sessionLive, isHost);
+    // only on a change: re-showing a widget closes an open dropdown
+    if(sessionLive != lastSessionLive || isHost != lastIsHost) {
+        lastSessionLive = sessionLive;
+        lastIsHost = isHost;
+        applyLobbyControls(sessionLive, isHost);
+        updateRoleControls();
+    }
 
     string roomGameHash = program.weyveRoomDataString("game_hash");
 
@@ -310,8 +325,9 @@ auto WeyveWindow::refresh() -> void {
         uint slots = min(memberCount, (uint32)Program::Weyve::PlayerCap);
         if(slots != lastRoleCount) {
             lastRoleCount = slots;
-            roleCombo.reset();
+            roleCombo.reset();  // order must match the RoleItem enum
             roleCombo.append(ComboButtonItem().setText("Spectator"));
+            roleCombo.append(ComboButtonItem().setText("Host"));
             for(uint i = 1; i <= slots; i++) roleCombo.append(ComboButtonItem().setText({"Player ", i}));
         }
     } else {

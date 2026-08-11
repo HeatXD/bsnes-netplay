@@ -217,6 +217,12 @@ auto Program::weyveKick(uint32 memberId) -> void {
     weyve_kick_member(weyve.client, memberId);
 }
 
+auto Program::weyveTransferHost(uint32 memberId) -> void {
+    if(!weyve.client || !weyve_is_host(weyve.client)) return;
+    if(memberId == weyve_id(weyve.client)) return;
+    weyve_transfer_host(weyve.client, memberId);
+}
+
 auto Program::weyveCopyRoomCode() -> void {
     if(!weyve.client) return;
     uint32 len = 0;
