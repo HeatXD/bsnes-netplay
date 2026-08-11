@@ -24,7 +24,7 @@ struct NetplayLogger {
     auto log(string text) -> void {
         {
             std::lock_guard<std::mutex> lock(_mutex);
-            if(!_running) { fputs(text, stdout); fflush(stdout); return; }
+            if(!_running) return;
             _queue.push_back({move(text), {}, {}});
         }
         _condition.notify_one();
@@ -111,9 +111,9 @@ auto Program::netplayBeginDiagnostics(bool detectDesyncs) -> void {
     netplay.desyncCount = 0;
     netplay.crossPeerDesyncCount = 0;
     netplay.report = "";
-    netplayLogger.start();
     if(!detectDesyncs) return;
 
+    netplayLogger.start();
     netplay.stateCache.resize(Netplay::StateCacheFrames);
     netplayBuildStateMap();
     netplayResetDesyncDirectory();
