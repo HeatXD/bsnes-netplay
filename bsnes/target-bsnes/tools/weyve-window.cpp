@@ -43,6 +43,15 @@ auto WeyveWindow::selectedRoomCode() -> string {
     return {};
 }
 
+// screens start out visible, so this has to run before the first transition too
+auto WeyveWindow::applyScreens(bool connected, bool inRoom) -> void {
+    if(connectScreen.visible() == !connected && lobbyScreen.visible() == inRoom) return;
+    connectScreen.setVisible(!connected);
+    browseScreen.setVisible(connected && !inRoom);
+    lobbyScreen.setVisible(inRoom);
+    layout.resize();
+}
+
 auto WeyveWindow::updateJoinControls() -> void {
     btnJoinRoom.setEnabled((bool)selectedRoomCode());
 }
@@ -73,7 +82,6 @@ auto WeyveWindow::attemptConnect() -> void {
 }
 
 auto WeyveWindow::createRoomPressed() -> void {
-    program.weyveMarkActive();
     program.weyveCreateRoom(publicCheck.checked());
 }
 
@@ -84,9 +92,7 @@ auto WeyveWindow::joinRoomPressed() -> void {
 }
 
 auto WeyveWindow::refreshRoomList() -> void {
-    if(!program.weyve.client) return;
-    program.weyveMarkActive();
-    weyve_list_rooms(program.weyve.client, nullptr, 0);
+    program.weyveListRooms();
 }
 
 auto WeyveWindow::sendChat() -> void {
@@ -220,15 +226,13 @@ auto WeyveWindow::refresh() -> void {
     if(connected) weyve_room_id(client, &roomLen);
     bool inRoom = connected && roomLen > 0;
 
+    applyScreens(connected, inRoom);
+
     if(connected != lastConnected || inRoom != lastInRoom) {
         bool enteringBrowse = (connected && !inRoom) && !(lastConnected && !lastInRoom);
         bool enteringRoom = inRoom && !lastInRoom;
         lastConnected = connected;
         lastInRoom = inRoom;
-        connectScreen.setVisible(!connected);
-        browseScreen.setVisible(connected && !inRoom);
-        lobbyScreen.setVisible(inRoom);
-        layout.resize();
         if(!connected && program.weyve.lastError) connectStatus.setText(program.weyve.lastError);
         if(enteringBrowse) refreshRoomList();
         if(enteringRoom) {
@@ -261,8 +265,14 @@ auto WeyveWindow::refresh() -> void {
             updateJoinControls();
         }
 
-        if(browseStatus.text() != program.weyve.lastError) browseStatus.setText(program.weyve.lastError);
-        if(nicknameValue.text() != settings.weyvelength.nickname) nicknameValue.setText(settings.weyvelength.nickname);
+        if(browseStatus.text() != program.weyve.lastError) {
+            // tinted only while it says something, so the empty spacer stays invisible
+            bool failed = (bool)program.weyve.lastError;
+            browseStatus.setText(program.weyve.lastError);
+            browseStatus.setBackgroundColor(failed ? Color{255, 228, 228} : Color{});
+            browseStatus.setForegroundColor(failed ? Color{144, 0, 0} : Color{});
+        }
+        if(nicknameValue.text().strip() != settings.weyvelength.nickname) nicknameValue.setText(settings.weyvelength.nickname);
         return;
     }
 
@@ -301,10 +311,12 @@ auto WeyveWindow::refresh() -> void {
         if(roomGameHash) gameAutoSelectDone = true;
 
         string reason = sessionLive ? string{} : program.weyveStartBlockedReason();
-        if(reason != lastStartReason) {
-            lastStartReason = reason;
-            btnStart.setEnabled(!sessionLive && !reason);
-            startStatus.setText(sessionLive ? string{"Session running"} : reason);
+        btnStart.setEnabled(!sessionLive && !reason);
+
+        string status = sessionLive ? string{"Session running"} : reason;
+        if(status != lastStartReason) {
+            lastStartReason = status;
+            startStatus.setText(status);
         }
 
         uint32 memberCount = 0;
@@ -335,17 +347,18 @@ auto WeyveWindow::refresh() -> void {
     uint32 selfId = weyve_id(client);
     vector<string> memberRows;
     for(uint32 i = 0; i < count; i++) memberRows.append(memberRow(members[i], (bool)roomGameHash, hostId, selfId));
-    if(memberRows.size() == lastMemberRows.size()) {
-        // ping digits churn every tick; patching keeps the selection and avoids flicker
-        for(uint i : range(memberRows.size())) {
-            if(memberRows[i] != lastMemberRows[i]) memberList.item(i).setText(memberRows[i]);
+    if(memberRows != lastMemberRows) {
+        if(memberRows.size() == lastMemberRows.size()) {
+            // ping digits churn every tick; patching keeps the selection and avoids flicker
+            for(uint i : range(memberRows.size())) {
+                if(memberRows[i] != lastMemberRows[i]) memberList.item(i).setText(memberRows[i]);
+            }
+        } else {
+            memberList.reset();
+            for(auto& row : memberRows) memberList.append(ListViewItem().setText(row));
+            updateRoleControls();
         }
-        lastMemberRows = memberRows;
-    } else if(memberRows != lastMemberRows) {
-        lastMemberRows = memberRows;
-        memberList.reset();
-        for(auto& row : memberRows) memberList.append(ListViewItem().setText(row));
-        updateRoleControls();
+        lastMemberRows = move(memberRows);
 
         // no per-row tooltip on Windows, so ids go on the list itself
         string ids;

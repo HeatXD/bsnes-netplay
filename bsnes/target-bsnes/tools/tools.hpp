@@ -344,6 +344,7 @@ private:
     auto selectedMemberId() -> maybe<uint32_t>;
     auto selectedRoomCode() -> string;
     auto updateRoleControls() -> void;
+    auto applyScreens(bool connected, bool inRoom) -> void;
     auto updateJoinControls() -> void;
 
     uint gameLibrarySize = 0;

@@ -208,6 +208,8 @@ struct Program : Lock, Emulator::Platform {
     enum : uint { LogLimit = 200, PlayerCap = 5 };
     vector<string> log;  // lobby event/chat feed, oldest first
     uint logEpoch = 0;  // bumped whenever the feed is cleared
+    struct KnownName { uint32 id; string nickname; };
+    vector<KnownName> knownNames;
     struct PendingIdentityLog { uint32 id; string suffix; uint64 queuedAt; };
     vector<PendingIdentityLog> pendingIdentityLogs;  // lines waiting on a nickname
   } weyve;
@@ -215,6 +217,7 @@ struct Program : Lock, Emulator::Platform {
   auto weyveDisconnect() -> void;
   auto weyveCreateRoom(bool listed) -> void;
   auto weyveMarkActive() -> void;
+  auto weyveListRooms() -> void;
   auto weyveJoinRoom(string id, string password) -> void;
   auto weyveLeaveRoom() -> void;
   auto weyveResetRoomState() -> void;

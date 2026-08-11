@@ -82,8 +82,15 @@ auto Program::weyveDisconnect() -> void {
 
 auto Program::weyveCreateRoom(bool listed) -> void {
     if(!weyve.client) return;
+    weyveMarkActive();
     weyve.pendingListed = listed;
     weyve_create_room(weyve.client);
+}
+
+auto Program::weyveListRooms() -> void {
+    if(!weyve.client) return;
+    weyveMarkActive();
+    weyve_list_rooms(weyve.client, nullptr, 0);
 }
 
 auto Program::weyveMarkActive() -> void {
@@ -92,6 +99,7 @@ auto Program::weyveMarkActive() -> void {
 
 auto Program::weyveJoinRoom(string id, string password) -> void {
     if(!weyve.client) return;
+    weyveMarkActive();
     weyve.lastError = "";
     weyve_join_room(weyve.client, id.data(), password.data());
 }
@@ -101,6 +109,7 @@ auto Program::weyveResetRoomState() -> void {
     weyve.lastStartToken = 0;
     weyve.lastStopToken = 0;
     weyve.pendingIdentityLogs.reset();
+    weyve.knownNames.reset();
     weyve.log.reset();
     weyve.logEpoch++;  // a line count alone can't prove the feed changed
 }
@@ -248,9 +257,21 @@ static auto weyveHashFile(const string& path) -> string {
     return nall::Hash::CRC32(data).digest();
 }
 
+// remembered so a member can still be named in the feed after they leave
 auto Program::weyveNicknameOf(uint32 id) -> string {
-    auto nickname = weyveMemberDataString(id, "nickname");
-    return nickname ? nickname : string{"Player #", id};
+    if(auto nickname = weyveMemberDataString(id, "nickname")) {
+        for(auto& known : weyve.knownNames) {
+            if(known.id != id) continue;
+            known.nickname = nickname;
+            return nickname;
+        }
+        weyve.knownNames.append({id, nickname});
+        return nickname;
+    }
+    for(auto& known : weyve.knownNames) {
+        if(known.id == id) return known.nickname;
+    }
+    return {"Player #", id};
 }
 
 auto Program::weyveGameFingerprint() -> string {
@@ -478,15 +499,14 @@ auto Program::weyvePoll() -> void {
     weyve_room_id(weyve.client, &idLen);
 
     // browsing without joining anything just costs the server a slot; a room keeps us
-    if(idLen) {
-        weyveMarkActive();
-    } else if(chrono::timestamp() - weyve.idleSince >= Weyve::IdleTimeout) {
-        weyveDisconnect();
-        weyve.lastError = "Disconnected after idling in the room browser";
+    if(!idLen) {
+        if(chrono::timestamp() - weyve.idleSince >= Weyve::IdleTimeout) {
+            weyveDisconnect();
+            weyve.lastError = "Disconnected after idling in the room browser";
+        }
         return;
     }
-
-    if(!idLen) return;
+    weyveMarkActive();
 
     if(weyve.rolesDirty && weyve_is_host(weyve.client)) {
         weyve.rolesDirty = false;
