@@ -393,7 +393,7 @@ private:
         LineEdit rollbackValue{&localLayout, Size{~0, 0}};
         Label delayLabel{&localLayout, Size{0, 0}};
         LineEdit delayValue{&localLayout, Size{~0, 0}};
-        Label runAheadLabel{&localLayout, Size{0, 0}};  // local only, never synced
+        Label runAheadLabel{&localLayout, Size{0, 0}};
         LineEdit runAheadValue{&localLayout, Size{~0, 0}};
       ListView memberList{&lobbyScreen, Size{~0, 70_sy}};
       HorizontalLayout roleLayout{&lobbyScreen, Size{~0, 0}};  // host-only

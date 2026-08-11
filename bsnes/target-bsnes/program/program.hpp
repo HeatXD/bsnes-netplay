@@ -154,9 +154,11 @@ struct Program : Lock, Emulator::Platform {
     GekkoSession* session = nullptr;
     uint counter = 0;
     double speedScale = 1.0;
+    uint8 localRunAhead = 0;
   } netplay;
   auto netplayMode(Netplay::Mode) -> void;
   auto netplayApplyDeterministicSettings() -> void;
+  auto netplayApplyRunAhead() -> void;
   auto netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string>& spectator, bool detectDesyncs) -> void;
   auto netplayStressStart(uint8 players, uint8 checkDistance) -> void;
   auto netplayRandomInput(uint player) -> Netplay::Buttons;
@@ -190,7 +192,7 @@ struct Program : Lock, Emulator::Platform {
     string lastGameHash;  // last game_hash we checked our library against
     uint32 lastStartToken = 0;
     uint32 lastStopToken = 0;
-    uint8 localRollback = 8;  // client-side override, clamped >= the host's baseline
+    uint8 localRollback = 8;
     uint8 localDelay = 2;
     uint8 lastPublishedRollback = 0;
     uint8 lastPublishedDelay = 0;
@@ -224,7 +226,8 @@ struct Program : Lock, Emulator::Platform {
   auto weyveStartBlockedReason() -> string;
   auto weyveStartGame() -> void;
   auto weyveStopGame() -> void;
-  auto weyveApplyLocalDelay() -> void;
+  auto weyveSetLocalRollback(uint8 value) -> void;
+  auto weyveSetLocalDelay(uint8 value) -> void;
   auto weyvePoll() -> void;
   auto weyveLog(string line) -> void;
   auto weyveLogIdentity(uint32 id, string suffix) -> void;

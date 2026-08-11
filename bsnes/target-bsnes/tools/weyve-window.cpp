@@ -104,12 +104,13 @@ auto WeyveWindow::create() -> void {
         .onActivate([&] { program.weyveCopyRoomCode(); });
 
     runAheadLabel.setText("Run-Ahead:");
-    runAheadValue.setText({settings.emulator.runAhead.frames}).setToolTip(
+    runAheadValue.setText({program.netplay.localRunAhead}).setToolTip(
         "Frames to simulate ahead to hide input lag (0-4).\n"
         "Local only: it is never synced, and each player can pick their own.\n"
         "Costs CPU, since every run-ahead frame re-simulates the emulator."
     ).onChange([&] {
-        settings.emulator.runAhead.frames = min(4u, (uint)runAheadValue.text().strip().natural());
+        program.netplay.localRunAhead = min((uint8)4, (uint8)runAheadValue.text().strip().natural());
+        program.netplayApplyRunAhead();
     });
 
     rollbackLabel.setText("Rollback:");
@@ -117,17 +118,15 @@ auto WeyveWindow::create() -> void {
         "How many frames may be rolled back and re-simulated.\n"
         "Cannot go below the room's value; locked once the session starts."
     ).onChange([&] {
-        uint8 floor = (uint8)program.weyveRoomDataString("rollback_min").natural();
-        program.weyve.localRollback = max(floor, (uint8)rollbackValue.text().strip().natural());
+        program.weyveSetLocalRollback((uint8)rollbackValue.text().strip().natural());
     });
     delayLabel.setText("Delay:");
-    delayValue.setText("2").setToolTip(
+    lastShownDelay = program.weyve.localDelay;
+    delayValue.setText({program.weyve.localDelay}).setToolTip(
         "Frames of input delay you add locally. Higher means fewer rollbacks but laggier input.\n"
         "Cannot go below the room's value; this is the only setting adjustable mid-session."
     ).onChange([&] {
-        uint8 floor = (uint8)program.weyveRoomDataString("delay_min").natural();
-        program.weyve.localDelay = max(floor, (uint8)delayValue.text().strip().natural());
-        program.weyveApplyLocalDelay();  // takes effect immediately mid-session
+        program.weyveSetLocalDelay((uint8)delayValue.text().strip().natural());
     });
 
     memberList.setToolTip("Everyone in the room. Numeric ids are shown per member.");

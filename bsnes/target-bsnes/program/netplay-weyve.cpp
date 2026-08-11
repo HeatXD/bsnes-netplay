@@ -310,8 +310,14 @@ auto Program::weyveStartGame() -> void {
     weyve_set_room_joinable(weyve.client, false);
 }
 
-// applies a mid-session delay change to our own local player
-auto Program::weyveApplyLocalDelay() -> void {
+auto Program::weyveSetLocalRollback(uint8 value) -> void {
+    uint8 floor = (uint8)weyveRoomDataString("rollback_min").natural();
+    weyve.localRollback = max(floor, value);
+}
+
+auto Program::weyveSetLocalDelay(uint8 value) -> void {
+    uint8 floor = (uint8)weyveRoomDataString("delay_min").natural();
+    weyve.localDelay = max(floor, value);
     if(!weyveSessionActive()) return;
     for(auto& peer : netplay.peers) {
         if(peer.type != GekkoLocalPlayer) continue;
@@ -474,8 +480,8 @@ auto Program::weyvePoll() -> void {
 
     uint8 rollbackFloor = (uint8)weyveRoomDataString("rollback_min").natural();
     uint8 delayFloor = (uint8)weyveRoomDataString("delay_min").natural();
-    if(weyve.localRollback < rollbackFloor) weyve.localRollback = rollbackFloor;
-    if(weyve.localDelay < delayFloor) weyve.localDelay = delayFloor;
+    if(weyve.localRollback < rollbackFloor) weyveSetLocalRollback(rollbackFloor);
+    if(weyve.localDelay < delayFloor) weyveSetLocalDelay(delayFloor);
     if(weyve.localRollback != weyve.lastPublishedRollback) {
         weyve.lastPublishedRollback = weyve.localRollback;
         weyve_set_member_data(weyve.client, "rollback", string{weyve.localRollback}.data());
@@ -549,8 +555,8 @@ auto Program::netplayStartWeyve() -> void {
         if(!isSpectating && s % numPlayers == local) localSpectators++;
     }
 
-    uint8 rollback = max((uint8)weyveRoomDataString("rollback_min").natural(), weyve.localRollback);
-    uint8 delay = max((uint8)weyveRoomDataString("delay_min").natural(), weyve.localDelay);
+    uint8 rollback = weyve.localRollback;
+    uint8 delay = weyve.localDelay;
 
     uint32 roomIdLen = 0;
     const char* roomIdPtr = weyve_room_id(weyve.client, &roomIdLen);

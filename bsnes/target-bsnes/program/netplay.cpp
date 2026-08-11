@@ -63,6 +63,12 @@ auto Program::netplayBeginSession(int numPlayers, uint8 rollback, uint8 delay, i
 
     gekko_create(&netplay.session, isSpectating ? GekkoSpectateSession : GekkoGameSession);
     gekko_start(netplay.session, &netplay.config);
+    netplayApplyRunAhead();
+}
+
+auto Program::netplayApplyRunAhead() -> void {
+    if(!netplay.session) return;
+    gekko_set_runahead(netplay.session, netplay.localRunAhead);
 }
 
 auto Program::netplayStart(uint16 port, uint8 local, uint8 rollback, uint8 delay, vector<string>& remotes, vector<string> &spectators, bool detectDesyncs) -> void {
@@ -256,7 +262,7 @@ auto Program::netplayRun() -> bool {
             emulator->setRollback(true);
             break;
         case GekkoAdvanceEvent:
-            if (!ev->data.adv.rolling_back) {
+            if (!(ev->data.adv.rolling_back || ev->data.adv.running_ahead)) {
                 emulator->setRollback(false);
                 program.mute &= ~Mute::Always;
             }
