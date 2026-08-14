@@ -1,14 +1,15 @@
 #include "ui.hpp"
 
 void App::drawVideoTab() {
-  // core-side state (overscan/palette) starts at hardcoded defaults that
-  // match Settings's own defaults; push a loaded settings file's actual
+  // core-side state (overscan/palette/filter) starts at hardcoded defaults
+  // that match Settings's own defaults; push a loaded settings file's actual
   // values in on the tab's first draw, not just on the next slider tweak
   static bool synced = false;
   if(!synced) {
     synced = true;
     core.setOverscanCrop(settings.overscanCrop);
     core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
+    core.setFilter(settings.videoFilter);
   }
 
   bool dirty = false;
@@ -33,6 +34,20 @@ void App::drawVideoTab() {
   paletteDirty |= ImGui::SliderInt("Saturation", &settings.videoSaturation, 0, 200, "%d%%");
   if(paletteDirty) {
     core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
+    dirty = true;
+  }
+
+  ImGui::Separator();
+  const std::vector<std::string> filterNames = core.filterNames();
+  std::vector<const char*> items;
+  int current = 0;
+  for(size_t i = 0; i < filterNames.size(); i++) {
+    items.push_back(filterNames[i].c_str());
+    if(filterNames[i] == settings.videoFilter) current = (int)i;
+  }
+  if(ImGui::Combo("Filter", &current, items.data(), (int)items.size())) {
+    settings.videoFilter = filterNames[current];
+    core.setFilter(settings.videoFilter);
     dirty = true;
   }
 

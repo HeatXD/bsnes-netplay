@@ -37,6 +37,7 @@ struct Settings {
   int videoGamma = 150;       // percent; bsnes's own default and range (100-200)
   int videoLuminance = 100;   // percent, 0-100
   int videoSaturation = 100;  // percent, 0-200
+  std::string videoFilter = "None";
   bool pauseUnfocused = true;
   int fastForwardSpeed = 4;
   bool showStatus = true;

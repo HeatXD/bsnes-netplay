@@ -42,9 +42,10 @@ const BoolField BoolFields[] = {
 };
 
 const StrField StrFields[] = {
-  {"font",     &Settings::fontPath, false},
-  {"gamesdir", &Settings::gamesDir, true},
-  {"shotsdir", &Settings::shotsDir, true},
+  {"font",        &Settings::fontPath,    false},
+  {"gamesdir",    &Settings::gamesDir,    true},
+  {"shotsdir",    &Settings::shotsDir,    true},
+  {"videofilter", &Settings::videoFilter, false},
 };
 }  // namespace
 

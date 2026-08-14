@@ -12,12 +12,41 @@ using namespace nall;
 #include <heuristics/bs-memory.cpp>
 
 #include "resources.hpp"
+#include <filter/filter.hpp>
 
 #include <array>
 
 namespace {
 constexpr uint SuperFamicomID = 1;
 constexpr uint GameBoyID = 2;
+
+struct FilterEntry {
+  const char* name;
+  Filter::Size size;
+  Filter::Render render;
+  // input dimensions the filter was written for; 0 means always eligible.
+  // frames outside this (hires, HD mode 7) fall back to None, same as bsnes.
+  uint maxWidth, maxHeight;
+};
+
+constexpr FilterEntry Filters[] = {
+  {"None",              &Filter::None::size,           &Filter::None::render,           0,   0},
+  {"Scanlines (Light)",  &Filter::ScanlinesLight::size, &Filter::ScanlinesLight::render, 512, 240},
+  {"Scanlines (Dark)",   &Filter::ScanlinesDark::size,  &Filter::ScanlinesDark::render,  512, 240},
+  {"Scanlines (Black)",  &Filter::ScanlinesBlack::size, &Filter::ScanlinesBlack::render, 512, 240},
+  {"Pixellate 2x",       &Filter::Pixellate2x::size,    &Filter::Pixellate2x::render,    512, 480},
+  {"Scale2x",            &Filter::Scale2x::size,        &Filter::Scale2x::render,        256, 240},
+  {"2xSaI",               &Filter::_2xSaI::size,        &Filter::_2xSaI::render,         256, 240},
+  {"Super 2xSaI",        &Filter::Super2xSaI::size,     &Filter::Super2xSaI::render,     256, 240},
+  {"Super Eagle",        &Filter::SuperEagle::size,     &Filter::SuperEagle::render,     256, 240},
+  {"LQ2x",               &Filter::LQ2x::size,           &Filter::LQ2x::render,           256, 240},
+  {"HQ2x",               &Filter::HQ2x::size,           &Filter::HQ2x::render,           256, 240},
+  {"NTSC (RF)",          &Filter::NTSC_RF::size,        &Filter::NTSC_RF::render,        512, 480},
+  {"NTSC (Composite)",   &Filter::NTSC_Composite::size, &Filter::NTSC_Composite::render, 512, 480},
+  {"NTSC (S-Video)",     &Filter::NTSC_SVideo::size,    &Filter::NTSC_SVideo::render,    512, 480},
+  {"NTSC (RGB)",         &Filter::NTSC_RGB::size,       &Filter::NTSC_RGB::render,       512, 480},
+};
+constexpr int FilterCount = sizeof(Filters) / sizeof(Filters[0]);
 }
 
 struct EmuCore::Impl : Emulator::Platform {
@@ -37,11 +66,13 @@ struct EmuCore::Impl : Emulator::Platform {
   } superFamicom;
 
   std::array<uint32_t, 32768> palette{};
-  std::vector<uint32_t> videoOut;
+  std::vector<uint32_t> videoOut;      // final cropped frame, tightly packed
+  std::vector<uint32_t> filterScratch; // pre-crop filter output, resized per frame
   std::vector<float> audioOut;
 
   bool overscanCrop = true;
   int videoGamma = 150, videoLuminance = 100, videoSaturation = 100;
+  int filterIndex = 0;  // index into Filters[]
   std::array<std::array<int16_t, EmuCore::MaxInputs>, EmuCore::PortCount> state{};
   std::array<int, EmuCore::PortCount> connected{EmuCore::Gamepad, EmuCore::Gamepad};
 
@@ -189,22 +220,40 @@ auto EmuCore::Impl::load(uint id, string, string, vector<string>) -> Emulator::P
 auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint height, uint scale) -> void {
   if(!owner.onVideo) return;
 
+  // HD mode 7 and hires/interlaced frames outside a filter's working size
+  // fall back to the identity filter, same as bsnes's own filterSelect
+  const FilterEntry* filter = &Filters[filterIndex];
+  bool eligible = scale == 1 && filter->maxWidth
+                && width <= filter->maxWidth && height <= filter->maxHeight;
+  if(filterIndex != 0 && !eligible) filter = &Filters[0];
+
+  uint filterWidth = width, filterHeight = height;
+  filter->size(filterWidth, filterHeight);
+
+  filterScratch.resize((size_t)filterWidth * filterHeight);
+  filter->render(palette.data(), filterScratch.data(), filterWidth * (uint)sizeof(uint32_t),
+                 data, pitch, width, height);
+
+  const uint32_t* src = filterScratch.data();
+  uint outWidth = filterWidth, outHeight = filterHeight;
+
   if(overscanCrop) {
-    uint multiplier = height / 240;
-    data += 8 * (pitch >> 1) * multiplier;
-    height -= 16 * multiplier;
+    // crop scales with whatever the filter did to the vertical resolution;
+    // this must run after filtering or a 2x/scanline filter halves the wrong
+    // count of lines
+    uint cropLines = 8 * (filterHeight / 240);
+    src += (size_t)cropLines * filterWidth;
+    outHeight -= cropLines * 2;
   }
 
-  if(width > (uint)EmuCore::MaxWidth) width = EmuCore::MaxWidth;
-  if(height > (uint)EmuCore::MaxHeight) height = EmuCore::MaxHeight;
+  if(outWidth > (uint)EmuCore::MaxWidth) outWidth = EmuCore::MaxWidth;
+  if(outHeight > (uint)EmuCore::MaxHeight) outHeight = EmuCore::MaxHeight;
 
-  for(uint y : range(height)) {
-    const uint16* src = data + y * (pitch >> 1);
-    uint32_t* dst = videoOut.data() + y * width;
-    for(uint x : range(width)) dst[x] = palette[src[x] & 0x7fff];
+  for(uint y : range(outHeight)) {
+    memory::copy(videoOut.data() + y * outWidth, src + y * filterWidth, outWidth * sizeof(uint32_t));
   }
 
-  owner.onVideo(videoOut.data(), (int)width, (int)height);
+  owner.onVideo(videoOut.data(), (int)outWidth, (int)outHeight);
 }
 
 // the core calls this once per resampled sample, ~800 times a frame; runFrame
@@ -254,6 +303,19 @@ void EmuCore::setPaletteAdjust(int gammaPercent, int luminancePercent, int satur
   impl->videoLuminance = luminancePercent;
   impl->videoSaturation = saturationPercent;
   impl->buildPalette();
+}
+
+void EmuCore::setFilter(const std::string& name) {
+  for(int i = 0; i < FilterCount; i++) {
+    if(name == Filters[i].name) { impl->filterIndex = i; return; }
+  }
+  impl->filterIndex = 0;
+}
+
+std::vector<std::string> EmuCore::filterNames() const {
+  std::vector<std::string> names;
+  for(int i = 0; i < FilterCount; i++) names.push_back(Filters[i].name);
+  return names;
 }
 
 const std::vector<EmuCore::DeviceInfo>& EmuCore::devices(int port) const {
