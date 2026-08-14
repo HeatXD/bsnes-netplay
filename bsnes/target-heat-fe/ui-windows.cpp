@@ -38,7 +38,7 @@ void App::drawGamesList() {
   ImGui::SameLine();
   if(ImGui::Button("Open ROM...")) openRomDialog();
   ImGui::SameLine();
-  ImGui::Text("%d", (int)games.size());
+  ImGui::Text(games.size() == 1 ? "%d game" : "%d games", (int)games.size());
   if(ImGui::Button("Play selected") && gameSelected < (int)games.size()) {
     if(loadRom(games[gameSelected].second)) showGames = false;
   }
