@@ -10,44 +10,70 @@ const char* const HotkeyNames[HotkeyCount] = {
   "Pause", "Reset", "Fast Forward", "Fullscreen", "Screenshot"
 };
 
+// One line per setting, shared by load and save, so adding one is a single edit.
+namespace {
+struct IntField { const char* key; int Settings::* field; int min, max; };
+struct BoolField { const char* key; bool Settings::* field; };
+struct StrField { const char* key; std::string Settings::* field; bool path; };
+
+const IntField IntFields[] = {
+  {"latency",     &Settings::latencyMs,        MinLatencyMs,   MaxLatencyMs},
+  {"volume",      &Settings::volume,           0,              200},
+  {"windowscale", &Settings::windowScale,      0,              5},
+  {"ffspeed",     &Settings::fastForwardSpeed, 2,              16},
+  {"theme",       &Settings::theme,            0,              2},
+  {"accent",      &Settings::accent,           0,              0xffffff},
+  {"textcolor",   &Settings::textColor,        FollowTheme,    0xffffff},
+  {"fontsize",    &Settings::fontSize,         MinFontSize,    MaxFontSize},
+  {"fontweight",  &Settings::fontWeight,       MinFontWeight,  MaxFontWeight},
+};
+
+const BoolField BoolFields[] = {
+  {"mute",           &Settings::mute},
+  {"aspect",         &Settings::aspectCorrect},
+  {"integer",        &Settings::integerScale},
+  {"linear",         &Settings::linearFilter},
+  {"pauseunfocused", &Settings::pauseUnfocused},
+  {"showstatus",     &Settings::showStatus},
+};
+
+const StrField StrFields[] = {
+  {"font",     &Settings::fontPath, false},
+  {"gamesdir", &Settings::gamesDir, true},
+  {"shotsdir", &Settings::shotsDir, true},
+};
+}  // namespace
+
 void Settings::applyKey(const std::string& key, const std::string& value) {
   const int number = SDL_atoi(value.c_str());
 
-if(key == "latency") latencyMs = SDL_clamp(number, MinLatencyMs, MaxLatencyMs);
-  else if(key == "volume") volume = SDL_clamp(number, 0, 200);
-  else if(key == "mute") mute = number != 0;
-  else if(key == "aspect") aspectCorrect = number != 0;
-  else if(key == "integer") integerScale = number != 0;
-  else if(key == "linear") linearFilter = number != 0;
-  else if(key == "windowscale") windowScale = SDL_clamp(number, 0, 5);
-  else if(key == "pauseunfocused") pauseUnfocused = number != 0;
-  else if(key == "ffspeed") fastForwardSpeed = SDL_clamp(number, 2, 16);
-  else if(key == "showstatus") showStatus = number != 0;
-  else if(key == "theme") theme = SDL_clamp(number, 0, 2);
-  else if(key == "accent") accent = SDL_clamp(number, 0, 0xffffff);
-  else if(key == "textcolor") textColor = SDL_clamp(number, FollowTheme, 0xffffff);
-  else if(key == "fontsize") fontSize = SDL_clamp(number, MinFontSize, MaxFontSize);
-  else if(key == "fontweight") fontWeight = SDL_clamp(number, MinFontWeight, MaxFontWeight);
-  else if(key == "font") fontPath = value;
-  else if(key == "gamesdir") gamesDir = normalPath(value);
-  else if(key == "shotsdir") shotsDir = normalPath(value);
-  else if(key == "recent") {
+  for(const IntField& f : IntFields) {
+    if(key == f.key) { this->*f.field = SDL_clamp(number, f.min, f.max); return; }
+  }
+  for(const BoolField& f : BoolFields) {
+    if(key == f.key) { this->*f.field = number != 0; return; }
+  }
+  for(const StrField& f : StrFields) {
+    if(key == f.key) { this->*f.field = f.path ? normalPath(value) : value; return; }
+  }
+
+  if(key == "recent") {
     const std::string rom = normalPath(value);
     if(recent.size() < MaxRecent
     && std::find(recent.begin(), recent.end(), rom) == recent.end()) {
       recent.push_back(rom);
     }
+    return;
   }
-  else {
-    auto indexed = [&](const char* prefix, int* slots, int count) {
-      if(key.rfind(prefix, 0) != 0) return false;
-      const int index = SDL_atoi(key.c_str() + SDL_strlen(prefix));
-      if(index >= 0 && index < count) slots[index] = number;
-      return true;
-    };
-    if(!indexed("device", devices, EmuCore::PortCount)) {
-      indexed("hotkey", hotkeys, HotkeyCount);
-    }
+
+  auto indexed = [&](const char* prefix, int* slots, int count) {
+    if(key.rfind(prefix, 0) != 0) return false;
+    const int index = SDL_atoi(key.c_str() + SDL_strlen(prefix));
+    if(index >= 0 && index < count) slots[index] = number;
+    return true;
+  };
+  if(!indexed("device", devices, EmuCore::PortCount)) {
+    indexed("hotkey", hotkeys, HotkeyCount);
   }
 }
 
@@ -84,24 +110,9 @@ void Settings::save(const std::string& path) const {
     addInt(key, value);
   };
 
-  addInt("latency", latencyMs);
-  addInt("volume", volume);
-  addInt("mute", mute);
-  addInt("aspect", aspectCorrect);
-  addInt("integer", integerScale);
-  addInt("linear", linearFilter);
-  addInt("windowscale", windowScale);
-  addInt("pauseunfocused", pauseUnfocused);
-  addInt("ffspeed", fastForwardSpeed);
-  addInt("showstatus", showStatus);
-  addInt("theme", theme);
-  addInt("accent", accent);
-  addInt("textcolor", textColor);
-  addInt("fontsize", fontSize);
-  addInt("fontweight", fontWeight);
-  add("font", fontPath);
-  add("gamesdir", gamesDir);
-  add("shotsdir", shotsDir);
+  for(const IntField& f : IntFields) addInt(f.key, this->*f.field);
+  for(const BoolField& f : BoolFields) addInt(f.key, this->*f.field);
+  for(const StrField& f : StrFields) add(f.key, this->*f.field);
   for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("device", i, devices[i]);
   for(int i = 0; i < HotkeyCount; i++) addIndexed("hotkey", i, hotkeys[i]);
   for(const std::string& rom : recent) add("recent", rom);
