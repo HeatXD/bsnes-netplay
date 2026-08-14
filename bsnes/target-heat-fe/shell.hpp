@@ -29,15 +29,20 @@ struct Shell {
   float audioGain = 1.0f;
 
   bool initVideo();
-  bool initAudio();
-  bool init();
+  bool initAudio(const Settings& settings);
+  // tears down and reopens the stream on a different device; pacing is
+  // unaffected since it only watches the queued-bytes backlog
+  bool reopenAudio(const Settings& settings);
+  bool init(const Settings& settings);
   void shutdown();
   int paceTarget(const Settings& settings) const;
   // ms per frame of whatever display the window is on, for redraw throttling
   int displayFrameMs() const;
   void pace(const Settings& settings);
   void pushVideo(const uint32_t* argb, int width, int height);
-  void pushAudio(const Settings& settings, const float* samples, int frames);
+  void pushAudio(const Settings& settings, const float* samples, int frames, bool focused);
+  // playback device names, for the settings picker
+  static std::vector<std::string> listPlaybackDevices();
   void clearFrame() { lastPixels = nullptr; frameWidth = frameHeight = 0; }
   void drawGame(const Settings& settings);
   bool saveFrame(const std::string& path) const;
