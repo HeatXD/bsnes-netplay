@@ -46,7 +46,10 @@ bool Shell::initVideo() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   textureWidth = EmuCore::MaxWidth;
   textureHeight = EmuCore::MaxHeight;
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textureWidth, textureHeight, 0,
+  // GL_RGB, not GL_RGBA: the 2xSaI family blends through a 0xFEFEFE mask that
+  // drops the alpha byte, so interpolated pixels arrive fully transparent and
+  // would blend into the background. bsnes sidesteps this with an XRGB surface.
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0,
                GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
   return true;
 }
@@ -161,7 +164,7 @@ void Shell::pushVideo(const uint32_t* argb, int width, int height) {
   if(width > textureWidth || height > textureHeight) {
     textureWidth = SDL_max(textureWidth, width);
     textureHeight = SDL_max(textureHeight, height);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textureWidth, textureHeight, 0,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0,
                  GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
   }
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, argb);
