@@ -15,6 +15,17 @@ void App::drawPathsTab() {
   if(ImGui::Button("Browse##shots")) openFolderDialog(shotDirPick);
 
   ImGui::Separator();
+  ImGui::TextUnformatted("Saves folder");
+  ImGui::TextWrapped("%s", settings.savesDir.empty() ? "(next to the ROM)" : settings.savesDir.c_str());
+  if(ImGui::Button("Browse##saves")) openFolderDialog(savesDirPick);
+  ImGui::SameLine();
+  if(!settings.savesDir.empty() && ImGui::Button("Reset##saves")) {
+    settings.savesDir.clear();
+    core.setSavesDirectory(settings.savesDir);
+    settings.save(settingsCfg);
+  }
+
+  ImGui::Separator();
   ImGui::TextWrapped("Config: %s", settingsCfg.c_str());
   const bool portable = portableMode();
   ImGui::TextUnformatted(portable ? "Portable: settings live next to the exe"
