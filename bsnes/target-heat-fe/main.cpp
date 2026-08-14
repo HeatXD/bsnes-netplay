@@ -359,12 +359,36 @@ int Frontend::runUiShot() {
   return ok ? 0 : 1;
 }
 
+// The core caches these rather than reading Settings per frame, so a loaded
+// config has to be pushed in explicitly; without this it keeps its own
+// defaults until the matching tab happens to be opened.
+void applySettingsToCore(App& app) {
+  const Settings& s = app.settings;
+  auto flag = [](bool on) { return on ? "true" : "false"; };
+  char number[16];
+
+  app.core.setSavesDirectory(s.savesDir);
+  app.core.setOverscanCrop(s.overscanCrop);
+  app.core.setPaletteAdjust(s.videoGamma, s.videoLuminance, s.videoSaturation);
+  app.core.setFilter(s.videoFilter);
+
+  app.core.setOption("Hacks/PPU/Fast", flag(s.hackPpuFast));
+  app.core.setOption("Hacks/PPU/NoSpriteLimit", flag(s.hackPpuNoSpriteLimit));
+  SDL_itoa(s.hackMode7Scale, number, 10);
+  app.core.setOption("Hacks/PPU/Mode7/Scale", number);
+  app.core.setOption("Hacks/DSP/Fast", flag(s.hackDspFast));
+  app.core.setOption("Hacks/DSP/Cubic", flag(s.hackDspCubic));
+  app.core.setOption("Hacks/Coprocessor/DelayedSync", flag(s.hackCoprocessorDelayedSync));
+  app.core.setOption("Hacks/Coprocessor/PreferHLE", flag(s.hackCoprocessorPreferHLE));
+  app.core.setOption("Frontend/Hotfixes", flag(s.hackHotfixes));
+}
+
 void loadConfigs(App& app) {
   app.inputCfg = prefFile("input.cfg");
   app.settingsCfg = prefFile("settings.cfg");
   app.input.load(app.inputCfg);
   app.settings.load(app.settingsCfg);
-  app.core.setSavesDirectory(app.settings.savesDir);
+  applySettingsToCore(app);
 
   for(int port = 0; port < EmuCore::PortCount; port++) {
     app.core.connect(port, app.settings.devices[port]);

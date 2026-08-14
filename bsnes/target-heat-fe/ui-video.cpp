@@ -1,17 +1,6 @@
 #include "ui.hpp"
 
 void App::drawVideoTab() {
-  // core-side state (overscan/palette/filter) starts at hardcoded defaults
-  // that match Settings's own defaults; push a loaded settings file's actual
-  // values in on the tab's first draw, not just on the next slider tweak
-  static bool synced = false;
-  if(!synced) {
-    synced = true;
-    core.setOverscanCrop(settings.overscanCrop);
-    core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
-    core.setFilter(settings.videoFilter);
-  }
-
   bool dirty = false;
   dirty |= ImGui::Checkbox("Aspect correction (8:7)", &settings.aspectCorrect);
   dirty |= ImGui::Checkbox("Integer scaling (crisp, leaves borders)", &settings.integerScale);
