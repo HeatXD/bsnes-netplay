@@ -1,6 +1,7 @@
 #pragma once
 
 #include "emucore.hpp"
+#include "settings.hpp"
 
 #include <SDL3/SDL.h>
 
@@ -40,7 +41,10 @@ public:
     return bindings[port][device][index][slot];
   }
 
-  void apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads) const;
+  // frame is the emulated frame count, so turbo timing tracks the emulator's
+  // own clock and stays correct under fast forward
+  void apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
+            const Settings& settings, long long frame) const;
 
   // returns true when an event carries a bindable input
   static bool capture(const SDL_Event& event, Binding& out);
