@@ -39,6 +39,8 @@ flags += $(sdl3.flags) $(imgui.flags)
 # filter and lzma are only used by hiro's UI
 objects := $(filter-out filter lzma,$(objects))
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-emucore ui-inputmap
+objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
+objects += ui-custom ui-paths ui-windows ui-cartridge
 objects += imgui imgui-draw imgui-tables imgui-widgets imgui-sdl3 imgui-opengl3
 ifeq ($(platform),windows)
   objects += ui-resource
@@ -53,6 +55,16 @@ obj/ui-app.o: $(ui)/app.cpp
 obj/ui-draw.o: $(ui)/ui.cpp
 obj/ui-emucore.o: $(ui)/emucore.cpp
 obj/ui-inputmap.o: $(ui)/inputmap.cpp
+obj/ui-video.o: $(ui)/ui-video.cpp
+obj/ui-audio.o: $(ui)/ui-audio.cpp
+obj/ui-input.o: $(ui)/ui-input.cpp
+obj/ui-hotkeys.o: $(ui)/ui-hotkeys.cpp
+obj/ui-emulator.o: $(ui)/ui-emulator.cpp
+obj/ui-enhance.o: $(ui)/ui-enhance.cpp
+obj/ui-custom.o: $(ui)/ui-custom.cpp
+obj/ui-paths.o: $(ui)/ui-paths.cpp
+obj/ui-windows.o: $(ui)/ui-windows.cpp
+obj/ui-cartridge.o: $(ui)/ui-cartridge.cpp
 
 obj/imgui.o: $(imgui.path)/imgui.cpp
 obj/imgui-draw.o: $(imgui.path)/imgui_draw.cpp
