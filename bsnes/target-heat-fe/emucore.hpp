@@ -51,8 +51,22 @@ public:
   // the cartridge header's own title, which hotfixes match on
   std::string headerTitle() const;
 
-  // core setting, by the interface's own name: "Hacks/PPU/Fast" and friends
+  // heuristics summary for the Cartridge window; empty when nothing is loaded
+  std::string manifest() const;
+  std::string region() const;
+  std::string board() const;
+  std::string romSizeText() const;
+  std::string ramSizeText() const;
+  std::string expansionChip() const;
+  std::string checksum() const;
+
+  // core setting, by the interface's own name: "Hacks/PPU/Fast" and friends.
+  // "Frontend/Hotfixes" is a pseudo key for the per-title hotfix toggle,
+  // which isn't a real Emulator::Interface option
   bool setOption(const std::string& name, const std::string& value);
+  // non-empty when a per-title hotfix is currently overriding a hack
+  std::string activeHotfix() const;
+
   // 60.098Hz for NTSC carts, 50.007Hz for PAL ones
   double refreshRate() const;
 

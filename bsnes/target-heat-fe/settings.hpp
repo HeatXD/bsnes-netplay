@@ -35,6 +35,14 @@ struct Settings {
   int windowScale = 0;  // 0 = fit to window
   bool pauseUnfocused = true;
   int fastForwardSpeed = 4;
+  bool hackPpuFast = true;
+  bool hackPpuNoSpriteLimit = false;
+  int hackMode7Scale = 1;
+  bool hackDspFast = true;
+  bool hackDspCubic = false;
+  bool hackCoprocessorDelayedSync = true;
+  bool hackCoprocessorPreferHLE = false;
+  bool hackHotfixes = true;
   bool showStatus = true;
   int theme = 0;  // 0 dark, 1 light, 2 classic
   int accent = DefaultAccent;
