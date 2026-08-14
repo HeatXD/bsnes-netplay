@@ -7,6 +7,8 @@
 
 namespace {
 
+constexpr int IdleDelayMs = 32;
+
 struct Options {
   std::string romPath;
   std::string uiShot;
@@ -87,7 +89,7 @@ struct Frontend {
 
   void renderUi();
   void advance();
-  void stepFrame(bool modal);
+  bool stepFrame();
   void handleWindowEvent(const SDL_Event& event);
   void handleGamepadEvent(const SDL_Event& event);
   bool handleRebind(const SDL_Event& event);
@@ -129,24 +131,16 @@ void Frontend::advance() {
   fpsFrames++;
 }
 
-// `modal` means the event watch called us during an OS drag or resize
-void Frontend::stepFrame(bool modal) {
-  if(inFrame) return;  // the event watch can fire while we are already drawing
+// Returns true when nothing was emulated, so the caller knows to idle. Also
+// runs re-entrantly from the event watch during an OS drag or resize.
+bool Frontend::stepFrame() {
+  if(inFrame) return false;  // the watch can fire while we are already drawing
   inFrame = true;
 
-  const bool focused = (SDL_GetWindowFlags(app.shell.window) & SDL_WINDOW_INPUT_FOCUS) != 0;
   const bool stopped = !app.core.loaded() || app.paused
-                    || (app.settings.pauseUnfocused && !focused && !opt.frameLimit);
+                    || (app.settings.pauseUnfocused && !app.focused() && !opt.frameLimit);
 
-  // One clock for every caller. During an OS drag the event watch and the main
-  // loop can both land here, so a second wall-clock path would stack frames on
-  // top of these and run the game fast.
-  if(!stopped) {
-    if(!opt.fast) app.shell.pace(app.settings);
-    advance();
-  } else if(!modal) {
-    SDL_Delay(8);  // no audio to pace against while stopped
-  }
+  if(!stopped) advance();
 
   const uint64_t now = SDL_GetTicksNS();
   if(now - fpsMark >= 500000000ull) {
@@ -164,7 +158,14 @@ void Frontend::stepFrame(bool modal) {
   }
   SDL_GL_SwapWindow(app.shell.window);
 
+  // One clock for every caller: the watch and the main loop both land here, so
+  // a second wall-clock path would stack frames and run the game fast. Waiting
+  // after the present means the next poll sees fresh events rather than ones
+  // that went stale during the wait.
+  if(!stopped && !opt.fast) app.shell.pace(app.settings);
+
   inFrame = false;
+  return stopped;
 }
 
 void Frontend::handleWindowEvent(const SDL_Event& event) {
@@ -272,7 +273,7 @@ int Frontend::runLoop() {
   SDL_AddEventWatch([](void* data, SDL_Event* event) -> bool {
     if(event->type == SDL_EVENT_WINDOW_EXPOSED
     || event->type == SDL_EVENT_WINDOW_RESIZED) {
-      ((Frontend*)data)->stepFrame(true);
+      ((Frontend*)data)->stepFrame();
     }
     return true;
   }, this);
@@ -281,13 +282,21 @@ int Frontend::runLoop() {
     if(opt.frameLimit && frames >= opt.frameLimit) break;
 
     SDL_Event event;
+    bool busy = false;
     while(SDL_PollEvent(&event)) {
       ImGui_ImplSDL3_ProcessEvent(&event);
       handleEvent(event);
+      busy = true;
     }
 
     drainPicks();
-    stepFrame(false);
+
+    // With nothing emulating there is no audio clock, so the redraw rate is
+    // the only thing setting idle cpu use. A dragged panel is moved by imgui
+    // once per redraw, so while events arrive follow the display the window is
+    // on; anything slower visibly trails the cursor, anything faster is thrown
+    // away by the compositor.
+    if(stepFrame()) SDL_Delay(busy ? app.shell.displayFrameMs() : IdleDelayMs);
   }
 
   SDL_Log("platform viewports: %d (1 = host window only)",

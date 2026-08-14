@@ -84,6 +84,12 @@ int Shell::paceTarget(const Settings& settings) const {
   return settings.latencyMs * AudioRate / 1000 * 2 * (int)sizeof(float);
 }
 
+int Shell::displayFrameMs() const {
+  const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
+  if(!mode || mode->refresh_rate <= 0.0f) return 16;
+  return SDL_max(1, (int)(1000.0f / mode->refresh_rate));
+}
+
 void Shell::pace(const Settings& settings) {
   constexpr int bytesPerSecond = AudioRate * 2 * (int)sizeof(float);
   const int target = paceTarget(settings);

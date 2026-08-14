@@ -63,6 +63,9 @@ struct App {
   void reset() { core.reset(); paused = false; }
   void powerCycle() { core.power(); paused = false; }
 
+  // any window we own, not just the main one: an imgui viewport panel takes
+  // focus away from it while staying part of this app
+  bool focused() const { return SDL_GetKeyboardFocus() != nullptr; }
   bool fullscreen() const {
     return (SDL_GetWindowFlags(shell.window) & SDL_WINDOW_FULLSCREEN) != 0;
   }

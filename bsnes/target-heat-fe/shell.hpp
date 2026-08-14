@@ -33,6 +33,8 @@ struct Shell {
   bool init();
   void shutdown();
   int paceTarget(const Settings& settings) const;
+  // ms per frame of whatever display the window is on, for redraw throttling
+  int displayFrameMs() const;
   void pace(const Settings& settings);
   void pushVideo(const uint32_t* argb, int width, int height);
   void pushAudio(const Settings& settings, const float* samples, int frames);
