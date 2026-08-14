@@ -7,7 +7,12 @@
 namespace { constexpr int MaxRecent = 8; }
 
 const char* const HotkeyNames[HotkeyCount] = {
-  "Pause", "Reset", "Fast Forward", "Fullscreen", "Screenshot"
+  "Pause", "Reset", "Fast Forward", "Fullscreen", "Screenshot",
+  "Frame Advance", "Power Cycle", "Mute", "Quit"
+};
+
+const char* const DefocusNames[DefocusCount] = {
+  "Pause emulation", "Block input", "Allow input"
 };
 
 // One line per setting, shared by load and save, so adding one is a single edit.
@@ -26,21 +31,25 @@ const IntField IntFields[] = {
   {"textcolor",   &Settings::textColor,        FollowTheme,    0xffffff},
   {"fontsize",    &Settings::fontSize,         MinFontSize,    MaxFontSize},
   {"fontweight",  &Settings::fontWeight,       MinFontWeight,  MaxFontWeight},
+  {"defocus",     &Settings::defocusPolicy,    0,              DefocusCount - 1},
+  {"turborate",   &Settings::turboRate,        1,              30},
 };
 
 const BoolField BoolFields[] = {
   {"mute",           &Settings::mute},
+  {"muteunfocused",  &Settings::muteUnfocused},
   {"aspect",         &Settings::aspectCorrect},
   {"integer",        &Settings::integerScale},
   {"linear",         &Settings::linearFilter},
-  {"pauseunfocused", &Settings::pauseUnfocused},
   {"showstatus",     &Settings::showStatus},
 };
 
 const StrField StrFields[] = {
-  {"font",     &Settings::fontPath, false},
-  {"gamesdir", &Settings::gamesDir, true},
-  {"shotsdir", &Settings::shotsDir, true},
+  {"font",        &Settings::fontPath,    false},
+  {"gamesdir",    &Settings::gamesDir,    true},
+  {"shotsdir",    &Settings::shotsDir,    true},
+  {"savesdir",    &Settings::savesDir,    true},
+  {"audiodevice", &Settings::audioDevice, false},
 };
 }  // namespace
 
@@ -72,8 +81,9 @@ void Settings::applyKey(const std::string& key, const std::string& value) {
     if(index >= 0 && index < count) slots[index] = number;
     return true;
   };
-  if(!indexed("device", devices, EmuCore::PortCount)) {
-    indexed("hotkey", hotkeys, HotkeyCount);
+  if(!indexed("device", devices, EmuCore::PortCount)
+  && !indexed("hotkey", hotkeys, HotkeyCount)) {
+    indexed("turbo", turboMask, EmuCore::PortCount);
   }
 }
 
@@ -115,6 +125,7 @@ void Settings::save(const std::string& path) const {
   for(const StrField& f : StrFields) add(f.key, this->*f.field);
   for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("device", i, devices[i]);
   for(int i = 0; i < HotkeyCount; i++) addIndexed("hotkey", i, hotkeys[i]);
+  for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("turbo", i, turboMask[i]);
   for(const std::string& rom : recent) add("recent", rom);
 
   writeText(path, text);
