@@ -85,7 +85,16 @@ int Shell::paceTarget(const Settings& settings) const {
 }
 
 void Shell::pace(const Settings& settings) {
-  while(SDL_GetAudioStreamQueued(audio) > paceTarget(settings)) SDL_Delay(1);
+  constexpr int bytesPerSecond = AudioRate * 2 * (int)sizeof(float);
+  const int target = paceTarget(settings);
+
+  // the backlog is already a duration, so sleep it off in one go rather than
+  // polling; the loop only runs again if the sleep came up short
+  while(true) {
+    const int over = SDL_GetAudioStreamQueued(audio) - target;
+    if(over <= 0) return;
+    SDL_DelayNS((Uint64)over * SDL_NS_PER_SECOND / bytesPerSecond);
+  }
 }
 
 void Shell::pushVideo(const uint32_t* argb, int width, int height) {
