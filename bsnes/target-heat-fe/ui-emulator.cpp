@@ -2,7 +2,8 @@
 
 void App::drawEmulatorTab() {
   bool dirty = false;
-  dirty |= ImGui::Checkbox("Pause when window is unfocused", &settings.pauseUnfocused);
+  dirty |= ImGui::Combo("When window is unfocused", &settings.defocusPolicy,
+                        DefocusNames, DefocusCount);
   if(ImGui::SliderInt("Fast forward speed", &settings.fastForwardSpeed, 2, 16, "%dx")) applySpeed();
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   dirty |= ImGui::Checkbox("Show status bar", &settings.showStatus);
