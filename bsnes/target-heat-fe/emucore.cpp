@@ -183,6 +183,13 @@ EmuCore::~EmuCore() = default;
 bool EmuCore::loaded() const { return impl->emulator->loaded(); }
 std::string EmuCore::title() const { return (const char*)impl->superFamicom.title; }
 
+// 1364 master cycles a scanline over 262 lines NTSC, 312 PAL, at the region's
+// cpu clock. Unloaded reports NTSC.
+double EmuCore::refreshRate() const {
+  if(impl->superFamicom.region == "PAL") return 21281370.0 / (1364.0 * 312.0);
+  return 21477272.0 / (1364.0 * 262.0);
+}
+
 void EmuCore::setAudioFrequency(double hz) { Emulator::audio.setFrequency(hz); }
 void EmuCore::setSpeedScale(double scale) { Emulator::audio.setSpeedScale(scale); }
 

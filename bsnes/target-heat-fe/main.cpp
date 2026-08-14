@@ -71,7 +71,6 @@ constexpr const char* GlslVersion = "#version 130";
 #endif
 
 constexpr int AudioRate = 48000;
-constexpr double SnesHz = 60.098;
 constexpr int MinLatencyMs = 16;
 constexpr int MaxLatencyMs = 200;
 constexpr int MaxRecent = 8;
@@ -1086,7 +1085,7 @@ void App::drawToolsWindow() {
 
   ImGui::Text("Game: %s", core.loaded() ? gameTitle.c_str() : "none");
   ImGui::Text("Resolution: %d x %d", shell.frameWidth, shell.frameHeight);
-  ImGui::Text("Frame rate: %.1f fps (target %.3f)", fps, SnesHz);
+  ImGui::Text("Frame rate: %.1f fps (target %.3f)", fps, core.refreshRate());
   ImGui::Text("Audio queued: %d", (int)SDL_GetAudioStreamQueued(shell.audio));
   ImGui::Text("Pacing target: %d", shell.paceTarget());
   ImGui::Text("State: %s%s", core.loaded() ? (paused ? "paused" : "running") : "idle",
@@ -1499,7 +1498,7 @@ int main(int argc, char** argv) {
           ImGui::GetPlatformIO().Viewports.Size);
   SDL_Log("ran %d frames, last frame %dx%d, %.1f samples/frame (expect %.1f)",
           frames, app.shell.frameWidth, app.shell.frameHeight,
-          frames ? (double)app.totalSamples / frames : 0.0, AudioRate / SnesHz);
+          frames ? (double)app.totalSamples / frames : 0.0, AudioRate / app.core.refreshRate());
 
   app.input.save(app.inputCfg);
   app.settings.save(app.settingsCfg);

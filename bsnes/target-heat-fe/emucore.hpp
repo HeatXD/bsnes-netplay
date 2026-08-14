@@ -47,6 +47,8 @@ public:
   void runFrame();
 
   std::string title() const;
+  // 60.098Hz for NTSC carts, 50.007Hz for PAL ones
+  double refreshRate() const;
 
   void setAudioFrequency(double hz);
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
