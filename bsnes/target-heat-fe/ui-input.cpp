@@ -1,14 +1,23 @@
 #include "ui.hpp"
 
+namespace {
+// only the face and shoulder buttons make sense to auto-fire
+bool turboEligible(int button) {
+  return button >= EmuCore::B && button <= EmuCore::R;
+}
+}  // namespace
+
 void App::drawBindingTable(int device) {
   const auto& deviceInputs = core.inputs(device);
+  const bool turboCapable = device == EmuCore::Gamepad;
 
   // content sizing would let the long pad labels swallow the row
-  if(!ImGui::BeginTable("bindings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
+  if(!ImGui::BeginTable("bindings", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
 
   ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableSetupColumn("Keyboard");
   ImGui::TableSetupColumn("Gamepad");
+  ImGui::TableSetupColumn("Turbo", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableHeadersRow();
 
   for(int b = 0; b < (int)deviceInputs.size(); b++) {
@@ -30,6 +39,20 @@ void App::drawBindingTable(int device) {
           ? "..." : input.binding(mapPort, device, b, slot).label();
       if(ImGui::Button(label.c_str(), ImVec2(-1.0f, 0.0f))) capturing = id;
       ImGui::PopID();
+    }
+
+    ImGui::TableNextColumn();
+    if(turboCapable && turboEligible(b)) {
+      bool on = (settings.turboMask[mapPort] & (1 << b)) != 0;
+      ImGui::PushID(1000 + b);
+      if(ImGui::Checkbox("##turbo", &on)) {
+        if(on) settings.turboMask[mapPort] |= (1 << b);
+        else settings.turboMask[mapPort] &= ~(1 << b);
+        settings.save(settingsCfg);
+      }
+      ImGui::PopID();
+    } else {
+      ImGui::TextDisabled("-");
     }
   }
   ImGui::EndTable();
@@ -63,6 +86,10 @@ void App::drawInputTab() {
                                         : "click a binding to rebind it");
   ImGui::Separator();
   drawBindingTable(core.connectedDevice(mapPort));
+
+  ImGui::Separator();
+  if(ImGui::SliderInt("Turbo rate (Hz)", &settings.turboRate, 1, 30)) {}
+  if(ImGui::IsItemDeactivatedAfterEdit()) settings.save(settingsCfg);
 
   ImGui::Separator();
   if(ImGui::Button("Restore defaults")) {

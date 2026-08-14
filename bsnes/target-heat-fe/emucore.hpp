@@ -71,6 +71,8 @@ public:
   // 60.098Hz for NTSC carts, 50.007Hz for PAL ones
   double refreshRate() const;
 
+  // empty means save RAM sits next to the ROM (the default)
+  void setSavesDirectory(const std::string& dir);
   void setAudioFrequency(double hz);
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
   void setSpeedScale(double scale);

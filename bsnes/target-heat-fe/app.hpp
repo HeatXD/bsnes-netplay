@@ -37,12 +37,13 @@ struct App {
   uint64_t messageTime = 0;
   std::string gameTitle;
 
-  FilePick romPick, dirPick, shotDirPick, fontPick;
+  FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick;
 
   bool running = true;
   bool fontDirty = false;
   bool paused = false;
   bool fastForward = false;
+  bool frameAdvance = false;  // one-shot: advance a frame, then stay paused
   bool showSettings = false;
   bool showTools = false;
   bool showGames = false;
@@ -55,6 +56,7 @@ struct App {
   int gameSelected = 0;
   double fps = 0.0;
   long long totalSamples = 0;
+  long long emulatedFrames = 0;  // turbo's clock; must not depend on wall time
 
   void scanGames();
   bool loadRom(const std::string& path);
@@ -63,6 +65,7 @@ struct App {
   void toggleFastForward() { fastForward = !fastForward; applySpeed(); }
   void reset() { core.reset(); paused = false; }
   void powerCycle() { core.power(); paused = false; }
+  void advanceOneFrame() { frameAdvance = true; }
 
   // any window we own, not just the main one: an imgui viewport panel takes
   // focus away from it while staying part of this app
@@ -90,6 +93,7 @@ struct App {
     SDL_Log("%s", text.c_str());
   }
 
+  const char* hotkeyShortcut(Hotkey key) const;
   void drawFileMenu();
   void drawEmulationMenu();
   void drawSettingsMenu();

@@ -49,12 +49,30 @@ bool Shell::initVideo() {
   return true;
 }
 
-bool Shell::initAudio() {
+namespace {
+// resolves a remembered device name back to an id; falls back to the system
+// default when the name is empty or the device is gone (renumbered on reboot)
+SDL_AudioDeviceID findPlaybackDevice(const std::string& name) {
+  if(name.empty()) return SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+
+  int count = 0;
+  SDL_AudioDeviceID* ids = SDL_GetAudioPlaybackDevices(&count);
+  SDL_AudioDeviceID found = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+  for(int i = 0; i < count; i++) {
+    const char* devName = SDL_GetAudioDeviceName(ids[i]);
+    if(devName && name == devName) { found = ids[i]; break; }
+  }
+  if(ids) SDL_free(ids);
+  return found;
+}
+}  // namespace
+
+bool Shell::initAudio(const Settings& settings) {
   SDL_AudioSpec spec{};
   spec.format = SDL_AUDIO_F32;
   spec.channels = 2;
   spec.freq = AudioRate;
-  audio = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+  audio = SDL_OpenAudioDeviceStream(findPlaybackDevice(settings.audioDevice), &spec, nullptr, nullptr);
   if(!audio) {
     SDL_Log("audio open failed: %s", SDL_GetError());
     return false;
@@ -63,12 +81,30 @@ bool Shell::initAudio() {
   return true;
 }
 
-bool Shell::init() {
+bool Shell::reopenAudio(const Settings& settings) {
+  if(audio) SDL_DestroyAudioStream(audio);
+  audio = nullptr;
+  audioGain = -1.0f;  // force the new stream to pick up the current gain
+  return initAudio(settings);
+}
+
+std::vector<std::string> Shell::listPlaybackDevices() {
+  std::vector<std::string> names;
+  int count = 0;
+  SDL_AudioDeviceID* ids = SDL_GetAudioPlaybackDevices(&count);
+  for(int i = 0; i < count; i++) {
+    if(const char* name = SDL_GetAudioDeviceName(ids[i])) names.emplace_back(name);
+  }
+  if(ids) SDL_free(ids);
+  return names;
+}
+
+bool Shell::init(const Settings& settings) {
   if(!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
     SDL_Log("SDL_Init failed: %s", SDL_GetError());
     return false;
   }
-  return initVideo() && initAudio();
+  return initVideo() && initAudio(settings);
 }
 
 void Shell::shutdown() {
@@ -113,9 +149,10 @@ void Shell::pushVideo(const uint32_t* argb, int width, int height) {
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, argb);
 }
 
-void Shell::pushAudio(const Settings& settings, const float* samples, int frames) {
+void Shell::pushAudio(const Settings& settings, const float* samples, int frames, bool focused) {
   if(frames <= 0) return;
-  const float gain = settings.mute ? 0.0f : settings.volume / 100.0f;
+  const bool silent = settings.mute || (settings.muteUnfocused && !focused);
+  const float gain = silent ? 0.0f : settings.volume / 100.0f;
   if(gain != audioGain) {
     audioGain = gain;
     SDL_SetAudioStreamGain(audio, gain);

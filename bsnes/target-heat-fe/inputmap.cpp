@@ -64,8 +64,13 @@ void InputMap::loadDefaults() {
   }
 }
 
-void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads) const {
+void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
+                     const Settings& settings, long long frame) const {
   const bool* keys = SDL_GetKeyboardState(nullptr);
+
+  // half-period on, half-period off; at least 2 frames so it never latches on
+  const long long period = SDL_max(2, (long long)(core.refreshRate() / SDL_max(1, settings.turboRate) + 0.5));
+  const bool turboPhaseOff = (frame % period) >= period / 2;
 
   for(int port = 0; port < Ports; port++) {
     SDL_Gamepad* pad = (size_t)port < pads.size() ? pads[port] : nullptr;
@@ -94,6 +99,11 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads) const
           default:
             break;
         }
+      }
+
+      if(pressed && device == EmuCore::Gamepad && button < EmuCore::ButtonCount
+      && (settings.turboMask[port] & (1 << button)) && turboPhaseOff) {
+        pressed = false;
       }
       core.setInput(port, button, pressed ? 1 : 0);
     }

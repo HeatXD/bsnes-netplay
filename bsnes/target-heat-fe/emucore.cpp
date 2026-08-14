@@ -121,6 +121,8 @@ struct EmuCore::Impl : Emulator::Platform {
   } hacks;
   string activeHotfix;
 
+  std::string savesDir;  // frontend override; empty means next to the ROM
+
   std::array<uint32_t, 32768> palette{};
   std::vector<uint32_t> videoOut;      // final cropped frame, tightly packed
   std::vector<uint32_t> filterScratch; // pre-crop filter output, resized per frame
@@ -283,8 +285,10 @@ auto EmuCore::Impl::open(uint id, string name, vfs::file::mode mode, bool requir
       return vfs::memory::file::open(superFamicom.firmware.data(), superFamicom.firmware.size());
     }
 
-    // save RAM sits next to the ROM
-    string path = {Location::notsuffix(superFamicom.location), ".", name};
+    // save RAM sits next to the ROM unless the frontend picked a folder
+    string path = savesDir.empty()
+        ? string{Location::notsuffix(superFamicom.location), ".", name}
+        : string{savesDir.c_str(), "/", Location::prefix(superFamicom.location), ".", name};
     if(mode == vfs::file::mode::read && !file::exists(path)) return {};
     return vfs::fs::file::open(path, mode);
   }
@@ -389,6 +393,8 @@ double EmuCore::refreshRate() const {
   if(impl->superFamicom.region == "PAL") return 21281370.0 / (1364.0 * 312.0);
   return 21477272.0 / (1364.0 * 262.0);
 }
+
+void EmuCore::setSavesDirectory(const std::string& dir) { impl->savesDir = dir; }
 
 void EmuCore::setAudioFrequency(double hz) { Emulator::audio.setFrequency(hz); }
 void EmuCore::setSpeedScale(double scale) { Emulator::audio.setSpeedScale(scale); }
