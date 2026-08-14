@@ -42,7 +42,7 @@ void App::drawFileMenu() {
 
   ImGui::Separator();
   if(ImGui::MenuItem("Close Game", nullptr, false, core.loaded())) unloadRom();
-  if(ImGui::MenuItem("Quit", "Alt+F4")) running = false;
+  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit))) running = false;
 }
 
 // hotkey scancode as a menu shortcut label; empty when unbound
@@ -67,8 +67,6 @@ void App::drawEmulationMenu() {
   ImGui::Separator();
   if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset), false, core.loaded())) reset();
   if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle), false, core.loaded())) powerCycle();
-  ImGui::Separator();
-  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit))) running = false;
 }
 
 void App::drawSettingsMenu() {

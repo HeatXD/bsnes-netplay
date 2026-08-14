@@ -88,7 +88,7 @@ void App::drawInputTab() {
   drawBindingTable(core.connectedDevice(mapPort));
 
   ImGui::Separator();
-  if(ImGui::SliderInt("Turbo rate (Hz)", &settings.turboRate, 1, 30)) {}
+  ImGui::SliderInt("Turbo rate (Hz)", &settings.turboRate, 1, 30);
   if(ImGui::IsItemDeactivatedAfterEdit()) settings.save(settingsCfg);
 
   ImGui::Separator();
