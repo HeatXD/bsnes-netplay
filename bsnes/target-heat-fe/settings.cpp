@@ -79,6 +79,13 @@ void Settings::applyKey(const std::string& key, const std::string& value) {
     if(key == f.key) { this->*f.field = f.path ? normalPath(value) : value; return; }
   }
 
+  // legacy: a bool before the three-way policy replaced it. off meant the
+  // emulator kept running with input, which is DefocusAllowInput now
+  if(key == "pauseunfocused") {
+    defocusPolicy = number ? DefocusPause : DefocusAllowInput;
+    return;
+  }
+
   if(key == "recent") {
     const std::string rom = normalPath(value);
     if(recent.size() < MaxRecent
