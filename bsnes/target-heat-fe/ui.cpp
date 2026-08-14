@@ -113,10 +113,21 @@ void App::drawStatusBar() {
   ImGui::End();
 }
 
+// wide enough that the tab bar never elides a label, at whatever font size
+static float settingsWidth() {
+  const ImGuiStyle& style = ImGui::GetStyle();
+  float tabs = 0.0f;
+  for(const auto& tab : SettingsTabs) {
+    tabs += ImGui::CalcTextSize(tab.name).x + style.FramePadding.x * 2.0f
+          + style.ItemInnerSpacing.x;
+  }
+  return SDL_max(520.0f, tabs + style.WindowPadding.x * 2.0f + style.ScrollbarSize);
+}
+
 void App::drawSettingsWindow() {
   if(!showSettings) return;
 
-  placeFloating(40.0f, 40.0f, 520.0f, 440.0f);
+  placeFloating(40.0f, 40.0f, settingsWidth(), 480.0f);
   if(!ImGui::Begin("Settings", &showSettings)) { ImGui::End(); return; }
 
   if(ImGui::BeginTabBar("settingstabs")) {
