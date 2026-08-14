@@ -81,11 +81,19 @@ bool Shell::initAudio(const Settings& settings) {
   return true;
 }
 
+// open the replacement before dropping the old stream: audio is the master
+// clock, so a failed switch has to leave the working one in place or the loop
+// runs unpaced
 bool Shell::reopenAudio(const Settings& settings) {
-  if(audio) SDL_DestroyAudioStream(audio);
+  SDL_AudioStream* previous = audio;
   audio = nullptr;
+  if(!initAudio(settings)) {
+    audio = previous;
+    return false;
+  }
+  if(previous) SDL_DestroyAudioStream(previous);
   audioGain = -1.0f;  // force the new stream to pick up the current gain
-  return initAudio(settings);
+  return true;
 }
 
 std::vector<std::string> Shell::listPlaybackDevices() {
