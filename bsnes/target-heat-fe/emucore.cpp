@@ -335,8 +335,11 @@ auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint 
     outHeight -= cropLines * 2;
   }
 
-  if(outWidth > (uint)EmuCore::MaxWidth) outWidth = EmuCore::MaxWidth;
-  if(outHeight > (uint)EmuCore::MaxHeight) outHeight = EmuCore::MaxHeight;
+  // HD mode 7 outruns the filters' worst case, so grow instead of clamping;
+  // a clamp here would hand the frontend the frame's top-left corner
+  if(videoOut.size() < (size_t)outWidth * outHeight) {
+    videoOut.resize((size_t)outWidth * outHeight);
+  }
 
   for(uint y : range(outHeight)) {
     memory::copy(videoOut.data() + y * outWidth, src + y * filterWidth, outWidth * sizeof(uint32_t));

@@ -11,7 +11,8 @@
 
 class EmuCore {
 public:
-  // 640 clears SNES_NTSC_OUT_WIDTH(256) == 602, the widest CPU filter output
+  // starting size, not a cap: 640 clears SNES_NTSC_OUT_WIDTH(256) == 602, the
+  // widest CPU filter output. HD mode 7 grows both buffer and texture past it.
   static constexpr int MaxWidth = 640;
   static constexpr int MaxHeight = 480;
 

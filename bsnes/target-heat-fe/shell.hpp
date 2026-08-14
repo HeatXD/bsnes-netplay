@@ -26,12 +26,15 @@ struct Shell {
   const uint32_t* lastPixels = nullptr;
   int frameWidth = 0;
   int frameHeight = 0;
+  // grows to fit HD mode 7, whose frames outrun the filters' worst case
+  int textureWidth = 0;
+  int textureHeight = 0;
   float audioGain = 1.0f;
 
   bool initVideo();
   bool initAudio(const Settings& settings);
-  // tears down and reopens the stream on a different device; pacing is
-  // unaffected since it only watches the queued-bytes backlog
+  // reopens the stream on a different device; the new stream starts with an
+  // empty backlog, so the loop runs briefly fast until it refills
   bool reopenAudio(const Settings& settings);
   bool init(const Settings& settings);
   void shutdown();

@@ -44,7 +44,9 @@ bool Shell::initVideo() {
   glBindTexture(GL_TEXTURE_2D, texture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, EmuCore::MaxWidth, EmuCore::MaxHeight, 0,
+  textureWidth = EmuCore::MaxWidth;
+  textureHeight = EmuCore::MaxHeight;
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textureWidth, textureHeight, 0,
                GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
   return true;
 }
@@ -154,6 +156,14 @@ void Shell::pushVideo(const uint32_t* argb, int width, int height) {
 
   glBindTexture(GL_TEXTURE_2D, texture);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  // HD mode 7 scales the frame past the initial allocation; grow rather than
+  // crop, and never shrink, so a mode change doesn't reallocate every frame
+  if(width > textureWidth || height > textureHeight) {
+    textureWidth = SDL_max(textureWidth, width);
+    textureHeight = SDL_max(textureHeight, height);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textureWidth, textureHeight, 0,
+                 GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+  }
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, argb);
 }
 
@@ -195,7 +205,7 @@ void Shell::drawGame(const Settings& settings) {
 
   const ImVec2 p0(view->WorkPos.x + (availW - w) / 2.0f, view->WorkPos.y + (availH - h) / 2.0f);
   const ImVec2 p1(p0.x + w, p0.y + h);
-  const ImVec2 uv1((float)frameWidth / EmuCore::MaxWidth, (float)frameHeight / EmuCore::MaxHeight);
+  const ImVec2 uv1((float)frameWidth / textureWidth, (float)frameHeight / textureHeight);
   ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)(intptr_t)texture, p0, p1, ImVec2(0, 0), uv1);
 }
 
