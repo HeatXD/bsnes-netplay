@@ -39,6 +39,9 @@ struct EmuCore::Impl : Emulator::Platform {
   std::array<uint32_t, 32768> palette{};
   std::vector<uint32_t> videoOut;
   std::vector<float> audioOut;
+
+  bool overscanCrop = true;
+  int videoGamma = 150, videoLuminance = 100, videoSaturation = 100;
   std::array<std::array<int16_t, EmuCore::MaxInputs>, EmuCore::PortCount> state{};
   std::array<int, EmuCore::PortCount> connected{EmuCore::Gamepad, EmuCore::Gamepad};
 
@@ -82,24 +85,63 @@ struct EmuCore::Impl : Emulator::Platform {
   auto inputPoll(uint port, uint device, uint input) -> int16 override;
 };
 
+// Mirrors bsnes's own Program::updateVideoPalette (target-bsnes/program/video.cpp):
+// saturation mixes channels via a per-pixel grayscale, then gamma, then luminance.
 auto EmuCore::Impl::buildPalette() -> void {
-  // bsnes's ramp, luminance and saturation left at 1.0. Only 32 levels are
-  // distinct, so this is a table rather than 98304 pow() calls.
-  static constexpr double gamma = 1.5;
+  const double gamma = videoGamma / 100.0;
+  const double luminance = videoLuminance / 100.0;
+  const double saturation = videoSaturation / 100.0;
+  auto clamp16 = [](double v) -> uint16 { return v > 65535.0 ? uint16(65535) : uint16(v); };
 
-  uint32_t ramp[32];
-  for(uint level : range(32)) {
-    uint16 value = level << 3 | level >> 2;
-    value = value << 8 | value;
-    if(value <= 32767) value = uint16(32767 * pow(value / 32767.0, gamma));
-    ramp[level] = value >> 8;
+  if(saturation == 1.0) {
+    // fast path: with saturation pinned at 1.0 each channel only depends on
+    // its own 5-bit value, so a 32-entry ramp stands in for all 32768 entries.
+    uint32_t ramp[32];
+    for(uint level : range(32)) {
+      uint16 value = level << 3 | level >> 2;
+      value = value << 8 | value;
+      if(value <= 32767) value = uint16(32767 * pow(value / 32767.0, gamma));
+      if(luminance != 1.0) value = clamp16(value * luminance);
+      ramp[level] = value >> 8;
+    }
+    for(uint color : range(32768)) {
+      palette[color] = 0xff000000
+                     | ramp[(color >> 10) & 31] << 16
+                     | ramp[(color >> 5) & 31] << 8
+                     | ramp[(color >> 0) & 31];
+    }
+    return;
   }
 
+  // slow path: saturation mixes channels, so the ramp shortcut no longer
+  // applies and all 32768 entries need computing individually.
   for(uint color : range(32768)) {
-    palette[color] = 0xff000000
-                   | ramp[(color >> 10) & 31] << 16
-                   | ramp[(color >> 5) & 31] << 8
-                   | ramp[(color >> 0) & 31];
+    uint16 r = (color >> 10) & 31;
+    uint16 g = (color >> 5) & 31;
+    uint16 b = (color >> 0) & 31;
+    r = r << 3 | r >> 2; r = r << 8 | r;
+    g = g << 3 | g >> 2; g = g << 8 | g;
+    b = b << 3 | b >> 2; b = b << 8 | b;
+
+    uint16 grayscale = clamp16((r + g + b) / 3.0);
+    double inverse = 1.0 - saturation > 0.0 ? 1.0 - saturation : 0.0;
+    r = clamp16(r * saturation + grayscale * inverse);
+    g = clamp16(g * saturation + grayscale * inverse);
+    b = clamp16(b * saturation + grayscale * inverse);
+
+    if(gamma != 1.0) {
+      if(r <= 32767) r = uint16(32767 * pow(r / 32767.0, gamma));
+      if(g <= 32767) g = uint16(32767 * pow(g / 32767.0, gamma));
+      if(b <= 32767) b = uint16(32767 * pow(b / 32767.0, gamma));
+    }
+
+    if(luminance != 1.0) {
+      r = clamp16(r * luminance);
+      g = clamp16(g * luminance);
+      b = clamp16(b * luminance);
+    }
+
+    palette[color] = 0xff000000 | (r >> 8) << 16 | (g >> 8) << 8 | (b >> 8);
   }
 }
 
@@ -147,10 +189,11 @@ auto EmuCore::Impl::load(uint id, string, string, vector<string>) -> Emulator::P
 auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint height, uint scale) -> void {
   if(!owner.onVideo) return;
 
-  // drop the 8 overscan lines top and bottom
-  uint multiplier = height / 240;
-  data += 8 * (pitch >> 1) * multiplier;
-  height -= 16 * multiplier;
+  if(overscanCrop) {
+    uint multiplier = height / 240;
+    data += 8 * (pitch >> 1) * multiplier;
+    height -= 16 * multiplier;
+  }
 
   if(width > (uint)EmuCore::MaxWidth) width = EmuCore::MaxWidth;
   if(height > (uint)EmuCore::MaxHeight) height = EmuCore::MaxHeight;
@@ -202,6 +245,15 @@ void EmuCore::setInput(int port, int index, int16_t value) {
   if(port < 0 || port >= PortCount) return;
   if(index < 0 || index >= MaxInputs) return;
   impl->state[port][index] = value;
+}
+
+void EmuCore::setOverscanCrop(bool crop) { impl->overscanCrop = crop; }
+
+void EmuCore::setPaletteAdjust(int gammaPercent, int luminancePercent, int saturationPercent) {
+  impl->videoGamma = gammaPercent;
+  impl->videoLuminance = luminancePercent;
+  impl->videoSaturation = saturationPercent;
+  impl->buildPalette();
 }
 
 const std::vector<EmuCore::DeviceInfo>& EmuCore::devices(int port) const {

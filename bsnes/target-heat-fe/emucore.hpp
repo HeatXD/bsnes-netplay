@@ -61,6 +61,11 @@ public:
   void setSpeedScale(double scale);
   void setInput(int port, int index, int16_t value);
 
+  // percentages match bsnes's own slider ranges: gamma 100-200, luminance
+  // 0-100, saturation 0-200
+  void setOverscanCrop(bool crop);
+  void setPaletteAdjust(int gammaPercent, int luminancePercent, int saturationPercent);
+
   // what the core actually supports, rather than a hardcoded list
   const std::vector<DeviceInfo>& devices(int port) const;
   const std::vector<InputInfo>& inputs(int deviceId) const;

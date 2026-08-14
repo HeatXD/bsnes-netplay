@@ -33,6 +33,10 @@ struct Settings {
   bool integerScale = false;  // default is a fractional fit that fills the window
   bool linearFilter = false;
   int windowScale = 0;  // 0 = fit to window
+  bool overscanCrop = true;
+  int videoGamma = 150;       // percent; bsnes's own default and range (100-200)
+  int videoLuminance = 100;   // percent, 0-100
+  int videoSaturation = 100;  // percent, 0-200
   bool pauseUnfocused = true;
   int fastForwardSpeed = 4;
   bool showStatus = true;
