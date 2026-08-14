@@ -1,5 +1,7 @@
 #include "inputmap.hpp"
 
+#include "util.hpp"
+
 namespace {
 constexpr int AxisThreshold = 16000;
 
@@ -134,16 +136,12 @@ bool InputMap::save(const std::string& path) const {
       }
     }
   }
-  return SDL_SaveFile(path.c_str(), text.data(), text.size());
+  return writeText(path, text);
 }
 
 bool InputMap::load(const std::string& path) {
-  size_t size = 0;
-  void* data = SDL_LoadFile(path.c_str(), &size);
-  if(!data) return false;
-
-  std::string text((const char*)data, size);
-  SDL_free(data);
+  const std::string text = readText(path);
+  if(text.empty()) return false;
 
   size_t pos = 0;
   while(pos < text.size()) {
