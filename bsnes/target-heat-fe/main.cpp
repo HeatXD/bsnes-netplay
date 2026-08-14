@@ -5,12 +5,12 @@
 #include <SDL3/SDL_opengl.h>
 
 #include "imgui.h"
+#include "imgui_internal.h"  // BeginViewportSideBar, for the status bar
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_opengl3.h"
 
 #include <algorithm>
-#include <cmath>
-#include <cstdio>
+#include <cstdio>  // freopen, for reattaching the console on windows
 #include <functional>
 #include <string>
 #include <vector>
@@ -75,6 +75,12 @@ constexpr double SnesHz = 60.098;
 constexpr int MinLatencyMs = 16;
 constexpr int MaxLatencyMs = 200;
 constexpr int MaxRecent = 8;
+constexpr int MinFontSize = 8;
+constexpr int MaxFontSize = 32;
+constexpr int DefaultFontSize = 13;
+constexpr uint64_t MessageMs = 6000;
+// imgui's own dark-theme blue, packed as 0xRRGGBB
+constexpr int DefaultAccent = 0x4296fa;
 
 enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot, HotkeyCount };
 
@@ -189,6 +195,10 @@ struct Settings {
   bool pauseUnfocused = true;
   int fastForwardSpeed = 4;
   bool showStatus = true;
+  int theme = 0;  // 0 dark, 1 light, 2 classic
+  int accent = DefaultAccent;
+  int fontSize = DefaultFontSize;
+  std::string fontPath;  // empty means imgui's built-in font
   std::string gamesDir;
   std::string shotsDir;
   std::vector<std::string> recent;
@@ -229,6 +239,10 @@ void Settings::load(const std::string& path) {
     else if(key == "pauseunfocused") pauseUnfocused = number != 0;
     else if(key == "ffspeed") fastForwardSpeed = std::clamp(number, 2, 16);
     else if(key == "showstatus") showStatus = number != 0;
+    else if(key == "theme") theme = std::clamp(number, 0, 2);
+    else if(key == "accent") accent = std::clamp(number, 0, 0xffffff);
+    else if(key == "fontsize") fontSize = std::clamp(number, MinFontSize, MaxFontSize);
+    else if(key == "font") fontPath = value;
     else if(key == "gamesdir") gamesDir = value;
     else if(key == "shotsdir") shotsDir = value;
     else if(key == "recent") { if(recent.size() < MaxRecent) recent.push_back(value); }
@@ -262,6 +276,10 @@ void Settings::save(const std::string& path) const {
   addInt("pauseunfocused", pauseUnfocused);
   addInt("ffspeed", fastForwardSpeed);
   addInt("showstatus", showStatus);
+  addInt("theme", theme);
+  addInt("accent", accent);
+  addInt("fontsize", fontSize);
+  add("font", fontPath);
   add("gamesdir", gamesDir);
   add("shotsdir", shotsDir);
   for(int i = 0; i < EmuCore::PortCount; i++) addInt(("device" + std::to_string(i)).c_str(), devices[i]);
@@ -408,7 +426,7 @@ void Shell::drawGame() {
     scale = (float)settings->windowScale;
   } else {
     const float fit = std::min(availW / (frameWidth * aspect), availH / (float)frameHeight);
-    scale = settings->integerScale ? std::max(1.0f, std::floor(fit)) : fit;
+    scale = settings->integerScale ? SDL_max(1.0f, SDL_floorf(fit)) : fit;
   }
   const float w = frameWidth * scale * aspect;
   const float h = frameHeight * scale;
@@ -462,11 +480,13 @@ struct App {
   std::vector<SDL_Gamepad*> pads;
   std::vector<std::pair<std::string, std::string>> games;  // label, path
   std::string status;
+  uint64_t messageTime = 0;
   std::string gameTitle;
 
-  FilePick romPick, dirPick, shotDirPick;
+  FilePick romPick, dirPick, shotDirPick, fontPick;
 
   bool running = true;
+  bool fontDirty = false;
   bool paused = false;
   bool fastForward = false;
   bool showSettings = false;
@@ -488,13 +508,35 @@ struct App {
   void toggleFastForward() { fastForward = !fastForward; applySpeed(); }
   void reset() { core.reset(); paused = false; }
   void powerCycle() { core.power(); paused = false; }
+
+  bool fullscreen() const {
+    return (SDL_GetWindowFlags(shell.window) & SDL_WINDOW_FULLSCREEN) != 0;
+  }
+  void toggleFullscreen() { SDL_SetWindowFullscreen(shell.window, !fullscreen()); }
   void openRomDialog();
   void openFolderDialog(FilePick& pick);
+  void openFontDialog();
   void takeScreenshot();
 
+  ImVec4 accentColor() const {
+    return ImVec4(((settings.accent >> 16) & 0xff) / 255.0f,
+                  ((settings.accent >> 8) & 0xff) / 255.0f,
+                  (settings.accent & 0xff) / 255.0f, 1.0f);
+  }
+  void applyTheme();
+  void applyFont();
+
+  void showMessage(const std::string& text) {
+    status = text;
+    messageTime = SDL_GetTicks();
+    SDL_Log("%s", text.c_str());
+  }
+
   void drawMenuBar();
+  void drawStatusBar();
   void drawSettingsWindow();
   void drawToolsWindow();
+  void drawCustomizationTab();
   void drawGamesList();
   void drawGamesWindow();
   void drawGamesHome();
@@ -529,16 +571,14 @@ bool App::loadRom(const std::string& path) {
   if(core.loadSuperFamicom(path)) {
     gameTitle = core.title();
     SDL_SetWindowTitle(shell.window, (gameTitle + " - bsnes-netplay").c_str());
-    std::printf("loaded: %s\n", gameTitle.c_str());
     settings.addRecent(path);
     settings.save(settingsCfg);
-    status.clear();
     paused = false;
     applySpeed();
+    showMessage("loaded " + gameTitle);
     return true;
   }
-  status = "failed to load " + fileName(path);
-  std::printf("%s\n", status.c_str());
+  showMessage("failed to load " + fileName(path));
   return false;
 }
 
@@ -570,13 +610,90 @@ void App::openFolderDialog(FilePick& pick) {
                            settings.gamesDir.empty() ? nullptr : settings.gamesDir.c_str(), false);
 }
 
+void App::openFontDialog() {
+  Guard guard(fontPick.mutex);
+  if(fontPick.open) return;
+  fontPick.open = true;
+  const SDL_DialogFileFilter filters[] = {
+    {"Fonts", "ttf;otf;ttc"},
+    {"All files", "*"},
+  };
+  SDL_ShowOpenFileDialog(onPicked, &fontPick, shell.window, filters, 2, nullptr, false);
+}
+
+void App::applyTheme() {
+  switch(settings.theme) {
+    case 1: ImGui::StyleColorsLight(); break;
+    case 2: ImGui::StyleColorsClassic(); break;
+    default: ImGui::StyleColorsDark(); break;
+  }
+
+  ImGuiStyle& style = ImGui::GetStyle();
+  style.WindowRounding = 0.0f;
+  // panels sit over the running game, so they must not be see-through
+  style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+  style.Colors[ImGuiCol_PopupBg].w = 1.0f;
+  style.Colors[ImGuiCol_MenuBarBg].w = 1.0f;
+
+  // the accent drives everything interactive; the greys come from the preset
+  const ImVec4 accent = accentColor();
+  auto tint = [&](ImGuiCol index, float alpha) {
+    style.Colors[index] = ImVec4(accent.x, accent.y, accent.z, alpha);
+  };
+  tint(ImGuiCol_CheckMark, 1.0f);
+  tint(ImGuiCol_SliderGrab, 0.85f);
+  tint(ImGuiCol_SliderGrabActive, 1.0f);
+  tint(ImGuiCol_Button, 0.45f);
+  tint(ImGuiCol_ButtonHovered, 0.75f);
+  tint(ImGuiCol_ButtonActive, 1.0f);
+  tint(ImGuiCol_Header, 0.45f);
+  tint(ImGuiCol_HeaderHovered, 0.75f);
+  tint(ImGuiCol_HeaderActive, 1.0f);
+  tint(ImGuiCol_Tab, 0.45f);
+  tint(ImGuiCol_TabHovered, 0.75f);
+  tint(ImGuiCol_TabSelected, 1.0f);
+  tint(ImGuiCol_TitleBgActive, 0.75f);
+  tint(ImGuiCol_FrameBgHovered, 0.45f);
+  tint(ImGuiCol_FrameBgActive, 0.65f);
+  tint(ImGuiCol_SeparatorHovered, 0.75f);
+  tint(ImGuiCol_SeparatorActive, 1.0f);
+  tint(ImGuiCol_ResizeGrip, 0.35f);
+  tint(ImGuiCol_ResizeGripHovered, 0.75f);
+  tint(ImGuiCol_ResizeGripActive, 1.0f);
+  tint(ImGuiCol_TextSelectedBg, 0.45f);
+  tint(ImGuiCol_NavCursor, 1.0f);
+}
+
+// Only safe between frames: rebuilding the atlas invalidates the font texture.
+void App::applyFont() {
+  fontDirty = false;
+
+  ImGuiIO& io = ImGui::GetIO();
+  io.Fonts->Clear();
+
+  const float size = (float)settings.fontSize;
+  ImFont* font = nullptr;
+  // AddFontFromFileTTF asserts on a missing file rather than returning null
+  if(!settings.fontPath.empty() && pathExists(settings.fontPath)) {
+    font = io.Fonts->AddFontFromFileTTF(settings.fontPath.c_str(), size);
+  }
+  if(!font) {
+    if(!settings.fontPath.empty()) showMessage("could not load font " + fileName(settings.fontPath));
+    ImFontConfig config;
+    config.SizePixels = size;
+    io.Fonts->AddFontDefault(&config);
+  }
+
+  io.Fonts->Build();
+  ImGui_ImplOpenGL3_DestroyFontsTexture();  // recreated by the next NewFrame
+}
+
 void App::takeScreenshot() {
   std::string dir = settings.shotsDir.empty() ? configDir() : settings.shotsDir;
   if(!dir.empty() && dir.back() != '/' && dir.back() != '\\') dir += '/';
 
   const std::string name = dir + "shot-" + std::to_string(SDL_GetTicks()) + ".bmp";
-  status = shell.saveFrame(name) ? "saved " + name : "screenshot failed";
-  std::printf("%s\n", status.c_str());
+  showMessage(shell.saveFrame(name) ? "saved " + name : "screenshot failed");
 }
 
 void App::drawMenuBar() {
@@ -612,12 +729,13 @@ void App::drawMenuBar() {
   }
 
   if(ImGui::BeginMenu("Settings")) {
-    static const char* tabs[] = {"Video", "Audio", "Input", "Hotkeys", "Emulator", "Paths"};
+    static const char* tabs[] = {"Video", "Audio", "Input", "Hotkeys", "Emulator",
+                                 "Customization", "Paths"};
     for(int i = 0; i < IM_ARRAYSIZE(tabs); i++) {
       if(ImGui::MenuItem(tabs[i])) { showSettings = true; settingsTab = i; }
     }
     ImGui::Separator();
-    ImGui::MenuItem("Show Status", nullptr, &settings.showStatus);
+    ImGui::MenuItem("Show Status Bar", nullptr, &settings.showStatus);
     ImGui::EndMenu();
   }
 
@@ -632,18 +750,33 @@ void App::drawMenuBar() {
     ImGui::EndMenu();
   }
 
-  if(settings.showStatus) {
-    char text[192];
-    SDL_snprintf(text, sizeof(text), "%s  %dx%d  %.1f fps%s",
-                 core.loaded() ? gameTitle.c_str() : "no game",
-                 shell.frameWidth, shell.frameHeight, fps,
-                 fastForward ? "  [ff]" : paused ? "  [paused]" : "");
-    const float width = ImGui::CalcTextSize(text).x;
-    ImGui::SameLine(ImGui::GetWindowWidth() - width - 12.0f);
-    ImGui::TextUnformatted(text);
-  }
-
   ImGui::EndMainMenuBar();
+}
+
+// A viewport side bar, so the work area the game fills already excludes it.
+void App::drawStatusBar() {
+  if(!settings.showStatus) return;
+
+  if(!status.empty() && SDL_GetTicks() - messageTime > MessageMs) status.clear();
+
+  ImGuiViewport* view = ImGui::GetMainViewport();
+  if(ImGui::BeginViewportSideBar("##status", view, ImGuiDir_Down, ImGui::GetFrameHeight(),
+                                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_MenuBar)) {
+    if(ImGui::BeginMenuBar()) {
+      ImGui::TextUnformatted(!status.empty() ? status.c_str()
+                             : core.loaded() ? gameTitle.c_str() : "no game");
+
+      char text[96];
+      SDL_snprintf(text, sizeof(text), "%dx%d  %.1f fps%s",
+                   shell.frameWidth, shell.frameHeight, fps,
+                   fastForward ? "  [ff]" : paused ? "  [paused]" : "");
+      const float width = ImGui::CalcTextSize(text).x;
+      ImGui::SameLine(ImGui::GetWindowWidth() - width - 12.0f);
+      ImGui::TextUnformatted(text);
+      ImGui::EndMenuBar();
+    }
+  }
+  ImGui::End();
 }
 
 // Placed outside the host viewport so multi-viewport gives it a real OS window.
@@ -798,7 +931,7 @@ void App::drawSettingsWindow() {
       dirty |= ImGui::Checkbox("Pause when window is unfocused", &settings.pauseUnfocused);
       if(ImGui::SliderInt("Fast forward speed", &settings.fastForwardSpeed, 2, 16, "%dx")) applySpeed();
       dirty |= ImGui::IsItemDeactivatedAfterEdit();
-      dirty |= ImGui::Checkbox("Show status in menu bar", &settings.showStatus);
+      dirty |= ImGui::Checkbox("Show status bar", &settings.showStatus);
       ImGui::Separator();
       ImGui::TextWrapped("Save RAM is written next to the ROM file. Game Boy titles run only"
                          " through Super Game Boy, which needs the SGB BIOS cartridge.");
@@ -806,7 +939,12 @@ void App::drawSettingsWindow() {
       ImGui::EndTabItem();
     }
 
-    if(ImGui::BeginTabItem("Paths", nullptr, tabFlags(5))) {
+    if(ImGui::BeginTabItem("Customization", nullptr, tabFlags(5))) {
+      drawCustomizationTab();
+      ImGui::EndTabItem();
+    }
+
+    if(ImGui::BeginTabItem("Paths", nullptr, tabFlags(6))) {
       ImGui::TextUnformatted("Games folder");
       ImGui::TextWrapped("%s", settings.gamesDir.empty() ? "(not set)" : settings.gamesDir.c_str());
       if(ImGui::Button("Browse##games")) openFolderDialog(dirPick);
@@ -829,7 +967,7 @@ void App::drawSettingsWindow() {
         if(const char* base = SDL_GetBasePath()) {
           settings.save(std::string(base) + "settings.cfg");
           input.save(std::string(base) + "input.cfg");
-          status = "portable config written, restart to use it";
+          showMessage("portable config written, restart to use it");
         }
       }
       ImGui::EndTabItem();
@@ -840,6 +978,56 @@ void App::drawSettingsWindow() {
 
   settingsTab = -1;
   ImGui::End();
+}
+
+void App::drawCustomizationTab() {
+  bool dirty = false;
+
+  static const char* themes[] = {"Dark", "Light", "Classic"};
+  if(ImGui::Combo("Theme", &settings.theme, themes, IM_ARRAYSIZE(themes))) {
+    applyTheme();
+    dirty = true;
+  }
+
+  float accent[3] = {((settings.accent >> 16) & 0xff) / 255.0f,
+                     ((settings.accent >> 8) & 0xff) / 255.0f,
+                     (settings.accent & 0xff) / 255.0f};
+  if(ImGui::ColorEdit3("Accent", accent, ImGuiColorEditFlags_NoInputs)) {
+    settings.accent = (int)(accent[0] * 255.0f + 0.5f) << 16
+                    | (int)(accent[1] * 255.0f + 0.5f) << 8
+                    | (int)(accent[2] * 255.0f + 0.5f);
+    applyTheme();
+  }
+  dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  ImGui::SameLine();
+  ImGui::TextUnformatted("buttons, tabs, sliders and selections");
+
+  ImGui::Separator();
+  ImGui::TextUnformatted("Font");
+  ImGui::TextWrapped("%s", settings.fontPath.empty() ? "(built-in)" : settings.fontPath.c_str());
+  if(ImGui::Button("Browse##font")) openFontDialog();
+  ImGui::SameLine();
+  if(ImGui::Button("Use built-in")) {
+    settings.fontPath.clear();
+    fontDirty = dirty = true;
+  }
+
+  ImGui::SliderInt("Size", &settings.fontSize, MinFontSize, MaxFontSize, "%dpx");
+  if(ImGui::IsItemDeactivatedAfterEdit()) fontDirty = dirty = true;
+
+  ImGui::Separator();
+  if(ImGui::Button("Restore defaults##look")) {
+    settings.theme = 0;
+    settings.accent = DefaultAccent;
+    settings.fontSize = DefaultFontSize;
+    settings.fontPath.clear();
+    applyTheme();
+    fontDirty = dirty = true;
+  }
+  ImGui::TextWrapped("The font file is remembered by path. If it moves, the built-in"
+                     " font is used instead.");
+
+  if(dirty) settings.save(settingsCfg);
 }
 
 void App::drawToolsWindow() {
@@ -938,7 +1126,11 @@ void App::drawAboutWindow() {
 }
 
 void App::drawUi() {
-  drawMenuBar();
+  // fullscreen is the game only; the hotkey brings the chrome back
+  if(!fullscreen()) {
+    drawMenuBar();
+    drawStatusBar();
+  }
 
   if(core.loaded()) {
     shell.drawGame();
@@ -956,12 +1148,12 @@ void App::drawUi() {
 
 int main(int argc, char** argv) {
   attachParentConsole();
-  setvbuf(stdout, nullptr, _IONBF, 0);
 
   int frameLimit = 0;
   bool fast = false;
   std::string uiShot;
   std::string uiScreen = "game";
+  bool uiFullscreen = false;
   std::string romPath;
   int shotTab = -1;
   int shotW = 0, shotH = 0;
@@ -972,6 +1164,7 @@ int main(int argc, char** argv) {
     if(SDL_strcmp(argv[i], "--ui-shot") == 0 && i + 1 < argc) { uiShot = argv[++i]; continue; }
     if(SDL_strcmp(argv[i], "--ui-screen") == 0 && i + 1 < argc) { uiScreen = argv[++i]; continue; }
     if(SDL_strcmp(argv[i], "--ui-tab") == 0 && i + 1 < argc) { shotTab = SDL_atoi(argv[++i]); continue; }
+    if(SDL_strcmp(argv[i], "--ui-fullscreen") == 0) { uiFullscreen = true; continue; }
     if(SDL_strcmp(argv[i], "--ui-size") == 0 && i + 2 < argc) {
       shotW = SDL_atoi(argv[i + 1]);
       shotH = SDL_atoi(argv[i + 2]);
@@ -1008,16 +1201,11 @@ int main(int argc, char** argv) {
     io.ConfigViewportsNoTaskBarIcon = true;
   }
 
-  ImGui::StyleColorsDark();
-  ImGuiStyle& style = ImGui::GetStyle();
-  style.WindowRounding = 0.0f;
-  // panels sit over the running game, so they must not be see-through
-  style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-  style.Colors[ImGuiCol_PopupBg].w = 1.0f;
-  style.Colors[ImGuiCol_MenuBarBg].w = 1.0f;
+  app.applyTheme();
 
   ImGui_ImplSDL3_InitForOpenGL(app.shell.window, app.shell.gl);
   ImGui_ImplOpenGL3_Init(GlslVersion);
+  app.fontDirty = true;
 
   {
     int count = 0;
@@ -1040,12 +1228,13 @@ int main(int argc, char** argv) {
   if(!romPath.empty()) app.loadRom(romPath);
 
   if(frameLimit && !app.core.loaded()) {
-    std::printf("no rom loaded\n");
+    SDL_Log("no rom loaded");
     app.shell.shutdown();
     return 1;
   }
 
   auto renderUi = [&]() {
+    if(app.fontDirty) app.applyFont();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
@@ -1068,6 +1257,7 @@ int main(int argc, char** argv) {
 
   if(!uiShot.empty()) {
     if(shotW > 0 && shotH > 0) SDL_SetWindowSize(app.shell.window, shotW, shotH);
+    if(uiFullscreen) app.toggleFullscreen();
 
     // warm the emulator so the shot shows the UI over a real frame
     for(int i = 0; app.core.loaded() && i < 180; i++) {
@@ -1083,7 +1273,7 @@ int main(int argc, char** argv) {
 
     // read before swapping, or the back buffer is already gone
     const bool ok = app.shell.saveWindow(uiShot);
-    std::printf("ui shot %s: %s\n", ok ? "saved" : "FAILED", uiShot.c_str());
+    SDL_Log("ui shot %s: %s", ok ? "saved" : "FAILED", uiShot.c_str());
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
@@ -1231,8 +1421,7 @@ int main(int argc, char** argv) {
         } else if(key == app.settings.hotkeys[HkScreenshot]) {
           app.takeScreenshot();
         } else if(key == app.settings.hotkeys[HkFullscreen]) {
-          const bool full = (SDL_GetWindowFlags(app.shell.window) & SDL_WINDOW_FULLSCREEN) != 0;
-          SDL_SetWindowFullscreen(app.shell.window, !full);
+          app.toggleFullscreen();
         }
       }
     }
@@ -1247,15 +1436,20 @@ int main(int argc, char** argv) {
       app.settings.shotsDir = picked;
       app.settings.save(app.settingsCfg);
     }
+    if(std::string picked = takePick(app.fontPick); !picked.empty()) {
+      app.settings.fontPath = picked;
+      app.settings.save(app.settingsCfg);
+      app.fontDirty = true;
+    }
 
     stepFrame(false);
   }
 
-  std::printf("platform viewports: %d (1 = host window only)\n",
-              ImGui::GetPlatformIO().Viewports.Size);
-  std::printf("ran %d frames, last frame %dx%d, %.1f samples/frame (expect %.1f)\n",
-              frames, app.shell.frameWidth, app.shell.frameHeight,
-              frames ? (double)app.totalSamples / frames : 0.0, AudioRate / SnesHz);
+  SDL_Log("platform viewports: %d (1 = host window only)",
+          ImGui::GetPlatformIO().Viewports.Size);
+  SDL_Log("ran %d frames, last frame %dx%d, %.1f samples/frame (expect %.1f)",
+          frames, app.shell.frameWidth, app.shell.frameHeight,
+          frames ? (double)app.totalSamples / frames : 0.0, AudioRate / SnesHz);
 
   app.input.save(app.inputCfg);
   app.settings.save(app.settingsCfg);
