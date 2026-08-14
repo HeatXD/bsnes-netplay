@@ -46,7 +46,13 @@ public:
   void reset();
   void runFrame();
 
+  // the file name, as bsnes titles its window
   std::string title() const;
+  // the cartridge header's own title, which hotfixes match on
+  std::string headerTitle() const;
+
+  // core setting, by the interface's own name: "Hacks/PPU/Fast" and friends
+  bool setOption(const std::string& name, const std::string& value);
   // 60.098Hz for NTSC carts, 50.007Hz for PAL ones
   double refreshRate() const;
 

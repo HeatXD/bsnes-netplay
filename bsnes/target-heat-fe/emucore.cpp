@@ -26,6 +26,7 @@ struct EmuCore::Impl : Emulator::Platform {
 
   struct {
     string title;
+    string headerTitle;
     string region;
     string manifest;
     string location;
@@ -181,6 +182,11 @@ EmuCore::~EmuCore() = default;
 
 bool EmuCore::loaded() const { return impl->emulator->loaded(); }
 std::string EmuCore::title() const { return (const char*)impl->superFamicom.title; }
+std::string EmuCore::headerTitle() const { return (const char*)impl->superFamicom.headerTitle; }
+
+bool EmuCore::setOption(const std::string& name, const std::string& value) {
+  return impl->emulator->configure(name.c_str(), value.c_str());
+}
 
 // 1364 master cycles a scanline over 262 lines NTSC, 312 PAL, at the region's
 // cpu clock. Unloaded reports NTSC.
@@ -254,6 +260,7 @@ bool EmuCore::loadSuperFamicom(const std::string& path) {
   auto& sfc = impl->superFamicom;
   // bsnes titles its window with the file name, not the cartridge header
   sfc.title = Location::prefix(location);
+  sfc.headerTitle = heuristics.title();
   sfc.region = heuristics.videoRegion();
   sfc.manifest = heuristics.manifest();
   sfc.location = location;

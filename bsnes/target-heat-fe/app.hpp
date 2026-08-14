@@ -47,6 +47,7 @@ struct App {
   bool showTools = false;
   bool showGames = false;
   bool showAbout = false;
+  bool showCartridge = false;
   int settingsTab = -1;
   int mapPort = 0;
   int capturing = -1;      // emulator button slot being rebound
@@ -103,6 +104,8 @@ struct App {
   void drawInputTab();
   void drawHotkeysTab();
   void drawEmulatorTab();
+  void drawEnhancementsTab();
+  void drawCartridgeWindow();
   bool drawColourSection();
   bool drawFontSection();
   void restoreAppearanceDefaults();
