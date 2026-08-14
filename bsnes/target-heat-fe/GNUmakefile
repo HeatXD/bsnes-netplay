@@ -38,7 +38,7 @@ flags += $(sdl3.flags) $(imgui.flags)
 
 # filter and lzma are only used by hiro's UI
 objects := $(filter-out filter lzma,$(objects))
-objects += ui-main ui-emucore ui-inputmap
+objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-emucore ui-inputmap
 objects += imgui imgui-draw imgui-tables imgui-widgets imgui-sdl3 imgui-opengl3
 ifeq ($(platform),windows)
   objects += ui-resource
@@ -46,6 +46,11 @@ endif
 objects := $(objects:%=obj/%.o)
 
 obj/ui-main.o: $(ui)/main.cpp
+obj/ui-util.o: $(ui)/util.cpp
+obj/ui-settings.o: $(ui)/settings.cpp
+obj/ui-shell.o: $(ui)/shell.cpp
+obj/ui-app.o: $(ui)/app.cpp
+obj/ui-draw.o: $(ui)/ui.cpp
 obj/ui-emucore.o: $(ui)/emucore.cpp
 obj/ui-inputmap.o: $(ui)/inputmap.cpp
 

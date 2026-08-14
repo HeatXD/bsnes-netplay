@@ -1,0 +1,171 @@
+#include "shell.hpp"
+
+#include "util.hpp"
+
+#include "imgui.h"
+
+// macOS has no 3.0 compatibility context, only 2.1 legacy or 3.2+ core
+namespace {
+#ifdef __APPLE__
+constexpr int GlMajor = 3, GlMinor = 2;
+#else
+constexpr int GlMajor = 3, GlMinor = 0;
+#endif
+}
+
+
+
+bool Shell::initVideo() {
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GlMajor);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GlMinor);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#ifdef __APPLE__
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+#endif
+
+  window = SDL_CreateWindow(AppName, 878, 224 * 3 + 24,
+                            SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+  if(!window) {
+    SDL_Log("window creation failed: %s", SDL_GetError());
+    return false;
+  }
+
+  gl = SDL_GL_CreateContext(window);
+  if(!gl) {
+    SDL_Log("gl context failed: %s", SDL_GetError());
+    return false;
+  }
+  SDL_GL_MakeCurrent(window, gl);
+  // audio is the master clock, so vsync must not also gate the loop
+  SDL_GL_SetSwapInterval(0);
+
+  glGenTextures(1, &texture);
+  glBindTexture(GL_TEXTURE_2D, texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, EmuCore::MaxWidth, EmuCore::MaxHeight, 0,
+               GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+  return true;
+}
+
+bool Shell::initAudio() {
+  SDL_AudioSpec spec{};
+  spec.format = SDL_AUDIO_F32;
+  spec.channels = 2;
+  spec.freq = AudioRate;
+  audio = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+  if(!audio) {
+    SDL_Log("audio open failed: %s", SDL_GetError());
+    return false;
+  }
+  SDL_ResumeAudioStreamDevice(audio);
+  return true;
+}
+
+bool Shell::init() {
+  if(!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
+    SDL_Log("SDL_Init failed: %s", SDL_GetError());
+    return false;
+  }
+  return initVideo() && initAudio();
+}
+
+void Shell::shutdown() {
+  if(audio) SDL_DestroyAudioStream(audio);
+  if(texture) glDeleteTextures(1, &texture);
+  if(gl) SDL_GL_DestroyContext(gl);
+  if(window) SDL_DestroyWindow(window);
+  SDL_Quit();
+}
+
+// Audio is the master clock; draining to a byte backlog paces NTSC and PAL alike.
+int Shell::paceTarget(const Settings& settings) const {
+  return settings.latencyMs * AudioRate / 1000 * 2 * (int)sizeof(float);
+}
+
+void Shell::pace(const Settings& settings) {
+  while(SDL_GetAudioStreamQueued(audio) > paceTarget(settings)) SDL_Delay(1);
+}
+
+void Shell::pushVideo(const uint32_t* argb, int width, int height) {
+  frameWidth = width;
+  frameHeight = height;
+  lastPixels = argb;
+
+  glBindTexture(GL_TEXTURE_2D, texture);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, argb);
+}
+
+void Shell::pushAudio(const Settings& settings, const float* samples, int frames) {
+  if(frames <= 0) return;
+  const float gain = settings.mute ? 0.0f : settings.volume / 100.0f;
+  if(gain != audioGain) {
+    audioGain = gain;
+    SDL_SetAudioStreamGain(audio, gain);
+  }
+  SDL_PutAudioStreamData(audio, samples, frames * 2 * (int)sizeof(float));
+}
+
+void Shell::drawGame(const Settings& settings) {
+  if(frameWidth <= 0 || frameHeight <= 0) return;
+
+  const ImGuiViewport* view = ImGui::GetMainViewport();
+  const float availW = view->WorkSize.x, availH = view->WorkSize.y;
+  if(availW <= 0.0f || availH <= 0.0f) return;
+
+  // NTSC pixels are not square; 8/7 stretches 256x224 out to 4:3
+  const float aspect = settings.aspectCorrect ? 8.0f / 7.0f : 1.0f;
+
+  float scale;
+  if(settings.windowScale > 0) {
+    scale = (float)settings.windowScale;
+  } else {
+    const float fit = SDL_min(availW / (frameWidth * aspect), availH / (float)frameHeight);
+    scale = settings.integerScale ? SDL_max(1.0f, SDL_floorf(fit)) : fit;
+  }
+  const float w = frameWidth * scale * aspect;
+  const float h = frameHeight * scale;
+
+  const GLint filter = settings.linearFilter ? GL_LINEAR : GL_NEAREST;
+  glBindTexture(GL_TEXTURE_2D, texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+
+  const ImVec2 p0(view->WorkPos.x + (availW - w) / 2.0f, view->WorkPos.y + (availH - h) / 2.0f);
+  const ImVec2 p1(p0.x + w, p0.y + h);
+  const ImVec2 uv1((float)frameWidth / EmuCore::MaxWidth, (float)frameHeight / EmuCore::MaxHeight);
+  ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)(intptr_t)texture, p0, p1, ImVec2(0, 0), uv1);
+}
+
+namespace {
+bool saveBmp(const void* pixels, int w, int h, const std::string& path, bool flip) {
+  SDL_Surface* surface = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_XRGB8888,
+                                               (void*)pixels, w * (int)sizeof(uint32_t));
+  if(!surface) return false;
+  const bool ok = (!flip || SDL_FlipSurface(surface, SDL_FLIP_VERTICAL))
+               && SDL_SaveBMP(surface, path.c_str());
+  SDL_DestroySurface(surface);
+  return ok;
+}
+}  // namespace
+
+bool Shell::saveFrame(const std::string& path) const {
+  if(!lastPixels || frameWidth <= 0 || frameHeight <= 0) return false;
+  return saveBmp(lastPixels, frameWidth, frameHeight, path, false);
+}
+
+// GL's origin is bottom-left, so the rows come back upside down
+bool Shell::saveWindow(const std::string& path) const {
+  int w = 0, h = 0;
+  SDL_GetWindowSizeInPixels(window, &w, &h);
+  if(w <= 0 || h <= 0) return false;
+
+  std::vector<uint32_t> pixels((size_t)w * h);
+  glPixelStorei(GL_PACK_ALIGNMENT, 4);
+  glReadPixels(0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, pixels.data());
+
+  return saveBmp(pixels.data(), w, h, path, true);
+}
+

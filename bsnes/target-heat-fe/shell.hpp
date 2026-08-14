@@ -1,0 +1,43 @@
+#pragma once
+
+#include "emucore.hpp"
+#include "settings.hpp"
+
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_opengl.h>
+
+#include <string>
+#include <vector>
+
+#ifdef __APPLE__
+constexpr const char* GlslVersion = "#version 150";
+#else
+constexpr const char* GlslVersion = "#version 130";
+#endif
+
+constexpr int AudioRate = 48000;
+struct Shell {
+  SDL_Window* window = nullptr;
+  SDL_GLContext gl = nullptr;
+  GLuint texture = 0;
+  SDL_AudioStream* audio = nullptr;
+
+  // valid until the core's next frame, which is enough for a screenshot
+  const uint32_t* lastPixels = nullptr;
+  int frameWidth = 0;
+  int frameHeight = 0;
+  float audioGain = 1.0f;
+
+  bool initVideo();
+  bool initAudio();
+  bool init();
+  void shutdown();
+  int paceTarget(const Settings& settings) const;
+  void pace(const Settings& settings);
+  void pushVideo(const uint32_t* argb, int width, int height);
+  void pushAudio(const Settings& settings, const float* samples, int frames);
+  void clearFrame() { lastPixels = nullptr; frameWidth = frameHeight = 0; }
+  void drawGame(const Settings& settings);
+  bool saveFrame(const std::string& path) const;
+  bool saveWindow(const std::string& path) const;
+};
