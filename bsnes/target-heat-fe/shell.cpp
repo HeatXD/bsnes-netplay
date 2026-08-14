@@ -185,18 +185,22 @@ void Shell::drawGame(const Settings& settings) {
   const float availW = view->WorkSize.x, availH = view->WorkSize.y;
   if(availW <= 0.0f || availH <= 0.0f) return;
 
-  // NTSC pixels are not square; 8/7 stretches 256x224 out to 4:3
-  const float aspect = settings.aspectCorrect ? 8.0f / 7.0f : 1.0f;
+  // Geometry comes from the canonical SNES frame, never from the filtered
+  // pixel count: a filter changes resolution, not the picture's shape. NTSC
+  // is 602 wide and scanlines 480 tall, and sizing off those would stretch
+  // them. NTSC pixels are not square either; 8/7 takes 256x224 out to 4:3.
+  const float videoW = 256.0f * (settings.aspectCorrect ? 8.0f / 7.0f : 1.0f);
+  const float videoH = settings.overscanCrop ? 224.0f : 240.0f;
 
   float scale;
   if(settings.windowScale > 0) {
     scale = (float)settings.windowScale;
   } else {
-    const float fit = SDL_min(availW / (frameWidth * aspect), availH / (float)frameHeight);
+    const float fit = SDL_min(availW / videoW, availH / videoH);
     scale = settings.integerScale ? SDL_max(1.0f, SDL_floorf(fit)) : fit;
   }
-  const float w = frameWidth * scale * aspect;
-  const float h = frameHeight * scale;
+  const float w = videoW * scale;
+  const float h = videoH * scale;
 
   const GLint filter = settings.linearFilter ? GL_LINEAR : GL_NEAREST;
   glBindTexture(GL_TEXTURE_2D, texture);

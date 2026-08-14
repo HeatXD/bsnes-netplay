@@ -320,6 +320,14 @@ auto EmuCore::Impl::load(uint id, string, string, vector<string>) -> Emulator::P
 auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint height, uint scale) -> void {
   if(!owner.onVideo) return;
 
+  // crop before filtering, as bsnes does, so the filter sees exactly the
+  // visible picture and its edge rows are the ones actually shown
+  if(overscanCrop) {
+    uint multiplier = height / 240;
+    data += 8 * (pitch >> 1) * multiplier;
+    height -= 16 * multiplier;
+  }
+
   // HD mode 7 and hires/interlaced frames outside a filter's working size
   // fall back to the identity filter, same as bsnes's own filterSelect
   const FilterEntry* filter = &Filters[filterIndex];
@@ -335,16 +343,7 @@ auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint 
                  data, pitch, width, height);
 
   const uint32_t* src = filterScratch.data();
-  uint outWidth = filterWidth, outHeight = filterHeight;
-
-  if(overscanCrop) {
-    // crop scales with whatever the filter did to the vertical resolution;
-    // this must run after filtering or a 2x/scanline filter halves the wrong
-    // count of lines
-    uint cropLines = 8 * (filterHeight / 240);
-    src += (size_t)cropLines * filterWidth;
-    outHeight -= cropLines * 2;
-  }
+  const uint outWidth = filterWidth, outHeight = filterHeight;
 
   // HD mode 7 outruns the filters' worst case, so grow instead of clamping;
   // a clamp here would hand the frontend the frame's top-left corner
