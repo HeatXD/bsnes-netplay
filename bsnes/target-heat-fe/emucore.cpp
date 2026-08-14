@@ -241,15 +241,16 @@ auto EmuCore::Impl::applyHacks() -> void {
   bool dspFast = hacks.dspFast;
   activeHotfix = "";
 
-  if(hacks.hotfixes) {
-    for(auto& hf : Hotfixes) {
-      if(superFamicom.headerTitle != hf.title) continue;
-      if(hf.region && superFamicom.region != hf.region) continue;
-      if(hf.disablePPU && ppuFast) { ppuFast = false; activeHotfix = {"PPU fast mode disabled for ", hf.title}; }
-      if(hf.disableDSP && dspFast) { dspFast = false; activeHotfix = {"DSP fast mode disabled for ", hf.title}; }
-    }
+  // unconditional, as in bsnes: these games are broken under fast timing and
+  // the hotfixes toggle never re-enables it for them
+  for(auto& hf : Hotfixes) {
+    if(superFamicom.headerTitle != hf.title) continue;
+    if(hf.region && superFamicom.region != hf.region) continue;
+    if(hf.disablePPU && ppuFast) { ppuFast = false; activeHotfix = {"PPU fast mode disabled for ", hf.title}; }
+    if(hf.disableDSP && dspFast) { dspFast = false; activeHotfix = {"DSP fast mode disabled for ", hf.title}; }
   }
 
+  emulator->configure("Hacks/Hotfixes", hacks.hotfixes);
   emulator->configure("Hacks/PPU/Fast", ppuFast);
   emulator->configure("Hacks/PPU/NoSpriteLimit", hacks.ppuNoSpriteLimit);
   emulator->configure("Hacks/PPU/Mode7/Scale", hacks.mode7Scale);
@@ -290,6 +291,9 @@ auto EmuCore::Impl::open(uint id, string name, vfs::file::mode mode, bool requir
         ? string{Location::notsuffix(superFamicom.location), ".", name}
         : string{savesDir.c_str(), "/", Location::prefix(superFamicom.location), ".", name};
     if(mode == vfs::file::mode::read && !file::exists(path)) return {};
+    // a saves folder that has been deleted or unplugged would otherwise
+    // swallow the write and lose the game's progress silently
+    if(mode != vfs::file::mode::read && !savesDir.empty()) directory::create(savesDir.c_str());
     return vfs::fs::file::open(path, mode);
   }
 
@@ -505,12 +509,13 @@ bool EmuCore::loadSuperFamicom(const std::string& path) {
   take(heuristics.firmwareRomSize(), sfc.firmware);
 
   impl->emulator->unload();
+  // must precede load(): the cartridge reads PreferHLE while mapping chips
+  impl->applyHacks();
   if(!impl->emulator->load()) return false;
 
   for(int port = 0; port < PortCount; port++) {
     impl->emulator->connect(port, impl->connected[port]);
   }
-  impl->applyHacks();
   impl->emulator->power();
   return true;
 }
