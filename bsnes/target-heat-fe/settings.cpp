@@ -27,6 +27,9 @@ const IntField IntFields[] = {
   {"textcolor",   &Settings::textColor,        FollowTheme,    0xffffff},
   {"fontsize",    &Settings::fontSize,         MinFontSize,    MaxFontSize},
   {"fontweight",  &Settings::fontWeight,       MinFontWeight,  MaxFontWeight},
+  {"gamma",       &Settings::videoGamma,       100,            200},
+  {"luminance",   &Settings::videoLuminance,   0,              100},
+  {"saturation",  &Settings::videoSaturation,  0,              200},
 };
 
 const BoolField BoolFields[] = {
@@ -36,6 +39,7 @@ const BoolField BoolFields[] = {
   {"linear",         &Settings::linearFilter},
   {"pauseunfocused", &Settings::pauseUnfocused},
   {"showstatus",     &Settings::showStatus},
+  {"overscancrop",   &Settings::overscanCrop},
   {"ppufast",        &Settings::hackPpuFast},
   {"nospritelimit",  &Settings::hackPpuNoSpriteLimit},
   {"dspfast",        &Settings::hackDspFast},
@@ -46,9 +50,10 @@ const BoolField BoolFields[] = {
 };
 
 const StrField StrFields[] = {
-  {"font",     &Settings::fontPath, false},
-  {"gamesdir", &Settings::gamesDir, true},
-  {"shotsdir", &Settings::shotsDir, true},
+  {"font",        &Settings::fontPath,    false},
+  {"gamesdir",    &Settings::gamesDir,    true},
+  {"shotsdir",    &Settings::shotsDir,    true},
+  {"videofilter", &Settings::videoFilter, false},
 };
 }  // namespace
 

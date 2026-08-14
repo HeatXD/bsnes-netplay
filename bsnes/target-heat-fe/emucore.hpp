@@ -11,7 +11,8 @@
 
 class EmuCore {
 public:
-  static constexpr int MaxWidth = 512;
+  // 640 clears SNES_NTSC_OUT_WIDTH(256) == 602, the widest CPU filter output
+  static constexpr int MaxWidth = 640;
   static constexpr int MaxHeight = 480;
 
   // controller ports 1 and 2; the expansion port is not mapped
@@ -74,6 +75,14 @@ public:
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
   void setSpeedScale(double scale);
   void setInput(int port, int index, int16_t value);
+
+  // video: overscan crop, palette adjustment (percentages match bsnes's own
+  // slider ranges: gamma 100-200, luminance 0-100, saturation 0-200), and
+  // the CPU filter, selected by name so a settings file survives reordering
+  void setOverscanCrop(bool crop);
+  void setPaletteAdjust(int gammaPercent, int luminancePercent, int saturationPercent);
+  void setFilter(const std::string& name);
+  std::vector<std::string> filterNames() const;
 
   // what the core actually supports, rather than a hardcoded list
   const std::vector<DeviceInfo>& devices(int port) const;
