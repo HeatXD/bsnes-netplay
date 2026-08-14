@@ -36,11 +36,22 @@ constexpr Hotfix Hotfixes[] = {
   {"BUBSY II",                "PAL",   false, true},
 };
 
+// the NEC board names no variant, so heuristics' firmwareNEC() picks it off
+// the cartridge title; mirror it or the field contradicts the manifest below
+auto necVariant(const string& title) -> string {
+  if(title == "PILOTWINGS") return "DSP-1";
+  if(title == "DUNGEON MASTER") return "DSP-2";
+  if(title == "SDガンダムGX") return "DSP-3";
+  if(title == "PLANETS CHAMP TG3000") return "DSP-4";
+  if(title == "TOP GEAR 3000") return "DSP-4";
+  return "DSP-1B";
+}
+
 // board() encodes the expansion chip as its first "-"-separated component
-auto chipName(string board) -> string {
+auto chipName(string board, const string& title) -> string {
   auto first = board.trimRight("#A", 1L).split("-")(0);
   if(first == "ARM") return "ST018 (ARM6)";
-  if(first == "NEC") return "DSP-1B";
+  if(first == "NEC") return necVariant(title);
   if(first == "EXNEC") return "ST010/ST011";
   if(first == "GSU") return "SuperFX";
   if(first == "HITACHI") return "Cx4";
@@ -373,7 +384,9 @@ std::string EmuCore::region() const { return (const char*)impl->superFamicom.reg
 std::string EmuCore::board() const { return (const char*)impl->superFamicom.board; }
 std::string EmuCore::romSizeText() const { return (const char*)sizeText(impl->superFamicom.romSize); }
 std::string EmuCore::ramSizeText() const { return (const char*)sizeText(impl->superFamicom.ramSize); }
-std::string EmuCore::expansionChip() const { return (const char*)chipName(impl->superFamicom.board); }
+std::string EmuCore::expansionChip() const {
+  return (const char*)chipName(impl->superFamicom.board, impl->superFamicom.headerTitle);
+}
 std::string EmuCore::checksum() const { return (const char*)impl->superFamicom.checksum; }
 
 bool EmuCore::setOption(const std::string& name, const std::string& value) {
