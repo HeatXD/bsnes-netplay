@@ -21,6 +21,7 @@ const IntField IntFields[] = {
   {"volume",      &Settings::volume,           0,              200},
   {"windowscale", &Settings::windowScale,      0,              5},
   {"ffspeed",     &Settings::fastForwardSpeed, 2,              16},
+  {"mode7scale",  &Settings::hackMode7Scale,   1,              8},
   {"theme",       &Settings::theme,            0,              2},
   {"accent",      &Settings::accent,           0,              0xffffff},
   {"textcolor",   &Settings::textColor,        FollowTheme,    0xffffff},
@@ -35,6 +36,13 @@ const BoolField BoolFields[] = {
   {"linear",         &Settings::linearFilter},
   {"pauseunfocused", &Settings::pauseUnfocused},
   {"showstatus",     &Settings::showStatus},
+  {"ppufast",        &Settings::hackPpuFast},
+  {"nospritelimit",  &Settings::hackPpuNoSpriteLimit},
+  {"dspfast",        &Settings::hackDspFast},
+  {"dspcubic",       &Settings::hackDspCubic},
+  {"delayedsync",    &Settings::hackCoprocessorDelayedSync},
+  {"preferhle",      &Settings::hackCoprocessorPreferHLE},
+  {"hotfixes",       &Settings::hackHotfixes},
 };
 
 const StrField StrFields[] = {
