@@ -11,7 +11,6 @@ using namespace nall;
 #include <heuristics/game-boy.cpp>
 #include <heuristics/bs-memory.cpp>
 
-// Boards[] and iplrom[] both live here.
 #include "resources.hpp"
 
 #include <array>
@@ -83,23 +82,23 @@ struct EmuCore::Impl : Emulator::Platform {
 };
 
 auto EmuCore::Impl::buildPalette() -> void {
-  // bsnes's ramp with luminance and saturation left at 1.0
+  // bsnes's ramp, luminance and saturation left at 1.0. Only 32 levels are
+  // distinct, so this is a table rather than 98304 pow() calls.
   static constexpr double gamma = 1.5;
 
-  auto curve = [](uint16 value) -> uint16 {
-    return value > 32767 ? value : uint16(32767 * pow(value / 32767.0, gamma));
-  };
+  uint32_t ramp[32];
+  for(uint level : range(32)) {
+    uint16 value = level << 3 | level >> 2;
+    value = value << 8 | value;
+    if(value <= 32767) value = uint16(32767 * pow(value / 32767.0, gamma));
+    ramp[level] = value >> 8;
+  }
 
   for(uint color : range(32768)) {
-    uint16 r = (color >> 10) & 31;
-    uint16 g = (color >> 5) & 31;
-    uint16 b = (color >> 0) & 31;
-
-    r = r << 3 | r >> 2; r = r << 8 | r << 0;
-    g = g << 3 | g >> 2; g = g << 8 | g << 0;
-    b = b << 3 | b >> 2; b = b << 8 | b << 0;
-
-    palette[color] = 0xff000000 | (curve(r) >> 8 << 16) | (curve(g) >> 8 << 8) | (curve(b) >> 8);
+    palette[color] = 0xff000000
+                   | ramp[(color >> 10) & 31] << 16
+                   | ramp[(color >> 5) & 31] << 8
+                   | ramp[(color >> 0) & 31];
   }
 }
 
