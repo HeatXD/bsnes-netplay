@@ -36,6 +36,41 @@ jobs:
         name: bsnes-${{ matrix.os.name }}
         path: bsnes/out/bsnes*
 
+  build-heat-fe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - name: ubuntu
+          version: latest
+        - name: windows
+          version: latest
+        # macos-latest is arm64; macos-13 is the last intel runner
+        - name: macos
+          version: latest
+        - name: macos
+          version: '13'
+    runs-on: ${{ matrix.os.name }}-${{ matrix.os.version }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    # SDL3 is built from source, so it needs its own headers present
+    - name: Install Dependencies
+      if: matrix.os.name == 'ubuntu'
+      run: |
+        sudo apt-get update -y -qq
+        sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+          libxi-dev libxfixes-dev libxss-dev libwayland-dev libxkbcommon-dev \
+          libegl1-mesa-dev libgl1-mesa-dev libasound2-dev libpulse-dev libudev-dev
+    - name: Make
+      run: make -j4 -C bsnes target=heat-fe
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: bsnes-heat-fe-${{ matrix.os.name }}-${{ matrix.os.version }}
+        path: bsnes/out/bsnes-heat-fe*
+
   release:
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/weyve' || startsWith(github.ref, 'refs/tags/')
     # Prevent multiple conflicting release jobs from running at once.
