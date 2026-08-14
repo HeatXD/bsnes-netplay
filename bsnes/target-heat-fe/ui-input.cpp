@@ -79,7 +79,7 @@ void App::drawDevicePicker() {
 }
 
 void App::drawInputTab() {
-  ImGui::Combo("Port", &mapPort, "Port 1 Port 2 ");
+  ImGui::Combo("Port", &mapPort, "Port 1\0Port 2\0");
   drawDevicePicker();
 
   ImGui::TextUnformatted(capturing >= 0 ? "press a key or pad button, esc to cancel"
