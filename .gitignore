@@ -1,1 +1,34 @@
 hiro/qt/qt.moc
+
+# cmake output from dependencies the makefile drives (sdl, gekkonet, weyvelength)
+build*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# makefile build output
+bsnes/obj/
+bsnes/out/
+out/
+*.o
+*.d
+*.a
+*.exe
+*.dll
+*.so
+*.dylib
+
+# emulator runtime files
+*.srm
+*.bsz
+*.bs
+settings.bml
+
+# local working notes, not part of the tree
+bsnes/target-heat-fe/NOTES.md
+
+# stray Windows redirect artifact
+nul
+
+# packaged build output
+dist/

@@ -1,0 +1,78 @@
+name := bsnes-heat-fe
+
+# Binaries are meant to run on machines other than this one. Setting local here
+# is too late -- bsnes/GNUmakefile tests it before it includes this file -- and
+# clang on arm64 rejects -march=native outright, so drop the flag instead.
+local := false
+flags := $(filter-out -march=native,$(flags))
+
+# SDL3 builds through its own cmake, the same way gekkonet and weyvelength do.
+sdl3.path := ../sdl
+sdl3.build := ../sdl/build
+sdl3.flags := -I$(sdl3.path)/include
+sdl3.cmake.args := -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF
+sdl3.cmake.args += -DCMAKE_BUILD_TYPE=Release
+ifeq ($(platform),windows)
+  sdl3.lib := $(sdl3.build)/libSDL3.a
+  sdl3.cmake.args += -G "MinGW Makefiles"
+  sdl3.options := -lopengl32 -lwinmm -limm32 -lversion -lsetupapi -lcfgmgr32 -ladvapi32
+  sdl3.options += -loleaut32 -lgdi32 -luser32 -lkernel32 -lshell32 -luuid
+else ifeq ($(platform),macos)
+  sdl3.lib := $(sdl3.build)/libSDL3.a
+  sdl3.options := -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo
+  sdl3.options += -framework CoreAudio -framework AudioToolbox -framework Carbon
+  sdl3.options += -framework ForceFeedback -framework GameController -framework Metal
+  sdl3.options += -framework QuartzCore -framework CoreHaptics -framework UniformTypeIdentifiers
+else
+  # X11, Wayland, ALSA and PulseAudio are dlopened by SDL at runtime, so only
+  # the core system libraries need linking here
+  sdl3.lib := $(sdl3.build)/libSDL3.a
+  sdl3.options := -lGL -lm -ldl -lpthread -lrt
+endif
+
+# imgui ships no build files, so its sources are compiled straight into the target
+imgui.path := ../imgui
+imgui.flags := -I$(imgui.path) -I$(imgui.path)/backends
+
+flags += $(sdl3.flags) $(imgui.flags)
+
+# filter and lzma are only used by hiro's UI
+objects := $(filter-out filter lzma,$(objects))
+objects += ui-main ui-emucore ui-inputmap
+objects += imgui imgui-draw imgui-tables imgui-widgets imgui-sdl3 imgui-opengl3
+ifeq ($(platform),windows)
+  objects += ui-resource
+endif
+objects := $(objects:%=obj/%.o)
+
+obj/ui-main.o: $(ui)/main.cpp
+obj/ui-emucore.o: $(ui)/emucore.cpp
+obj/ui-inputmap.o: $(ui)/inputmap.cpp
+
+obj/imgui.o: $(imgui.path)/imgui.cpp
+obj/imgui-draw.o: $(imgui.path)/imgui_draw.cpp
+obj/imgui-tables.o: $(imgui.path)/imgui_tables.cpp
+obj/imgui-widgets.o: $(imgui.path)/imgui_widgets.cpp
+obj/imgui-sdl3.o: $(imgui.path)/backends/imgui_impl_sdl3.cpp
+obj/imgui-opengl3.o: $(imgui.path)/backends/imgui_impl_opengl3.cpp
+
+# windows takes the window and taskbar icon from the exe's icon resource
+obj/ui-resource.o: $(ui)/app.rc
+	$(info Compiling $< ...)
+	@$(windres) -I $(ui) $< $@
+
+$(sdl3.lib):
+ifeq ($(wildcard ../sdl/CMakeLists.txt),)
+	git -C .. submodule update --init sdl imgui
+endif
+	cmake -B $(sdl3.build) -S $(sdl3.path) $(sdl3.cmake.args)
+	+cmake --build $(sdl3.build) --target SDL3-static
+
+# order-only prerequisite: SDL's headers must exist before anything includes them
+$(objects): | $(sdl3.lib)
+
+all: $(objects)
+	$(info Linking out/$(name) ...)
+	+@$(compiler) -o out/$(name) $(objects) $(sdl3.lib) $(sdl3.options) $(options)
+
+verbose: nall.verbose all;
