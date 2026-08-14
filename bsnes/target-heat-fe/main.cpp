@@ -86,6 +86,7 @@ struct Frontend {
   int fpsFrames = 0;
   uint64_t fpsMark = SDL_GetTicksNS();
   bool inFrame = false;
+  bool screensaverInhibited = false;
 
   void renderUi();
   void advance();
@@ -118,15 +119,18 @@ void Frontend::renderUi() {
 }
 
 void Frontend::advance() {
-  if(ImGui::GetIO().WantCaptureKeyboard) {
+  const bool blockInput = app.settings.defocusPolicy == DefocusBlockInput && !app.focused();
+
+  if(ImGui::GetIO().WantCaptureKeyboard || blockInput) {
     for(int port = 0; port < InputMap::Ports; port++) {
       for(int b = 0; b < EmuCore::MaxInputs; b++) app.core.setInput(port, b, 0);
     }
   } else {
-    app.input.apply(app.core, app.pads);
+    app.input.apply(app.core, app.pads, app.settings, app.emulatedFrames);
   }
 
   app.core.runFrame();
+  app.emulatedFrames++;
   frames++;
   fpsFrames++;
 }
@@ -137,10 +141,19 @@ bool Frontend::stepFrame() {
   if(inFrame) return false;  // the watch can fire while we are already drawing
   inFrame = true;
 
-  const bool stopped = !app.core.loaded() || app.paused
-                    || (app.settings.pauseUnfocused && !app.focused() && !opt.frameLimit);
+  const bool unfocusedPause = app.settings.defocusPolicy == DefocusPause
+                           && !app.focused() && !opt.frameLimit;
+  const bool stopped = !app.core.loaded() || (app.paused && !app.frameAdvance) || unfocusedPause;
 
   if(!stopped) advance();
+  app.frameAdvance = false;
+
+  // screensaver comes back the instant emulation isn't actually running
+  const bool running = app.core.loaded() && !stopped;
+  if(running != screensaverInhibited) {
+    if(running) SDL_DisableScreenSaver(); else SDL_EnableScreenSaver();
+    screensaverInhibited = running;
+  }
 
   const uint64_t now = SDL_GetTicksNS();
   if(now - fpsMark >= 500000000ull) {
@@ -238,6 +251,16 @@ void Frontend::handleHotkey(const SDL_Event& event) {
     app.takeScreenshot();
   } else if(key == app.settings.hotkeys[HkFullscreen]) {
     app.toggleFullscreen();
+  } else if(key == app.settings.hotkeys[HkFrameAdvance] && app.core.loaded()) {
+    app.paused = true;
+    app.advanceOneFrame();
+  } else if(key == app.settings.hotkeys[HkPowerCycle] && app.core.loaded()) {
+    app.powerCycle();
+  } else if(key == app.settings.hotkeys[HkMute]) {
+    app.settings.mute = !app.settings.mute;
+    app.settings.save(app.settingsCfg);
+  } else if(key == app.settings.hotkeys[HkQuit]) {
+    app.running = false;
   }
 }
 
@@ -258,6 +281,11 @@ void Frontend::drainPicks() {
   }
   if(std::string picked = takePick(app.shotDirPick); !picked.empty()) {
     app.settings.shotsDir = normalPath(picked);
+    app.settings.save(app.settingsCfg);
+  }
+  if(std::string picked = takePick(app.savesDirPick); !picked.empty()) {
+    app.settings.savesDir = normalPath(picked);
+    app.core.setSavesDirectory(app.settings.savesDir);
     app.settings.save(app.settingsCfg);
   }
   if(std::string picked = takePick(app.fontPick); !picked.empty()) {
@@ -336,6 +364,7 @@ void loadConfigs(App& app) {
   app.settingsCfg = prefFile("settings.cfg");
   app.input.load(app.inputCfg);
   app.settings.load(app.settingsCfg);
+  app.core.setSavesDirectory(app.settings.savesDir);
 
   for(int port = 0; port < EmuCore::PortCount; port++) {
     app.core.connect(port, app.settings.devices[port]);
@@ -348,7 +377,7 @@ void wireCore(App& app) {
     app.shell.pushVideo(argb, width, height);
   };
   app.core.onAudio = [&app](const float* samples, int frames) {
-    app.shell.pushAudio(app.settings, samples, frames);
+    app.shell.pushAudio(app.settings, samples, frames, app.focused());
     app.totalSamples += frames;
   };
 }
@@ -375,12 +404,14 @@ int main(int argc, char** argv) {
   const Options opt = parseArgs(argc, argv);
 
   App app;
-  if(!app.shell.init()) {
+  // settings must be loaded before initAudio, which needs the remembered device
+  loadConfigs(app);
+
+  if(!app.shell.init(app.settings)) {
     app.shell.shutdown();
     return 1;
   }
 
-  loadConfigs(app);
   app.scanGames();
   initImGui(app, opt.uiShot.empty());
   openGamepads(app);

@@ -45,12 +45,30 @@ void App::drawFileMenu() {
   if(ImGui::MenuItem("Quit", "Alt+F4")) running = false;
 }
 
+// hotkey scancode as a menu shortcut label; empty when unbound
+const char* App::hotkeyShortcut(Hotkey key) const {
+  const char* name = SDL_GetScancodeName((SDL_Scancode)settings.hotkeys[key]);
+  return name && *name ? name : nullptr;
+}
+
 void App::drawEmulationMenu() {
-  if(ImGui::MenuItem("Pause", nullptr, paused, core.loaded())) paused = !paused;
-  if(ImGui::MenuItem("Fast Forward", nullptr, fastForward, core.loaded())) toggleFastForward();
+  if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause), paused, core.loaded())) paused = !paused;
+  if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance), false, core.loaded())) {
+    paused = true;
+    advanceOneFrame();
+  }
+  if(ImGui::MenuItem("Fast Forward", hotkeyShortcut(HkFastForward), fastForward, core.loaded())) {
+    toggleFastForward();
+  }
+  if(ImGui::MenuItem("Mute", hotkeyShortcut(HkMute), settings.mute)) {
+    settings.mute = !settings.mute;
+    settings.save(settingsCfg);
+  }
   ImGui::Separator();
-  if(ImGui::MenuItem("Reset", nullptr, false, core.loaded())) reset();
-  if(ImGui::MenuItem("Power Cycle", nullptr, false, core.loaded())) powerCycle();
+  if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset), false, core.loaded())) reset();
+  if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle), false, core.loaded())) powerCycle();
+  ImGui::Separator();
+  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit))) running = false;
 }
 
 void App::drawSettingsMenu() {
