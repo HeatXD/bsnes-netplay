@@ -79,8 +79,26 @@ constexpr int MinFontSize = 8;
 constexpr int MaxFontSize = 32;
 constexpr int DefaultFontSize = 13;
 constexpr uint64_t MessageMs = 6000;
+constexpr const char* AppName = "bsnes heat-fe";
 // imgui's own dark-theme blue, packed as 0xRRGGBB
 constexpr int DefaultAccent = 0x4296fa;
+// percent, fed to the rasterizer; 100 is the font's own weight
+constexpr int MinFontWeight = 50;
+constexpr int MaxFontWeight = 500;
+constexpr int DefaultFontWeight = 100;
+// a text colour of -1 means follow the theme instead
+constexpr int FollowTheme = -1;
+
+ImVec4 unpackColor(int rgb) {
+  return ImVec4(((rgb >> 16) & 0xff) / 255.0f, ((rgb >> 8) & 0xff) / 255.0f,
+                (rgb & 0xff) / 255.0f, 1.0f);
+}
+
+int packColor(const float rgb[3]) {
+  return (int)(rgb[0] * 255.0f + 0.5f) << 16
+       | (int)(rgb[1] * 255.0f + 0.5f) << 8
+       | (int)(rgb[2] * 255.0f + 0.5f);
+}
 
 enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot, HotkeyCount };
 
@@ -197,7 +215,9 @@ struct Settings {
   bool showStatus = true;
   int theme = 0;  // 0 dark, 1 light, 2 classic
   int accent = DefaultAccent;
+  int textColor = FollowTheme;
   int fontSize = DefaultFontSize;
+  int fontWeight = DefaultFontWeight;
   std::string fontPath;  // empty means imgui's built-in font
   std::string gamesDir;
   std::string shotsDir;
@@ -241,7 +261,9 @@ void Settings::load(const std::string& path) {
     else if(key == "showstatus") showStatus = number != 0;
     else if(key == "theme") theme = std::clamp(number, 0, 2);
     else if(key == "accent") accent = std::clamp(number, 0, 0xffffff);
+    else if(key == "textcolor") textColor = std::clamp(number, FollowTheme, 0xffffff);
     else if(key == "fontsize") fontSize = std::clamp(number, MinFontSize, MaxFontSize);
+    else if(key == "fontweight") fontWeight = std::clamp(number, MinFontWeight, MaxFontWeight);
     else if(key == "font") fontPath = value;
     else if(key == "gamesdir") gamesDir = value;
     else if(key == "shotsdir") shotsDir = value;
@@ -278,7 +300,9 @@ void Settings::save(const std::string& path) const {
   addInt("showstatus", showStatus);
   addInt("theme", theme);
   addInt("accent", accent);
+  addInt("textcolor", textColor);
   addInt("fontsize", fontSize);
+  addInt("fontweight", fontWeight);
   add("font", fontPath);
   add("gamesdir", gamesDir);
   add("shotsdir", shotsDir);
@@ -335,7 +359,7 @@ bool Shell::init() {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 #endif
 
-  window = SDL_CreateWindow("bsnes-netplay", 878, 224 * 3 + 24,
+  window = SDL_CreateWindow(AppName, 878, 224 * 3 + 24,
                             SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
   if(!window) {
     SDL_Log("window creation failed: %s", SDL_GetError());
@@ -518,11 +542,7 @@ struct App {
   void openFontDialog();
   void takeScreenshot();
 
-  ImVec4 accentColor() const {
-    return ImVec4(((settings.accent >> 16) & 0xff) / 255.0f,
-                  ((settings.accent >> 8) & 0xff) / 255.0f,
-                  (settings.accent & 0xff) / 255.0f, 1.0f);
-  }
+  ImVec4 accentColor() const { return unpackColor(settings.accent); }
   void applyTheme();
   void applyFont();
 
@@ -570,7 +590,7 @@ void App::scanGames() {
 bool App::loadRom(const std::string& path) {
   if(core.loadSuperFamicom(path)) {
     gameTitle = core.title();
-    SDL_SetWindowTitle(shell.window, (gameTitle + " - bsnes-netplay").c_str());
+    SDL_SetWindowTitle(shell.window, (gameTitle + " - " + AppName).c_str());
     settings.addRecent(path);
     settings.save(settingsCfg);
     paused = false;
@@ -587,7 +607,7 @@ void App::unloadRom() {
   gameTitle.clear();
   shell.clearFrame();
   showGames = false;
-  SDL_SetWindowTitle(shell.window, "bsnes-netplay");
+  SDL_SetWindowTitle(shell.window, AppName);
 }
 
 void App::openRomDialog() {
@@ -662,6 +682,8 @@ void App::applyTheme() {
   tint(ImGuiCol_ResizeGripActive, 1.0f);
   tint(ImGuiCol_TextSelectedBg, 0.45f);
   tint(ImGuiCol_NavCursor, 1.0f);
+
+  if(settings.textColor != FollowTheme) style.Colors[ImGuiCol_Text] = unpackColor(settings.textColor);
 }
 
 // Only safe between frames: rebuilding the atlas invalidates the font texture.
@@ -671,16 +693,18 @@ void App::applyFont() {
   ImGuiIO& io = ImGui::GetIO();
   io.Fonts->Clear();
 
-  const float size = (float)settings.fontSize;
+  ImFontConfig config;
+  config.SizePixels = (float)settings.fontSize;
+  // there is no real bold without a second font file; this thickens the glyphs
+  config.RasterizerMultiply = settings.fontWeight / 100.0f;
+
   ImFont* font = nullptr;
   // AddFontFromFileTTF asserts on a missing file rather than returning null
   if(!settings.fontPath.empty() && pathExists(settings.fontPath)) {
-    font = io.Fonts->AddFontFromFileTTF(settings.fontPath.c_str(), size);
+    font = io.Fonts->AddFontFromFileTTF(settings.fontPath.c_str(), config.SizePixels, &config);
   }
   if(!font) {
     if(!settings.fontPath.empty()) showMessage("could not load font " + fileName(settings.fontPath));
-    ImFontConfig config;
-    config.SizePixels = size;
     io.Fonts->AddFontDefault(&config);
   }
 
@@ -860,8 +884,11 @@ void App::drawSettingsWindow() {
                                             : "click a binding to rebind it");
       ImGui::Separator();
 
-      if(ImGui::BeginTable("bindings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+      // stretch the two binding columns evenly; sizing them by content lets the
+      // long pad labels swallow the row, and a fixed name column clips the
+      // multitap's "Port 2 - Select" or any larger font
+      if(ImGui::BeginTable("bindings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) {
+        ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Keyboard");
         ImGui::TableSetupColumn("Gamepad");
         ImGui::TableHeadersRow();
@@ -905,8 +932,8 @@ void App::drawSettingsWindow() {
                                                   : "click a hotkey to rebind it");
       ImGui::Separator();
 
-      if(ImGui::BeginTable("hotkeys", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+      if(ImGui::BeginTable("hotkeys", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) {
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Key");
         ImGui::TableHeadersRow();
 
@@ -989,18 +1016,33 @@ void App::drawCustomizationTab() {
     dirty = true;
   }
 
-  float accent[3] = {((settings.accent >> 16) & 0xff) / 255.0f,
-                     ((settings.accent >> 8) & 0xff) / 255.0f,
-                     (settings.accent & 0xff) / 255.0f};
+  const ImVec4 current = accentColor();
+  float accent[3] = {current.x, current.y, current.z};
   if(ImGui::ColorEdit3("Accent", accent, ImGuiColorEditFlags_NoInputs)) {
-    settings.accent = (int)(accent[0] * 255.0f + 0.5f) << 16
-                    | (int)(accent[1] * 255.0f + 0.5f) << 8
-                    | (int)(accent[2] * 255.0f + 0.5f);
+    settings.accent = packColor(accent);
     applyTheme();
   }
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   ImGui::SameLine();
   ImGui::TextUnformatted("buttons, tabs, sliders and selections");
+
+  bool follow = settings.textColor == FollowTheme;
+  if(ImGui::Checkbox("Text colour follows theme", &follow)) {
+    const ImVec4& text = ImGui::GetStyle().Colors[ImGuiCol_Text];
+    const float rgb[3] = {text.x, text.y, text.z};
+    settings.textColor = follow ? FollowTheme : packColor(rgb);
+    applyTheme();
+    dirty = true;
+  }
+  if(!follow) {
+    const ImVec4 chosen = unpackColor(settings.textColor);
+    float text[3] = {chosen.x, chosen.y, chosen.z};
+    if(ImGui::ColorEdit3("Text", text, ImGuiColorEditFlags_NoInputs)) {
+      settings.textColor = packColor(text);
+      applyTheme();
+    }
+    dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  }
 
   ImGui::Separator();
   ImGui::TextUnformatted("Font");
@@ -1015,17 +1057,23 @@ void App::drawCustomizationTab() {
   ImGui::SliderInt("Size", &settings.fontSize, MinFontSize, MaxFontSize, "%dpx");
   if(ImGui::IsItemDeactivatedAfterEdit()) fontDirty = dirty = true;
 
+  ImGui::SliderInt("Weight", &settings.fontWeight, MinFontWeight, MaxFontWeight, "%d%%");
+  if(ImGui::IsItemDeactivatedAfterEdit()) fontDirty = dirty = true;
+
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##look")) {
     settings.theme = 0;
     settings.accent = DefaultAccent;
+    settings.textColor = FollowTheme;
     settings.fontSize = DefaultFontSize;
+    settings.fontWeight = DefaultFontWeight;
     settings.fontPath.clear();
     applyTheme();
     fontDirty = dirty = true;
   }
   ImGui::TextWrapped("The font file is remembered by path. If it moves, the built-in"
-                     " font is used instead.");
+                     " font is used instead. Weight thickens the glyphs rather than"
+                     " switching to a bold face; for real bold, pick a bold font file.");
 
   if(dirty) settings.save(settingsCfg);
 }
@@ -1116,9 +1164,9 @@ void App::drawAboutWindow() {
 
   placeFloating(100.0f, 120.0f, 340.0f, 150.0f);
   if(ImGui::Begin("About", &showAbout)) {
-    ImGui::TextUnformatted("bsnes-netplay");
+    ImGui::TextUnformatted(AppName);
     ImGui::Separator();
-    ImGui::TextWrapped("bsnes core with an SDL3 + Dear ImGui frontend.");
+    ImGui::TextWrapped("Custom bsnes frontend, brought to you by HeatXD.");
     ImGui::Text("Dear ImGui %s", IMGUI_VERSION);
     ImGui::Text("SDL %d.%d.%d", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION);
   }
@@ -1227,7 +1275,7 @@ int main(int argc, char** argv) {
 
   if(!romPath.empty()) app.loadRom(romPath);
 
-  if(frameLimit && !app.core.loaded()) {
+  if(frameLimit && uiShot.empty() && !app.core.loaded()) {
     SDL_Log("no rom loaded");
     app.shell.shutdown();
     return 1;
@@ -1265,8 +1313,10 @@ int main(int argc, char** argv) {
       app.core.runFrame();
     }
 
-    // early passes settle window sizing and the viewport work area
-    for(int pass = 0; pass < 3; pass++) {
+    // early passes settle window sizing and the viewport work area; --frames
+    // asks for more, which is how layout that drifts per frame shows up
+    const int passes = frameLimit > 0 ? frameLimit : 3;
+    for(int pass = 0; pass < passes; pass++) {
       app.settingsTab = pass == 0 ? shotTab : -1;
       renderUi();
     }
