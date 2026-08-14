@@ -39,7 +39,8 @@ struct Settings {
   std::string audioDevice;  // empty means the system default
   bool aspectCorrect = true;
   bool integerScale = false;  // default is a fractional fit that fills the window
-  bool linearFilter = false;
+  // bsnes ships the "Blur" shader on by default, which is just GL_LINEAR
+  bool linearFilter = true;
   int windowScale = 0;  // 0 = fit to window
   bool overscanCrop = true;
   int videoGamma = 150;       // percent; bsnes's own default and range (100-200)
