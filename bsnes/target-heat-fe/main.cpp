@@ -69,12 +69,27 @@ void shutdownImGui() {
   ImGui::DestroyContext();
 }
 
+// the escape hatch for a pad SDL has no mapping for, which is otherwise dead
+void loadGamepadMappings() {
+  const std::string path = configDir() + "gamecontrollerdb.txt";
+  if(!pathExists(path)) return;
+  SDL_Log("gamepad mappings from %s: %d", path.c_str(),
+          SDL_AddGamepadMappingsFromFile(path.c_str()));
+}
+
+// SDL also queues an ADDED event for every pad already attached at startup, so
+// opening one twice would list the same stick under two ports
+void addPad(App& app, SDL_JoystickID id) {
+  for(SDL_Gamepad* pad : app.pads) {
+    if(SDL_GetGamepadID(pad) == id) return;
+  }
+  if(SDL_Gamepad* pad = SDL_OpenGamepad(id)) app.pads.push_back(pad);
+}
+
 void openGamepads(App& app) {
   int count = 0;
   SDL_JoystickID* ids = SDL_GetGamepads(&count);
-  for(int i = 0; ids && i < count; i++) {
-    if(SDL_Gamepad* pad = SDL_OpenGamepad(ids[i])) app.pads.push_back(pad);
-  }
+  for(int i = 0; ids && i < count; i++) addPad(app, ids[i]);
   if(ids) SDL_free(ids);
 }
 
@@ -191,7 +206,7 @@ void Frontend::handleWindowEvent(const SDL_Event& event) {
 
 void Frontend::handleGamepadEvent(const SDL_Event& event) {
   if(event.type == SDL_EVENT_GAMEPAD_ADDED) {
-    if(SDL_Gamepad* pad = SDL_OpenGamepad(event.gdevice.which)) app.pads.push_back(pad);
+    addPad(app, event.gdevice.which);
     return;
   }
   if(event.type != SDL_EVENT_GAMEPAD_REMOVED) return;
@@ -210,9 +225,11 @@ bool Frontend::handleRebind(const SDL_Event& event) {
                    && event.key.scancode == SDL_SCANCODE_ESCAPE;
 
   if(app.capturing >= 0) {
+    // only the pad this port reads may bind it, so two sticks stay distinct
+    SDL_Gamepad* owner = app.portPad(app.mapPort);
     Binding b;
     if(escape) app.capturing = -1;
-    else if(InputMap::capture(event, b)) {
+    else if(InputMap::capture(event, b, owner ? SDL_GetGamepadID(owner) : 0)) {
       app.input.binding(app.mapPort, app.core.connectedDevice(app.mapPort),
                         app.capturing / InputMap::Slots,
                         app.capturing % InputMap::Slots) = b;
@@ -472,6 +489,7 @@ int main(int argc, char** argv) {
 
   app.scanGames();
   initImGui(app, opt.uiShot.empty());
+  loadGamepadMappings();
   openGamepads(app);
   wireCore(app);
   openRequestedPanel(app, opt);

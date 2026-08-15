@@ -10,13 +10,17 @@ bool turboEligible(int button) {
 void App::drawBindingTable(int device) {
   const auto& deviceInputs = core.inputs(device);
   const bool turboCapable = device == EmuCore::Gamepad;
+  SDL_Gamepad* pad = portPad(mapPort);
 
   // content sizing would let the long pad labels swallow the row
   if(!ImGui::BeginTable("bindings", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
 
+  char padColumn[32];
+  SDL_snprintf(padColumn, sizeof(padColumn), "Controller %d", mapPort + 1);
+
   ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableSetupColumn("Keyboard");
-  ImGui::TableSetupColumn("Gamepad");
+  ImGui::TableSetupColumn(padColumn);
   ImGui::TableSetupColumn("Turbo", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableHeadersRow();
 
@@ -36,7 +40,7 @@ void App::drawBindingTable(int device) {
       const int id = b * InputMap::Slots + slot;
       ImGui::PushID(id);
       const std::string label = capturing == id
-          ? "..." : input.binding(mapPort, device, b, slot).label();
+          ? "..." : input.binding(mapPort, device, b, slot).label(pad);
       if(ImGui::Button(label.c_str(), ImVec2(-1.0f, 0.0f))) capturing = id;
       ImGui::PopID();
     }
@@ -78,6 +82,26 @@ void App::drawDevicePicker() {
   }
 }
 
+void App::drawControllerPicker() {
+  // entry 0 is None, so the combo index is the pad index shifted by one
+  auto padName = [](void* data, int index) -> const char* {
+    if(index == 0) return "None";
+    const auto& pads = *(const std::vector<SDL_Gamepad*>*)data;
+    const char* name = SDL_GetGamepadName(pads[index - 1]);
+    static char label[128];
+    SDL_snprintf(label, sizeof(label), "%d: %s", index, name ? name : "unnamed");
+    return label;
+  };
+
+  int current = settings.padIndex[mapPort] + 1;
+  if(current < 0 || current > (int)pads.size()) current = 0;
+  if(ImGui::Combo("Controller", &current, padName, (void*)&pads, (int)pads.size() + 1)) {
+    settings.padIndex[mapPort] = current - 1;
+    settings.save(settingsCfg);
+    capturing = -1;
+  }
+}
+
 void App::restoreInputDefaults() {
   const Settings defaults;
   input.loadDefaults();
@@ -85,6 +109,7 @@ void App::restoreInputDefaults() {
   for(int port = 0; port < EmuCore::PortCount; port++) {
     settings.turboMask[port] = defaults.turboMask[port];
     settings.devices[port] = defaults.devices[port];
+    settings.padIndex[port] = defaults.padIndex[port];
     core.connect(port, settings.devices[port]);
   }
   capturing = -1;
@@ -93,6 +118,7 @@ void App::restoreInputDefaults() {
 void App::drawInputTab() {
   ImGui::Combo("Port", &mapPort, "Port 1\0Port 2\0");
   drawDevicePicker();
+  drawControllerPicker();
 
   ImGui::TextUnformatted(capturing >= 0 ? "press a key or pad button, esc to cancel"
                                         : "click a binding to rebind it");

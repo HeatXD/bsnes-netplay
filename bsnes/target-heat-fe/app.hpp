@@ -102,6 +102,7 @@ struct App {
   void toggleFullscreen() { SDL_SetWindowFullscreen(shell.window, !fullscreen()); }
   void openPick(FilePick& pick, const SDL_DialogFileFilter* filters, const char* dir);
   const char* gamesDirOrNull() const;
+  SDL_Gamepad* portPad(int port) const { return resolvePad(pads, settings.padIndex[port]); }
   // unset means a Firmware folder beside the config, as bsnes locates its own
   std::string firmwareDir() const {
     return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;
@@ -133,12 +134,14 @@ struct App {
   void drawMenuBar();
   void drawStatusBar();
   void drawSettingsWindow();
+  void drawGamepadDiagnostics();
   void drawToolsWindow();
   void restoreVideoDefaults();
   void drawVideoTab();
   void restoreAudioDefaults();
   void drawAudioTab();
   void drawDevicePicker();
+  void drawControllerPicker();
   void drawBindingTable(int device);
   void restoreInputDefaults();
   void drawInputTab();

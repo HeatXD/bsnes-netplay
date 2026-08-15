@@ -16,13 +16,16 @@ struct Binding {
   int code = 0;
   int direction = 0;  // PadAxis only: +1 or -1
 
-  std::string label() const;
+  // the pad names its own face buttons, so nintendo layouts read B/A/Y/X
+  std::string label(SDL_Gamepad* pad = nullptr) const;
 };
+
+SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index);
 
 // Two slots per input so a port can be driven by keyboard and pad at once.
 // Bindings are kept per device, so switching a port to a multitap and back
-// does not clobber the gamepad mapping. One SDL gamepad per port, in
-// connection order.
+// does not clobber the gamepad mapping. Which pad each port reads comes from
+// Settings::padIndex.
 class InputMap {
 public:
   static constexpr int Ports = EmuCore::PortCount;
@@ -46,8 +49,8 @@ public:
   void apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
             const Settings& settings, long long frame) const;
 
-  // returns true when an event carries a bindable input
-  static bool capture(const SDL_Event& event, Binding& out);
+  // pad events from another controller are ignored, so pad 1 cannot bind port 2
+  static bool capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad = 0);
 
 private:
   using Slotted = std::array<Binding, Slots>;

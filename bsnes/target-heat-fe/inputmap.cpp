@@ -22,19 +22,60 @@ constexpr SDL_GamepadButton DefaultPad[EmuCore::ButtonCount] = {
 };
 }
 
-std::string Binding::label() const {
+namespace {
+// SDL's own names are mapping-file tokens: "dpup", "leftshoulder"
+constexpr const char* PadButtonNames[] = {
+  "A", "B", "X", "Y", "Back", "Guide", "Start", "L3", "R3", "LB", "RB",
+  "D-Pad Up", "D-Pad Down", "D-Pad Left", "D-Pad Right",
+};
+static_assert(SDL_GAMEPAD_BUTTON_DPAD_RIGHT == 14, "SDL gamepad buttons reordered");
+
+constexpr const char* FaceLabels[] = {
+  nullptr, "A", "B", "X", "Y", "Cross", "Circle", "Square", "Triangle",
+};
+static_assert(SDL_GAMEPAD_BUTTON_LABEL_TRIANGLE == 8, "SDL face labels reordered");
+
+constexpr const char* PadAxisNames[] = {
+  "Left Stick X", "Left Stick Y", "Right Stick X", "Right Stick Y", "LT", "RT",
+};
+static_assert(SDL_GAMEPAD_AXIS_COUNT == 6, "SDL gamepad axes reordered");
+
+template<size_t N>
+const char* lookup(const char* const (&names)[N], int index) {
+  return index >= 0 && (size_t)index < N ? names[index] : nullptr;
+}
+
+const char* faceLabel(SDL_Gamepad* pad, SDL_GamepadButton button) {
+  if(!pad) return nullptr;
+  return lookup(FaceLabels, SDL_GetGamepadButtonLabel(pad, button));
+}
+}  // namespace
+
+SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index) {
+  return index >= 0 && (size_t)index < pads.size() ? pads[index] : nullptr;
+}
+
+std::string Binding::label(SDL_Gamepad* pad) const {
   switch(type) {
     case Key: {
       const char* name = SDL_GetScancodeName((SDL_Scancode)code);
       return (name && *name) ? name : "Key";
     }
     case PadButton: {
-      const char* name = SDL_GetGamepadStringForButton((SDL_GamepadButton)code);
-      return name ? std::string("Pad ") + name : "Pad";
+      const auto button = (SDL_GamepadButton)code;
+      if(const char* face = faceLabel(pad, button)) return face;
+      if(const char* name = lookup(PadButtonNames, code)) return name;
+      const char* raw = SDL_GetGamepadStringForButton(button);
+      return raw ? raw : "Pad";
     }
     case PadAxis: {
-      const char* name = SDL_GetGamepadStringForAxis((SDL_GamepadAxis)code);
-      return std::string("Pad ") + (name ? name : "axis") + (direction > 0 ? "+" : "-");
+      const auto axis = (SDL_GamepadAxis)code;
+      const char* name = lookup(PadAxisNames, code);
+      if(!name) name = SDL_GetGamepadStringForAxis(axis);
+      // a trigger only travels one way, so its sign is noise
+      const bool trigger = axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER
+                        || axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
+      return std::string(name ? name : "axis") + (trigger ? "" : direction > 0 ? " +" : " -");
     }
     default: return "unbound";
   }
@@ -73,7 +114,7 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
   const bool turboPhaseOff = (frame % period) >= period / 2;
 
   for(int port = 0; port < Ports; port++) {
-    SDL_Gamepad* pad = (size_t)port < pads.size() ? pads[port] : nullptr;
+    SDL_Gamepad* pad = resolvePad(pads, settings.padIndex[port]);
     const int device = core.connectedDevice(port);
     if(device < 0 || device >= EmuCore::DeviceCount) continue;
     const int count = (int)core.inputs(device).size();
@@ -110,17 +151,19 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
   }
 }
 
-bool InputMap::capture(const SDL_Event& event, Binding& out) {
+bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad) {
   if(event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
     if(event.key.scancode == SDL_SCANCODE_ESCAPE) return false;
     out = {Binding::Key, (int)event.key.scancode, 0};
     return true;
   }
   if(event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+    if(pad && event.gbutton.which != pad) return false;
     out = {Binding::PadButton, (int)event.gbutton.button, 0};
     return true;
   }
   if(event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION) {
+    if(pad && event.gaxis.which != pad) return false;
     if(SDL_abs(event.gaxis.value) < AxisThreshold) return false;
     out = {Binding::PadAxis, (int)event.gaxis.axis, event.gaxis.value > 0 ? 1 : -1};
     return true;

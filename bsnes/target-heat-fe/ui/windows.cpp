@@ -1,5 +1,52 @@
 #include "ui.hpp"
 
+// a device SDL cannot map never becomes a gamepad, so it is listed but unread
+void App::drawGamepadDiagnostics() {
+  int count = 0;
+  SDL_JoystickID* ids = SDL_GetJoysticks(&count);
+  ImGui::Text("Joysticks: %d, opened as gamepads: %d", count, (int)pads.size());
+
+  for(int i = 0; ids && i < count; i++) {
+    const char* name = SDL_GetJoystickNameForID(ids[i]);
+    if(SDL_IsGamepad(ids[i])) {
+      ImGui::Text("  %s", name ? name : "?");
+    } else {
+      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.4f, 1.0f), "  %s - no gamepad mapping",
+                         name ? name : "?");
+    }
+  }
+  if(ids) SDL_free(ids);
+
+  for(size_t i = 0; i < pads.size(); i++) {
+    SDL_Gamepad* pad = pads[i];
+    ImGui::Text("port %d: %04x:%04x", (int)i + 1,
+                SDL_GetGamepadVendor(pad), SDL_GetGamepadProduct(pad));
+
+    std::string held;
+    for(int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; b++) {
+      if(!SDL_GetGamepadButton(pad, (SDL_GamepadButton)b)) continue;
+      const char* label = SDL_GetGamepadStringForButton((SDL_GamepadButton)b);
+      if(!held.empty()) held += " ";
+      held += label ? label : "?";
+    }
+    ImGui::SameLine();
+    ImGui::TextUnformatted(held.empty() ? "  (nothing held)" : ("  " + held).c_str());
+
+    // whatever the mapping leaves out never reaches the frontend at all
+    ImGui::PushID((int)i);
+    if(ImGui::TreeNode("mapping")) {
+      if(char* mapping = SDL_GetGamepadMapping(pad)) {
+        ImGui::TextWrapped("%s", mapping);
+        SDL_free(mapping);
+      } else {
+        ImGui::TextUnformatted("none");
+      }
+      ImGui::TreePop();
+    }
+    ImGui::PopID();
+  }
+}
+
 void App::drawToolsWindow() {
   if(!showTools) return;
 
@@ -13,6 +60,9 @@ void App::drawToolsWindow() {
   ImGui::Text("Pacing target: %d", shell.paceTarget(settings));
   ImGui::Text("State: %s%s", core.loaded() ? (paused ? "paused" : "running") : "idle",
               fastForward ? " (fast forward)" : "");
+  ImGui::Separator();
+  drawGamepadDiagnostics();
+
   ImGui::Separator();
   if(ImGui::Button("Save Screenshot")) takeScreenshot();
   ImGui::SameLine();
