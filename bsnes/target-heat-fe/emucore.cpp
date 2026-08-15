@@ -715,8 +715,18 @@ void EmuCore::connect(int port, int deviceId) {
   if(impl->emulator->loaded()) impl->emulator->connect(port, deviceId);
 }
 
-void EmuCore::power() { impl->applyHacks(); impl->emulator->power(); }
-void EmuCore::reset() { impl->applyHacks(); impl->emulator->reset(); }
+// powering an unloaded core walks cartridge state that does not exist yet
+void EmuCore::power() {
+  if(!loaded()) return;
+  impl->applyHacks();
+  impl->emulator->power();
+}
+
+void EmuCore::reset() {
+  if(!loaded()) return;
+  impl->applyHacks();
+  impl->emulator->reset();
+}
 void EmuCore::runFrame() {
   impl->audioOut.clear();
   impl->emulator->run();

@@ -65,9 +65,11 @@ void App::drawToolsWindow() {
   drawGamepadDiagnostics();
 
   ImGui::Separator();
+  ImGui::BeginDisabled(!core.loaded());
   if(ImGui::Button("Save Screenshot")) takeScreenshot();
   ImGui::SameLine();
   if(ImGui::Button("Reset")) reset();
+  ImGui::EndDisabled();
   if(!status.empty()) { ImGui::Separator(); ImGui::TextWrapped("%s", status.c_str()); }
 
   ImGui::End();
