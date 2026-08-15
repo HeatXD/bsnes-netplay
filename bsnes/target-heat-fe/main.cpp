@@ -14,6 +14,7 @@ struct Options {
   std::string uiShot;
   std::string uiScreen = "game";
   int frameLimit = 0;
+  int warmFrames = 180;  // emulated before a ui shot, so it lands on a real frame
   int shotTab = -1;
   int shotW = 0, shotH = 0;
   bool fast = false;
@@ -32,6 +33,7 @@ Options parseArgs(int argc, char** argv) {
     else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) opt.uiShot = argv[++i];
     else if(SDL_strcmp(arg, "--ui-screen") == 0 && hasValue) opt.uiScreen = argv[++i];
     else if(SDL_strcmp(arg, "--ui-tab") == 0 && hasValue) opt.shotTab = SDL_atoi(argv[++i]);
+    else if(SDL_strcmp(arg, "--ui-warm") == 0 && hasValue) opt.warmFrames = SDL_atoi(argv[++i]);
     else if(SDL_strcmp(arg, "--ui-size") == 0 && i + 2 < argc) {
       opt.shotW = SDL_atoi(argv[i + 1]);
       opt.shotH = SDL_atoi(argv[i + 2]);
@@ -372,7 +374,7 @@ int Frontend::runUiShot() {
   if(opt.uiFullscreen) app.toggleFullscreen();
 
   // warm the emulator so the shot shows the UI over a real frame
-  for(int i = 0; app.core.loaded() && i < 180; i++) app.core.runFrame();
+  for(int i = 0; app.core.loaded() && i < opt.warmFrames; i++) app.core.runFrame();
 
   // early passes settle window sizing; --frames asks for more to catch layout
   // that drifts per frame
