@@ -1,6 +1,6 @@
 #pragma once
 
-#include "app.hpp"
+#include "../app.hpp"
 
 // first-use placement for a floating panel; detached viewports go beside the
 // main window rather than on top of the game
