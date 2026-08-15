@@ -40,7 +40,8 @@ inline int padSlot(int port, int player) { return port * EmuCore::MaxPlayers + p
 class InputMap {
 public:
   static constexpr int Ports = EmuCore::PortCount;
-  static constexpr int Slots = 2;
+  // keyboard, pad button, and a third for the stick or any other alternative
+  static constexpr int Slots = 3;
 
   InputMap();
 

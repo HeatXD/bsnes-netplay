@@ -19,11 +19,12 @@ void App::drawBindingTable(int device) {
   const int last = players > 1 ? first + EmuCore::ButtonCount : (int)deviceInputs.size();
 
   // content sizing would let the long pad labels swallow the row
-  if(!ImGui::BeginTable("bindings", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
+  if(!ImGui::BeginTable("bindings", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
 
   ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableSetupColumn("Keyboard");
   ImGui::TableSetupColumn(pad ? SDL_GetGamepadName(pad) : "Controller (none)");
+  ImGui::TableSetupColumn("Alternate");
   ImGui::TableSetupColumn("Turbo", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableHeadersRow();
 

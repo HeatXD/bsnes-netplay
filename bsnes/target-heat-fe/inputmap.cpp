@@ -11,6 +11,14 @@ constexpr SDL_Scancode DefaultKeys[EmuCore::ButtonCount] = {
   SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_RSHIFT, SDL_SCANCODE_RETURN
 };
 
+// the left stick drives the d-pad directions, as a stick-only pad has no hat
+constexpr struct { SDL_GamepadAxis axis; int direction; } DefaultStick[] = {
+  {SDL_GAMEPAD_AXIS_LEFTY, -1},  // Up
+  {SDL_GAMEPAD_AXIS_LEFTY, +1},  // Down
+  {SDL_GAMEPAD_AXIS_LEFTX, -1},  // Left
+  {SDL_GAMEPAD_AXIS_LEFTX, +1},  // Right
+};
+
 // SNES face layout maps to the xbox diamond rotated: B is south, A is east.
 constexpr SDL_GamepadButton DefaultPad[EmuCore::ButtonCount] = {
   SDL_GAMEPAD_BUTTON_DPAD_UP, SDL_GAMEPAD_BUTTON_DPAD_DOWN,
@@ -102,11 +110,14 @@ InputMap::InputMap() { loadDefaults(); }
 void InputMap::loadDefaults() {
   bindings = {};
 
-  // slot 0 keyboard, slot 1 pad; only port 1 gets keyboard keys by default
+  // slot 0 keyboard, slot 1 pad, slot 2 stick; only port 1 gets keyboard keys
   for(int button = 0; button < EmuCore::ButtonCount; button++) {
     bindings[0][EmuCore::Gamepad][button][0] = {Binding::Key, (int)DefaultKeys[button], 0};
     for(int port = 0; port < Ports; port++) {
       bindings[port][EmuCore::Gamepad][button][1] = {Binding::PadButton, (int)DefaultPad[button], 0};
+      if(button > EmuCore::Right) continue;  // the stick only drives directions
+      const auto& stick = DefaultStick[button];
+      bindings[port][EmuCore::Gamepad][button][2] = {Binding::PadAxis, (int)stick.axis, stick.direction};
     }
   }
 
@@ -118,6 +129,8 @@ void InputMap::loadDefaults() {
       for(int port = 0; port < Ports; port++) {
         bindings[port][EmuCore::SuperMultitap][index][1] =
             bindings[port][EmuCore::Gamepad][button][1];
+        bindings[port][EmuCore::SuperMultitap][index][2] =
+            bindings[port][EmuCore::Gamepad][button][2];
         if(player > 0) continue;
         bindings[port][EmuCore::SuperMultitap][index][0] =
             bindings[port][EmuCore::Gamepad][button][0];
