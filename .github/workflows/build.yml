@@ -49,11 +49,9 @@ jobs:
           version: latest
         - name: windows
           version: latest
-        # macos-latest is arm64; macos-13 is the last intel runner
+        # arm64 only; the intel runner (macos-13) is not built
         - name: macos
           version: latest
-        - name: macos
-          version: '13'
     runs-on: ${{ matrix.os.name }}-${{ matrix.os.version }}
     steps:
     - uses: actions/checkout@v4
@@ -117,7 +115,6 @@ jobs:
         package bsnes-heat-fe-ubuntu-latest  linux-x86_64
         package bsnes-heat-fe-windows-latest windows-x86_64
         package bsnes-heat-fe-macos-latest   macos-arm64
-        package bsnes-heat-fe-macos-13       macos-x86_64
         ls -l bsnes-heat-fe-*.zip
     - name: Calculate release info
       id: relinfo
