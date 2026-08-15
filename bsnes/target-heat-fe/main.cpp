@@ -250,8 +250,10 @@ bool Frontend::handleRebind(const SDL_Event& event) {
 
   if(app.capturingHotkey >= 0) {
     if(event.type == SDL_EVENT_KEY_DOWN) {
+      const bool clear = event.key.scancode == SDL_SCANCODE_DELETE
+                      || event.key.scancode == SDL_SCANCODE_BACKSPACE;
       if(!escape) {
-        app.settings.hotkeys[app.capturingHotkey] = (int)event.key.scancode;
+        app.settings.hotkeys[app.capturingHotkey] = clear ? 0 : (int)event.key.scancode;
         app.settings.save(app.settingsCfg);
       }
       app.capturingHotkey = -1;

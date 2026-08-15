@@ -162,8 +162,9 @@ void App::drawInputTab() {
   }
   drawControllerPicker();
 
-  ImGui::TextUnformatted(capturing >= 0 ? "press a key or pad button, esc to cancel"
-                                        : "click a binding to rebind it");
+  ImGui::TextUnformatted(capturing >= 0
+      ? "press a key or pad button, delete to unbind, esc to cancel"
+      : "click a binding to rebind it");
   ImGui::Separator();
   drawBindingTable(device);
 

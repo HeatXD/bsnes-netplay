@@ -7,8 +7,9 @@ void App::restoreHotkeyDefaults() {
 }
 
 void App::drawHotkeysTab() {
-  ImGui::TextUnformatted(capturingHotkey >= 0 ? "press a key, esc to cancel"
-                                              : "click a hotkey to rebind it");
+  ImGui::TextUnformatted(capturingHotkey >= 0
+      ? "press a key, delete to unbind, esc to cancel"
+      : "click a hotkey to rebind it");
   ImGui::Separator();
 
   if(ImGui::BeginTable("hotkeys", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) {

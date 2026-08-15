@@ -181,6 +181,12 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
 bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad) {
   if(event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
     if(event.key.scancode == SDL_SCANCODE_ESCAPE) return false;
+    // delete clears the binding rather than binding the delete key itself
+    if(event.key.scancode == SDL_SCANCODE_DELETE
+    || event.key.scancode == SDL_SCANCODE_BACKSPACE) {
+      out = {};
+      return true;
+    }
     out = {Binding::Key, (int)event.key.scancode, 0};
     return true;
   }
