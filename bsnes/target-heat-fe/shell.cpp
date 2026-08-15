@@ -220,8 +220,12 @@ void Shell::drawGame(const Settings& settings) {
 
   const ImVec2 p0(view->WorkPos.x + (availW - w) / 2.0f, view->WorkPos.y + (availH - h) / 2.0f);
   const ImVec2 p1(p0.x + w, p0.y + h);
-  const ImVec2 uv1((float)frameWidth / textureWidth, (float)frameHeight / textureHeight);
-  ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)(intptr_t)texture, p0, p1, ImVec2(0, 0), uv1);
+  // Half a texel in on every side: the texture is larger than the frame, so
+  // CLAMP_TO_EDGE guards its edge, not the picture's, and sampling right at
+  // frameWidth would blend the last column with never-written texels.
+  const ImVec2 uv0(0.5f / textureWidth, 0.5f / textureHeight);
+  const ImVec2 uv1((frameWidth - 0.5f) / textureWidth, (frameHeight - 0.5f) / textureHeight);
+  ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)(intptr_t)texture, p0, p1, uv0, uv1);
 }
 
 void Shell::shrinkToFit(const Settings& settings) {
