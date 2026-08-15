@@ -3,7 +3,7 @@
 void App::drawToolsWindow() {
   if(!showTools) return;
 
-  placeFloating(60.0f, 480.0f, 380.0f, 250.0f);
+  placeFloating(380.0f, 250.0f);
   if(!ImGui::Begin("Diagnostics", &showTools)) { ImGui::End(); return; }
 
   ImGui::Text("Game: %s", core.loaded() ? gameTitle.c_str() : "none");
@@ -62,7 +62,7 @@ void App::drawGamesList() {
 void App::drawGamesWindow() {
   if(!showGames) return;
 
-  placeFloating(40.0f, 40.0f, 440.0f, 420.0f);
+  placeFloating(440.0f, 420.0f);
   if(ImGui::Begin("Games", &showGames)) drawGamesList();
   ImGui::End();
 }
@@ -83,7 +83,7 @@ void App::drawGamesHome() {
 void App::drawAboutWindow() {
   if(!showAbout) return;
 
-  placeFloating(100.0f, 120.0f, 340.0f, 150.0f);
+  placeFloating(340.0f, 150.0f);
   if(ImGui::Begin("About", &showAbout)) {
     ImGui::TextUnformatted(AppName);
     ImGui::Separator();

@@ -2,11 +2,10 @@
 
 #include "imgui_internal.h"  // BeginViewportSideBar, for the status bar
 
-void placeFloating(float offsetX, float offsetY, float w, float h) {
+void placeFloating(float w, float h) {
   const ImGuiViewport* view = ImGui::GetMainViewport();
-  const bool detach = (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
-  const float x = detach ? view->Pos.x + view->Size.x + 12.0f : view->WorkPos.x + offsetX;
-  const float y = detach ? view->Pos.y + offsetY : view->WorkPos.y + offsetY;
+  const float x = view->WorkPos.x + SDL_max(0.0f, (view->WorkSize.x - w) / 2.0f);
+  const float y = view->WorkPos.y + SDL_max(0.0f, (view->WorkSize.y - h) / 2.0f);
   ImGui::SetNextWindowPos(ImVec2(x, y), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
 }
@@ -153,7 +152,7 @@ static float settingsWidth() {
 void App::drawSettingsWindow() {
   if(!showSettings) return;
 
-  placeFloating(40.0f, 40.0f, settingsWidth(), 480.0f);
+  placeFloating(settingsWidth(), 480.0f);
   if(!ImGui::Begin("Settings", &showSettings)) { ImGui::End(); return; }
 
   if(ImGui::BeginTabBar("settingstabs")) {
