@@ -12,6 +12,9 @@ sdl3.build := ../sdl/build
 sdl3.flags := -I$(sdl3.path)/include
 sdl3.cmake.args := -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF
 sdl3.cmake.args += -DCMAKE_BUILD_TYPE=Release
+# nothing here opens a camera, and its macOS backend drags in AVFoundation and
+# CoreMedia, which this hand-written framework list would otherwise have to track
+sdl3.cmake.args += -DSDL_CAMERA=OFF
 ifeq ($(platform),windows)
   sdl3.lib := $(sdl3.build)/libSDL3.a
   sdl3.cmake.args += -G "MinGW Makefiles"
