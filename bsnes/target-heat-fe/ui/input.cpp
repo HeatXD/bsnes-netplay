@@ -7,6 +7,13 @@ bool turboEligible(int button) {
 }
 }  // namespace
 
+// the core names a multitap's inputs "Port 3 - Up": controller, then button
+std::string App::playerLabel(int device, int player) const {
+  const std::string& name = core.inputs(device)[player * EmuCore::ButtonCount].name;
+  const size_t dash = name.rfind(" - ");
+  return dash == std::string::npos ? name : name.substr(0, dash);
+}
+
 void App::drawBindingTable(int device) {
   const auto& deviceInputs = core.inputs(device);
   const bool turboCapable = device == EmuCore::Gamepad;
@@ -14,8 +21,8 @@ void App::drawBindingTable(int device) {
   const bool* keys = SDL_GetKeyboardState(nullptr);
 
   // a multitap's inputs are four controllers in a row; show one at a time
-  const int players = playerCount((int)deviceInputs.size());
-  const int first = players > 1 ? mapPlayer * EmuCore::ButtonCount : 0;
+  const int players = core.playersFor(device);
+  const int first = mapPlayer * EmuCore::ButtonCount;
   const int last = players > 1 ? first + EmuCore::ButtonCount : (int)deviceInputs.size();
 
   // content sizing would let the long pad labels swallow the row
@@ -31,7 +38,6 @@ void App::drawBindingTable(int device) {
   for(int b = first; b < last; b++) {
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
-    // multitap inputs are named "Port 3 - Up"; the player picker already says which
     const std::string& name = deviceInputs[b].name;
     const size_t dash = name.rfind(" - ");
     ImGui::TextUnformatted(dash == std::string::npos ? name.c_str() : name.c_str() + dash + 3);
@@ -48,8 +54,7 @@ void App::drawBindingTable(int device) {
       const Binding& binding = input.binding(mapPort, device, b, slot);
       ImGui::PushID(id);
 
-      // light the binding while it is held, so a press is visible even when
-      // the pad turns out to be the wrong one
+      // held bindings light up, so a press shows even on the wrong pad
       const bool held = capturing != id && bindingActive(binding, keys, pad);
       if(held) ImGui::PushStyleColor(ImGuiCol_Button, accentColor());
 
@@ -141,23 +146,26 @@ void App::drawInputTab() {
   ImGui::Combo("Port", &mapPort, "Port 1\0Port 2\0");
   drawDevicePicker();
 
-  // a multitap carries four controllers, each with its own pad and bindings
-  const int players = portPlayers(mapPort);
+  // the core names a multitap's four controllers Port 2..Port 5
+  const int device = core.connectedDevice(mapPort);
+  const int players = core.playersFor(device);
   if(mapPlayer >= players) mapPlayer = 0;
   if(players > 1) {
-    auto playerName = [](void*, int index) -> const char* {
-      static char label[24];
-      SDL_snprintf(label, sizeof(label), "Player %d", index + 1);
-      return label;
-    };
-    ImGui::Combo("Multitap player", &mapPlayer, playerName, nullptr, players);
+    if(ImGui::BeginCombo("Multitap slot", playerLabel(device, mapPlayer).c_str())) {
+      for(int player = 0; player < players; player++) {
+        if(ImGui::Selectable(playerLabel(device, player).c_str(), player == mapPlayer)) {
+          mapPlayer = player;
+        }
+      }
+      ImGui::EndCombo();
+    }
   }
   drawControllerPicker();
 
   ImGui::TextUnformatted(capturing >= 0 ? "press a key or pad button, esc to cancel"
                                         : "click a binding to rebind it");
   ImGui::Separator();
-  drawBindingTable(core.connectedDevice(mapPort));
+  drawBindingTable(device);
 
   ImGui::Separator();
   ImGui::SliderInt("Turbo rate (Hz)", &settings.turboRate, 1, 30);
@@ -170,7 +178,5 @@ void App::drawInputTab() {
     settings.save(settingsCfg);
   }
   ImGui::SameLine();
-  int connected = 0;
-  for(SDL_Gamepad* pad : pads) connected += pad != nullptr;
-  ImGui::Text("%d gamepad(s)", connected);
+  ImGui::Text("%d gamepad(s)", livePadCount(pads));
 }

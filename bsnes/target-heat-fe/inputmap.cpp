@@ -151,12 +151,18 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
     const int device = core.connectedDevice(port);
     if(device < 0 || device >= EmuCore::DeviceCount) continue;
     const int count = (int)core.inputs(device).size();
-    const int players = playerCount(count);
+    const int players = core.playersFor(device);
+
+    // once per player, not per input: a multitap would repeat this twelve times
+    SDL_Gamepad* playerPads[EmuCore::MaxPlayers] = {};
+    for(int player = 0; player < players; player++) {
+      playerPads[player] = resolvePad(pads, settings.padIndex[padSlot(port, player)]);
+    }
 
     for(int button = 0; button < count; button++) {
       // a multitap's inputs are four consecutive controllers of twelve
       const int player = players > 1 ? button / EmuCore::ButtonCount : 0;
-      SDL_Gamepad* pad = resolvePad(pads, settings.padIndex[padSlot(port, player)]);
+      SDL_Gamepad* pad = playerPads[player < players ? player : players - 1];
       bool pressed = false;
 
       for(int slot = 0; slot < Slots && !pressed; slot++) {

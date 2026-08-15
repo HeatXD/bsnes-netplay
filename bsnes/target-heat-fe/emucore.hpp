@@ -20,6 +20,7 @@ public:
   static constexpr int PortCount = 2;
   // super multitap is the widest device, at 4 pads
   static constexpr int MaxInputs = 64;
+  // per device, not per console: five players is a multitap plus the other port
   static constexpr int MaxPlayers = 4;
   static constexpr int DeviceCount = 9;
 
@@ -114,6 +115,9 @@ public:
   void setPaletteAdjust(int gammaPercent, int luminancePercent, int saturationPercent);
   void setFilter(const std::string& name);
   std::vector<std::string> filterNames() const;
+
+  // controllers a device carries; only the multitap holds more than one
+  int playersFor(int deviceId) const;
 
   // what the core actually supports, rather than a hardcoded list
   const std::vector<DeviceInfo>& devices(int port) const;

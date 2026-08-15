@@ -4,7 +4,7 @@
 void App::drawGamepadDiagnostics() {
   int count = 0;
   SDL_JoystickID* ids = SDL_GetJoysticks(&count);
-  ImGui::Text("Joysticks: %d, opened as gamepads: %d", count, (int)pads.size());
+  ImGui::Text("Joysticks: %d, opened as gamepads: %d", count, livePadCount(pads));
 
   for(int i = 0; ids && i < count; i++) {
     const char* name = SDL_GetJoystickNameForID(ids[i]);

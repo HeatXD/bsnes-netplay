@@ -687,6 +687,10 @@ std::vector<std::string> EmuCore::filterNames() const {
   return names;
 }
 
+int EmuCore::playersFor(int deviceId) const {
+  return deviceId == SuperMultitap ? MaxPlayers : 1;
+}
+
 const std::vector<EmuCore::DeviceInfo>& EmuCore::devices(int port) const {
   static const std::vector<DeviceInfo> none;
   if(port < 0 || port >= PortCount) return none;

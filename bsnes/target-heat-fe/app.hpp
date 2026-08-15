@@ -106,10 +106,6 @@ struct App {
   SDL_Gamepad* portPad(int port, int player) const {
     return resolvePad(pads, settings.padIndex[padSlot(port, player)]);
   }
-  // how many controllers the port's device carries; a multitap carries four
-  int portPlayers(int port) const {
-    return playerCount((int)core.inputs(core.connectedDevice(port)).size());
-  }
   // unset means a Firmware folder beside the config, as bsnes locates its own
   std::string firmwareDir() const {
     return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;
@@ -149,6 +145,7 @@ struct App {
   void drawAudioTab();
   void drawDevicePicker();
   void drawControllerPicker();
+  std::string playerLabel(int device, int player) const;
   void drawBindingTable(int device);
   void restoreInputDefaults();
   void drawInputTab();
