@@ -588,6 +588,8 @@ EmuCore::EmuCore() : impl(std::make_unique<Impl>(*this)) {}
 EmuCore::~EmuCore() = default;
 
 bool EmuCore::loaded() const { return impl->emulator->loaded(); }
+std::string EmuCore::version() { return (const char*)Emulator::Version; }
+
 EmuCore::Medium EmuCore::mediumOf(const std::string& path) {
   const string location = normalize(path);
   const auto suffix = Location::suffix(location).downcase();

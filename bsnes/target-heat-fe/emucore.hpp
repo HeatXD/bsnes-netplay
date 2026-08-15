@@ -49,6 +49,9 @@ public:
   enum class Medium { SuperFamicom, GameBoy, BSMemory, SufamiTurbo };
   static Medium mediumOf(const std::string& location);
 
+  // the bsnes core's own version
+  static std::string version();
+
   EmuCore();
   ~EmuCore();
 

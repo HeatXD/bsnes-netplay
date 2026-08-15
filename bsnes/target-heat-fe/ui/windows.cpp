@@ -88,6 +88,9 @@ void App::drawAboutWindow() {
     ImGui::TextUnformatted(AppName);
     ImGui::Separator();
     ImGui::TextWrapped("Custom bsnes frontend, brought to you by HeatXD.");
+    ImGui::Text("bsnes %s", EmuCore::version().c_str());
+    // SameBoy is the Super Game Boy core; GB_VERSION comes from gb/version.mk
+    ImGui::Text("SameBoy %s", GB_VERSION);
     ImGui::Text("Dear ImGui %s", IMGUI_VERSION);
     ImGui::Text("SDL %d.%d.%d", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION);
   }
