@@ -34,13 +34,33 @@ public:
   struct DeviceInfo { int id; std::string name; };
   struct InputInfo { std::string name; int type; };
 
+  // the Super Famicom cartridge is the base; the rest fill slots it asks for
+  struct GameSpec {
+    std::string superFamicom;
+    std::string gameBoy;
+    std::string bsMemory;
+    std::string sufamiTurboA;
+    std::string sufamiTurboB;
+  };
+
+  struct SlotInfo { std::string label; std::string game; };
+
+  // only this layer can see inside an archive, so it picks the slot
+  enum class Medium { SuperFamicom, GameBoy, BSMemory, SufamiTurbo };
+  static Medium mediumOf(const std::string& location);
+
   EmuCore();
   ~EmuCore();
 
   EmuCore(const EmuCore&) = delete;
   auto operator=(const EmuCore&) -> EmuCore& = delete;
 
-  bool loadSuperFamicom(const std::string& path);
+  // a location is a ROM, a .zip/.7z holding one, or a pak folder ending in '/'
+  bool load(const GameSpec& spec);
+  // why the last load() failed, phrased for the status line
+  std::string loadError() const;
+  // a load succeeds without these, running the coprocessor on zeroes
+  std::string missingFiles() const;
   void unload();
   bool loaded() const;
 
@@ -61,6 +81,8 @@ public:
   std::string ramSizeText() const;
   std::string expansionChip() const;
   std::string checksum() const;
+  // the media sitting in the base cartridge's slots
+  const std::vector<SlotInfo>& slots() const;
 
   // core setting, by the interface's own name: "Hacks/PPU/Fast" and friends.
   // "Frontend/Hotfixes" is a pseudo key for the per-title hotfix toggle,
@@ -74,6 +96,8 @@ public:
 
   // empty means save RAM sits next to the ROM (the default)
   void setSavesDirectory(const std::string& dir);
+  // holds dsp1b.program.rom and friends, for carts that ship no firmware
+  void setFirmwareDirectory(const std::string& dir);
   void setAudioFrequency(double hz);
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
   void setSpeedScale(double scale);

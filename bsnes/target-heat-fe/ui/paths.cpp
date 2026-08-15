@@ -1,12 +1,17 @@
 #include "ui.hpp"
 
-// all three default to empty, so the games folder goes too
+// every path defaults to empty, so the games folder goes too
 void App::restorePathDefaults() {
   const Settings defaults;
   settings.gamesDir = defaults.gamesDir;
   settings.shotsDir = defaults.shotsDir;
   settings.savesDir = defaults.savesDir;
+  settings.firmwareDir = defaults.firmwareDir;
+  settings.sgbBios = defaults.sgbBios;
+  settings.bsxBios = defaults.bsxBios;
+  settings.stBios = defaults.stBios;
   core.setSavesDirectory(settings.savesDir);
+  core.setFirmwareDirectory(firmwareDir());
   scanGames();
   gameSelected = 0;
 }
@@ -34,6 +39,37 @@ void App::drawPathsTab() {
     settings.savesDir.clear();
     core.setSavesDirectory(settings.savesDir);
     settings.save(settingsCfg);
+  }
+
+  ImGui::Separator();
+  ImGui::TextUnformatted("Firmware folder");
+  ImGui::TextWrapped("%s", firmwareDir().c_str());
+  ImGui::TextWrapped("Holds dsp1b.program.rom and the like, for carts whose dump"
+                     " leaves the coprocessor firmware out.");
+  if(ImGui::Button("Browse##firmware")) openFolderDialog(firmwareDirPick);
+  ImGui::SameLine();
+  if(!settings.firmwareDir.empty() && ImGui::Button("Reset##firmware")) {
+    settings.firmwareDir.clear();
+    core.setFirmwareDirectory(firmwareDir());
+    settings.save(settingsCfg);
+  }
+
+  ImGui::Separator();
+  ImGui::TextUnformatted("Base cartridges");
+  ImGui::TextWrapped("Game Boy, BS-X and Sufami Turbo games run inside one of these.");
+  for(const BiosSlot& slot : BiosSlots) {
+    std::string& path = settings.*slot.path;
+    ImGui::Text("%s: %s", slot.label, path.empty() ? "(not set)" : fileName(path).c_str());
+    ImGui::PushID(slot.id);
+    if(ImGui::Button("Browse")) openMediaDialog(this->*slot.pick, "SNES ROMs", romFilterPattern());
+    if(!path.empty()) {
+      ImGui::SameLine();
+      if(ImGui::Button("Clear")) {
+        path.clear();
+        settings.save(settingsCfg);
+      }
+    }
+    ImGui::PopID();
   }
 
   ImGui::Separator();

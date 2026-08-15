@@ -36,8 +36,7 @@ imgui.flags := -I$(imgui.path) -I$(imgui.path)/backends
 
 flags += $(sdl3.flags) $(imgui.flags)
 
-# filter drives the CPU video filters; lzma is only used by hiro's UI
-objects := $(filter-out lzma,$(objects))
+# filter drives the CPU video filters; lzma unpacks .7z game archives
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-emucore ui-inputmap
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
 objects += ui-custom ui-paths ui-windows ui-cartridge

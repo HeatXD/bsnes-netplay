@@ -80,11 +80,17 @@ struct Settings {
   std::string fontPath;  // empty means imgui's built-in font
   std::string gamesDir;
   std::string shotsDir;
-  std::string savesDir;  // empty means next to the ROM
+  std::string savesDir;     // empty means next to the ROM
+  std::string firmwareDir;  // empty means a Firmware folder beside the config
+  // base cartridges the slot media ride in
+  std::string sgbBios;
+  std::string bsxBios;
+  std::string stBios;
   std::vector<std::string> recent;
   int hotkeys[HotkeyCount] = {SDL_SCANCODE_F2, SDL_SCANCODE_F3, SDL_SCANCODE_F4,
                               SDL_SCANCODE_F11, SDL_SCANCODE_F12,
-                              SDL_SCANCODE_F1, SDL_SCANCODE_F6, SDL_SCANCODE_F8, 0};
+                              SDL_SCANCODE_F1, SDL_SCANCODE_F6, SDL_SCANCODE_F8, 0,
+                              SDL_SCANCODE_F9, SDL_SCANCODE_F10};
   int devices[EmuCore::PortCount] = {EmuCore::Gamepad, EmuCore::Gamepad};
   int turboRate = 10;  // Hz
   int turboMask[EmuCore::PortCount] = {0, 0};  // bit per EmuCore::Button

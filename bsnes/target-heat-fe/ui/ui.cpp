@@ -28,12 +28,14 @@ const struct { const char* name; void (App::*draw)(); } SettingsTabs[] = {
 
 void App::drawFileMenu() {
   if(ImGui::MenuItem("Open ROM...", "Ctrl+O")) openRomDialog();
+  if(ImGui::MenuItem("Open Game Pak...")) openFolderDialog(pakPick);
+  if(ImGui::MenuItem("Open Sufami Turbo Pair...")) openSufamiPairDialog();
   // with no game the list is already the home screen
   if(ImGui::MenuItem("Games List", nullptr, showGames, core.loaded())) showGames = !showGames;
 
   if(ImGui::BeginMenu("Recent", !settings.recent.empty())) {
     for(const std::string& rom : settings.recent) {
-      if(ImGui::MenuItem(fileName(rom).c_str())) loadRom(rom);
+      if(ImGui::MenuItem(recentLabel(rom).c_str())) loadRom(rom);
     }
     ImGui::Separator();
     if(ImGui::MenuItem("Clear")) { settings.recent.clear(); settings.save(settingsCfg); }

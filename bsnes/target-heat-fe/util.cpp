@@ -1,12 +1,17 @@
 #include "util.hpp"
 
 namespace {
-const char* const RomExts[] = {"sfc", "smc", "fig", "swc", "bs", "st", "gb", "gbc"};
+const char* const RomExts[] = {"sfc", "smc", "fig", "swc", "bs", "st", "gb", "gbc",
+                               "zip", "7z"};
 }
 
+// a game pak path ends in a separator, and is named by its folder
 std::string fileName(const std::string& path) {
-  const size_t slash = path.find_last_of("/\\");
-  return slash == std::string::npos ? path : path.substr(slash + 1);
+  const size_t end = path.find_last_not_of("/\\");
+  if(end == std::string::npos) return path;
+  const size_t slash = path.find_last_of("/\\", end);
+  const size_t start = slash == std::string::npos ? 0 : slash + 1;
+  return path.substr(start, end + 1 - start);
 }
 
 std::string fileStem(const std::string& path) {
@@ -24,6 +29,29 @@ std::string normalPath(const std::string& path) {
 bool pathExists(const std::string& path) {
   SDL_PathInfo info;
   return SDL_GetPathInfo(path.c_str(), &info);
+}
+
+bool isDirectory(const std::string& path) {
+  SDL_PathInfo info;
+  return SDL_GetPathInfo(path.c_str(), &info) && info.type == SDL_PATHTYPE_DIRECTORY;
+}
+
+std::string pakPath(const std::string& dir) {
+  std::string path = normalPath(dir);
+  if(!path.empty() && path.back() != '/') path += '/';
+  return path;
+}
+
+std::pair<std::string, std::string> splitPair(const std::string& entry) {
+  const char* bar = SDL_strchr(entry.c_str(), '|');
+  if(!bar) return {entry, {}};
+  return {std::string(entry.c_str(), bar), std::string(bar + 1)};
+}
+
+std::string recentLabel(const std::string& entry) {
+  const auto pair = splitPair(entry);
+  if(pair.second.empty()) return fileName(pair.first);
+  return fileName(pair.first) + " + " + fileName(pair.second);
 }
 
 bool isRom(const char* name) {
@@ -88,15 +116,14 @@ void SDLCALL onPicked(void* userdata, const char* const* filelist, int) {
   auto* pick = (FilePick*)userdata;
   Guard guard(pick->mutex);
   pick->open = false;
-  if(filelist && filelist[0]) {
-    pick->path = filelist[0];
-    pick->ready = true;
-  }
+  pick->path = filelist && filelist[0] ? filelist[0] : "";
+  pick->ready = true;
 }
 
-std::string takePick(FilePick& pick) {
+bool takePick(FilePick& pick, std::string& path) {
   Guard guard(pick.mutex);
-  if(!pick.ready) return {};
+  if(!pick.ready) return false;
   pick.ready = false;
-  return pick.path;
+  path = pick.path;
+  return true;
 }

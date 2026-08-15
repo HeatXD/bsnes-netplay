@@ -24,6 +24,17 @@ inline int packColor(const float rgb[3]) {
        | (int)(rgb[2] * 255.0f + 0.5f);
 }
 
+struct App;
+
+// shared by the Paths tab and the pick draining, so the two cannot drift
+struct BiosSlot {
+  const char* label;
+  const char* id;
+  FilePick App::* pick;
+  std::string Settings::* path;
+};
+extern const BiosSlot BiosSlots[3];
+
 struct App {
   Shell shell;
   Settings settings;
@@ -37,7 +48,10 @@ struct App {
   uint64_t messageTime = 0;
   std::string gameTitle;
 
-  FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick;
+  FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick, pakPick, firmwareDirPick;
+  FilePick sgbBiosPick, bsxBiosPick, stBiosPick;
+  FilePick sufamiAPick, sufamiBPick;
+  std::string sufamiPending;
 
   bool running = true;
   bool fontDirty = false;
@@ -61,7 +75,8 @@ struct App {
   long long emulatedFrames = 0;  // turbo's clock; must not depend on wall time
 
   void scanGames();
-  bool loadRom(const std::string& path);
+  // a path, or a Sufami Turbo pair joined by '|', as the recent list stores it
+  bool loadRom(const std::string& entry);
   void unloadRom();
   void applySpeed() {
     double scale = SpeedScales[speedIndex];
@@ -87,9 +102,15 @@ struct App {
   void toggleFullscreen() { SDL_SetWindowFullscreen(shell.window, !fullscreen()); }
   void openPick(FilePick& pick, const SDL_DialogFileFilter* filters, const char* dir);
   const char* gamesDirOrNull() const;
+  // unset means a Firmware folder beside the config, as bsnes locates its own
+  std::string firmwareDir() const {
+    return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;
+  }
   void openRomDialog();
   void openFolderDialog(FilePick& pick) { openPick(pick, nullptr, gamesDirOrNull()); }
   void openFontDialog();
+  void openMediaDialog(FilePick& pick, const char* label, const char* extensions);
+  void openSufamiPairDialog();
   void takeScreenshot();
 
   ImVec4 accentColor() const { return unpackColor(settings.accent); }

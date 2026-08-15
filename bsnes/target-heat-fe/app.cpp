@@ -4,6 +4,12 @@
 
 #include <algorithm>
 
+const BiosSlot BiosSlots[3] = {
+  {"Super Game Boy", "##sgb", &App::sgbBiosPick, &Settings::sgbBios},
+  {"BS-X",           "##bsx", &App::bsxBiosPick, &Settings::bsxBios},
+  {"Sufami Turbo",   "##st",  &App::stBiosPick,  &Settings::stBios},
+};
+
 void App::scanGames() {
   games.clear();
   if(settings.gamesDir.empty()) return;
@@ -13,8 +19,14 @@ void App::scanGames() {
   if(!found) return;
 
   for(int i = 0; i < count; i++) {
+    const std::string path = settings.gamesDir + "/" + found[i];
+    // a game pak is a folder, recognised the way the core does: by its manifest
+    if(isDirectory(path)) {
+      if(pathExists(path + "/manifest.bml")) games.emplace_back(found[i], pakPath(path));
+      continue;
+    }
     if(!isRom(found[i])) continue;
-    games.emplace_back(fileStem(found[i]), settings.gamesDir + "/" + found[i]);
+    games.emplace_back(fileStem(found[i]), path);
   }
   SDL_free(found);
   std::sort(games.begin(), games.end(), [](const auto& a, const auto& b) {
@@ -22,19 +34,57 @@ void App::scanGames() {
   });
 }
 
-bool App::loadRom(const std::string& path) {
-  if(core.loadSuperFamicom(path)) {
-    gameTitle = core.title();
-    SDL_SetWindowTitle(shell.window, (gameTitle + " - " + AppName).c_str());
-    settings.addRecent(path);
-    settings.save(settingsCfg);
-    paused = false;
-    applySpeed();
-    showMessage("loaded " + gameTitle);
-    return true;
+bool App::loadRom(const std::string& entry) {
+  auto [first, second] = splitPair(entry);
+  if(isDirectory(first)) first = pakPath(first);
+
+  // slot media ride in a base cartridge, set once under Paths
+  EmuCore::GameSpec spec;
+  const char* system = nullptr;
+  switch(EmuCore::mediumOf(first)) {
+  case EmuCore::Medium::GameBoy:
+    spec.gameBoy = first;
+    spec.superFamicom = settings.sgbBios;
+    system = "Super Game Boy";
+    break;
+  case EmuCore::Medium::BSMemory:
+    spec.bsMemory = first;
+    spec.superFamicom = settings.bsxBios;
+    system = "BS-X";
+    break;
+  case EmuCore::Medium::SufamiTurbo:
+    spec.sufamiTurboA = first;
+    spec.sufamiTurboB = second;
+    spec.superFamicom = settings.stBios;
+    system = "Sufami Turbo";
+    break;
+  case EmuCore::Medium::SuperFamicom:
+    spec.superFamicom = first;
+    break;
   }
-  showMessage("failed to load " + fileName(path));
-  return false;
+
+  if(system && spec.superFamicom.empty()) {
+    showMessage(std::string(system) + " games need its base cartridge, set under Paths");
+    return false;
+  }
+
+  if(!core.load(spec)) {
+    showMessage("failed to load " + fileName(first) + ": " + core.loadError());
+    return false;
+  }
+
+  gameTitle = fileStem(first);
+  SDL_SetWindowTitle(shell.window, (gameTitle + " - " + AppName).c_str());
+  settings.addRecent(entry);
+  settings.save(settingsCfg);
+  paused = false;
+  speedIndex = SpeedNormal;
+  applySpeed();
+
+  const std::string missing = core.missingFiles();
+  showMessage(missing.empty() ? "loaded " + gameTitle
+                              : "loaded " + gameTitle + ", missing " + missing);
+  return true;
 }
 
 void App::unloadRom() {
@@ -61,6 +111,16 @@ const char* App::gamesDirOrNull() const {
 void App::openRomDialog() {
   const SDL_DialogFileFilter filters[] = {{"SNES ROMs", romFilterPattern()}, {"All files", "*"}};
   openPick(romPick, filters, gamesDirOrNull());
+}
+
+void App::openMediaDialog(FilePick& pick, const char* label, const char* extensions) {
+  const SDL_DialogFileFilter filters[] = {{label, extensions}, {"All files", "*"}};
+  openPick(pick, filters, gamesDirOrNull());
+}
+
+void App::openSufamiPairDialog() {
+  sufamiPending.clear();
+  openMediaDialog(sufamiAPick, "Sufami Turbo ROMs", "st;zip;7z");
 }
 
 void App::openFontDialog() {

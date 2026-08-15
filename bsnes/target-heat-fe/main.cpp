@@ -276,26 +276,51 @@ void Frontend::handleEvent(const SDL_Event& event) {
 }
 
 void Frontend::drainPicks() {
-  if(std::string picked = takePick(app.romPick); !picked.empty()) app.loadRom(picked);
+  std::string picked;
 
-  if(std::string picked = takePick(app.dirPick); !picked.empty()) {
+  if(takePick(app.romPick, picked) && !picked.empty()) app.loadRom(picked);
+  if(takePick(app.pakPick, picked) && !picked.empty()) app.loadRom(picked);
+
+  // cancelling the second cartridge loads slot A alone rather than nothing
+  if(takePick(app.sufamiAPick, picked)) {
+    app.sufamiPending = picked;
+    if(!picked.empty()) app.openMediaDialog(app.sufamiBPick, "Sufami Turbo ROMs", "st;zip;7z");
+  }
+  if(takePick(app.sufamiBPick, picked) && !app.sufamiPending.empty()) {
+    app.loadRom(picked.empty() ? app.sufamiPending : app.sufamiPending + "|" + picked);
+    app.sufamiPending.clear();
+  }
+
+  if(takePick(app.dirPick, picked) && !picked.empty()) {
     app.settings.gamesDir = normalPath(picked);
     app.settings.save(app.settingsCfg);
     app.scanGames();
   }
-  if(std::string picked = takePick(app.shotDirPick); !picked.empty()) {
+  if(takePick(app.shotDirPick, picked) && !picked.empty()) {
     app.settings.shotsDir = normalPath(picked);
     app.settings.save(app.settingsCfg);
   }
-  if(std::string picked = takePick(app.savesDirPick); !picked.empty()) {
+  if(takePick(app.savesDirPick, picked) && !picked.empty()) {
     app.settings.savesDir = normalPath(picked);
     app.core.setSavesDirectory(app.settings.savesDir);
     app.settings.save(app.settingsCfg);
   }
-  if(std::string picked = takePick(app.fontPick); !picked.empty()) {
+  if(takePick(app.firmwareDirPick, picked) && !picked.empty()) {
+    app.settings.firmwareDir = normalPath(picked);
+    app.core.setFirmwareDirectory(app.firmwareDir());
+    app.settings.save(app.settingsCfg);
+  }
+  if(takePick(app.fontPick, picked) && !picked.empty()) {
     app.settings.fontPath = picked;
     app.settings.save(app.settingsCfg);
     app.fontDirty = true;
+  }
+
+  for(const BiosSlot& slot : BiosSlots) {
+    if(takePick(app.*slot.pick, picked) && !picked.empty()) {
+      app.settings.*slot.path = normalPath(picked);
+      app.settings.save(app.settingsCfg);
+    }
   }
 }
 
@@ -372,6 +397,7 @@ void applySettingsToCore(App& app) {
   char number[16];
 
   app.core.setSavesDirectory(s.savesDir);
+  app.core.setFirmwareDirectory(app.firmwareDir());
   app.core.setOverscanCrop(s.overscanCrop);
   app.core.setPaletteAdjust(s.videoGamma, s.videoLuminance, s.videoSaturation);
   app.core.setFilter(s.videoFilter);

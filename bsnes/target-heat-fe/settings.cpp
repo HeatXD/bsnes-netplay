@@ -73,7 +73,11 @@ const StrField StrFields[] = {
   {"shotsdir",    &Settings::shotsDir,    true},
   {"videofilter", &Settings::videoFilter, false},
   {"savesdir",    &Settings::savesDir,    true},
+  {"firmwaredir", &Settings::firmwareDir, true},
   {"audiodevice", &Settings::audioDevice, false},
+  {"sgbbios",     &Settings::sgbBios,     true},
+  {"bsxbios",     &Settings::bsxBios,     true},
+  {"stbios",      &Settings::stBios,      true},
 };
 }  // namespace
 

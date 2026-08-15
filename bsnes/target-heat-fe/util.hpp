@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include <string>
+#include <utility>
 
 inline constexpr const char* AppName = "bsnes heat-fe";
 
@@ -11,6 +12,12 @@ std::string fileStem(const std::string& path);
 // globs return '/', dialogs return native separators; compare like with like
 std::string normalPath(const std::string& path);
 bool pathExists(const std::string& path);
+bool isDirectory(const std::string& path);
+std::string pakPath(const std::string& dir);
+
+// only these two know a Sufami Turbo pair travels as two paths joined by '|'
+std::pair<std::string, std::string> splitPair(const std::string& entry);
+std::string recentLabel(const std::string& entry);
 
 bool isRom(const char* name);
 const char* romFilterPattern();
@@ -32,11 +39,11 @@ struct Guard {
 struct FilePick {
   SDL_Mutex* mutex = SDL_CreateMutex();
   std::string path;
-  bool ready = false;
+  bool ready = false;  // a result is waiting; path is empty when cancelled
   bool open = false;
 
   ~FilePick() { SDL_DestroyMutex(mutex); }
 };
 
 void SDLCALL onPicked(void* userdata, const char* const* filelist, int);
-std::string takePick(FilePick& pick);
+bool takePick(FilePick& pick, std::string& path);

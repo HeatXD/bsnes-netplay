@@ -23,6 +23,7 @@ void App::drawCartridgeWindow() {
       drawField("RAM size", core.ramSizeText());
       drawField("Expansion chip", core.expansionChip());
       drawField("SHA-256", core.checksum());
+      for(const auto& slot : core.slots()) drawField(slot.label.c_str(), slot.game);
 
       const std::string hotfix = core.activeHotfix();
       if(!hotfix.empty()) {
