@@ -30,7 +30,7 @@ void App::drawBindingTable(int device) {
 
   ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableSetupColumn("Keyboard");
-  ImGui::TableSetupColumn(pad ? SDL_GetGamepadName(pad) : "Controller (none)");
+  ImGui::TableSetupColumn("Controller");
   ImGui::TableSetupColumn("Alternate");
   ImGui::TableSetupColumn("Turbo", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableHeadersRow();
