@@ -20,6 +20,7 @@ public:
   static constexpr int PortCount = 2;
   // super multitap is the widest device, at 4 pads
   static constexpr int MaxInputs = 64;
+  static constexpr int MaxPlayers = 4;
   static constexpr int DeviceCount = 9;
 
   // matches SuperFamicom::Gamepad's enum order

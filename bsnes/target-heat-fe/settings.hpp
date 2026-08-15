@@ -92,9 +92,11 @@ struct Settings {
                               SDL_SCANCODE_F1, SDL_SCANCODE_F6, SDL_SCANCODE_F8, 0,
                               SDL_SCANCODE_F9, SDL_SCANCODE_F10};
   int devices[EmuCore::PortCount] = {EmuCore::Gamepad, EmuCore::Gamepad};
-  // which opened pad drives each port, -1 for none; one stick can enumerate as
-  // several devices, so the working one is chosen rather than assumed
-  int padIndex[EmuCore::PortCount] = {0, 1};
+  // Which opened pad drives each player, -1 for none; one stick can enumerate
+  // as several devices, so the working one is chosen rather than assumed. A
+  // multitap puts four players on one port, so this is per player, not port.
+  int padIndex[EmuCore::PortCount * EmuCore::MaxPlayers] = {0, -1, -1, -1,
+                                                            1, -1, -1, -1};
   int turboRate = 10;  // Hz
   int turboMask[EmuCore::PortCount] = {0, 0};  // bit per EmuCore::Button
 

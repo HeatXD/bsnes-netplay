@@ -55,6 +55,22 @@ SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index) {
   return index >= 0 && (size_t)index < pads.size() ? pads[index] : nullptr;
 }
 
+bool bindingActive(const Binding& binding, const bool* keys, SDL_Gamepad* pad) {
+  switch(binding.type) {
+    case Binding::Key:
+      return keys && keys[binding.code];
+    case Binding::PadButton:
+      return pad && SDL_GetGamepadButton(pad, (SDL_GamepadButton)binding.code);
+    case Binding::PadAxis: {
+      if(!pad) return false;
+      const int value = SDL_GetGamepadAxis(pad, (SDL_GamepadAxis)binding.code);
+      return binding.direction > 0 ? value > AxisThreshold : value < -AxisThreshold;
+    }
+    default:
+      return false;
+  }
+}
+
 std::string Binding::label(SDL_Gamepad* pad) const {
   switch(type) {
     case Key: {
@@ -94,12 +110,17 @@ void InputMap::loadDefaults() {
     }
   }
 
-  // a multitap's first pad is the same controller, so mirror the port defaults
-  for(int button = 0; button < EmuCore::ButtonCount; button++) {
-    for(int port = 0; port < Ports; port++) {
-      for(int slot = 0; slot < Slots; slot++) {
-        bindings[port][EmuCore::SuperMultitap][button][slot] =
-            bindings[port][EmuCore::Gamepad][button][slot];
+  // every multitap player gets the same buttons and reads its own pad; only the
+  // first inherits the keyboard, which cannot be shared four ways
+  for(int player = 0; player < EmuCore::MaxPlayers; player++) {
+    for(int button = 0; button < EmuCore::ButtonCount; button++) {
+      const int index = player * EmuCore::ButtonCount + button;
+      for(int port = 0; port < Ports; port++) {
+        bindings[port][EmuCore::SuperMultitap][index][1] =
+            bindings[port][EmuCore::Gamepad][button][1];
+        if(player > 0) continue;
+        bindings[port][EmuCore::SuperMultitap][index][0] =
+            bindings[port][EmuCore::Gamepad][button][0];
       }
     }
   }
@@ -114,32 +135,19 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
   const bool turboPhaseOff = (frame % period) >= period / 2;
 
   for(int port = 0; port < Ports; port++) {
-    SDL_Gamepad* pad = resolvePad(pads, settings.padIndex[port]);
     const int device = core.connectedDevice(port);
     if(device < 0 || device >= EmuCore::DeviceCount) continue;
     const int count = (int)core.inputs(device).size();
+    const int players = playerCount(count);
 
     for(int button = 0; button < count; button++) {
+      // a multitap's inputs are four consecutive controllers of twelve
+      const int player = players > 1 ? button / EmuCore::ButtonCount : 0;
+      SDL_Gamepad* pad = resolvePad(pads, settings.padIndex[padSlot(port, player)]);
       bool pressed = false;
 
       for(int slot = 0; slot < Slots && !pressed; slot++) {
-        const Binding& b = bindings[port][device][button][slot];
-        switch(b.type) {
-          case Binding::Key:
-            pressed = keys[b.code];
-            break;
-          case Binding::PadButton:
-            if(pad) pressed = SDL_GetGamepadButton(pad, (SDL_GamepadButton)b.code);
-            break;
-          case Binding::PadAxis:
-            if(pad) {
-              int value = SDL_GetGamepadAxis(pad, (SDL_GamepadAxis)b.code);
-              pressed = b.direction > 0 ? value > AxisThreshold : value < -AxisThreshold;
-            }
-            break;
-          default:
-            break;
-        }
+        pressed = bindingActive(bindings[port][device][button][slot], keys, pad);
       }
 
       if(pressed && device == EmuCore::Gamepad && button < EmuCore::ButtonCount

@@ -112,7 +112,7 @@ void Settings::applyKey(const std::string& key, const std::string& value) {
   if(!indexed("device", devices, EmuCore::PortCount)
   && !indexed("hotkey", hotkeys, HotkeyCount)
   && !indexed("turbo", turboMask, EmuCore::PortCount)) {
-    indexed("pad", padIndex, EmuCore::PortCount);
+    indexed("pad", padIndex, EmuCore::PortCount * EmuCore::MaxPlayers);
   }
 }
 
@@ -155,7 +155,7 @@ void Settings::save(const std::string& path) const {
   for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("device", i, devices[i]);
   for(int i = 0; i < HotkeyCount; i++) addIndexed("hotkey", i, hotkeys[i]);
   for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("turbo", i, turboMask[i]);
-  for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("pad", i, padIndex[i]);
+  for(int i = 0; i < EmuCore::PortCount * EmuCore::MaxPlayers; i++) addIndexed("pad", i, padIndex[i]);
   for(const std::string& rom : recent) add("recent", rom);
 
   writeText(path, text);

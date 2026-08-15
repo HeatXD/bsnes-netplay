@@ -65,6 +65,7 @@ struct App {
   bool showCartridge = false;
   int settingsTab = -1;
   int mapPort = 0;
+  int mapPlayer = 0;  // which of a multitap's controllers is being mapped
   int capturing = -1;      // emulator button slot being rebound
   int capturingHotkey = -1;
   int gameSelected = 0;
@@ -102,7 +103,13 @@ struct App {
   void toggleFullscreen() { SDL_SetWindowFullscreen(shell.window, !fullscreen()); }
   void openPick(FilePick& pick, const SDL_DialogFileFilter* filters, const char* dir);
   const char* gamesDirOrNull() const;
-  SDL_Gamepad* portPad(int port) const { return resolvePad(pads, settings.padIndex[port]); }
+  SDL_Gamepad* portPad(int port, int player) const {
+    return resolvePad(pads, settings.padIndex[padSlot(port, player)]);
+  }
+  // how many controllers the port's device carries; a multitap carries four
+  int portPlayers(int port) const {
+    return playerCount((int)core.inputs(core.connectedDevice(port)).size());
+  }
   // unset means a Firmware folder beside the config, as bsnes locates its own
   std::string firmwareDir() const {
     return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;

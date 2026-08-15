@@ -22,6 +22,17 @@ struct Binding {
 
 SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index);
 
+// whether a binding is held right now; keys comes from SDL_GetKeyboardState
+bool bindingActive(const Binding& binding, const bool* keys, SDL_Gamepad* pad);
+
+// a multitap reports four controllers of twelve inputs on one port
+inline int playerCount(int inputCount) {
+  const bool grouped = inputCount > EmuCore::ButtonCount
+                    && inputCount % EmuCore::ButtonCount == 0;
+  return grouped ? inputCount / EmuCore::ButtonCount : 1;
+}
+inline int padSlot(int port, int player) { return port * EmuCore::MaxPlayers + player; }
+
 // Two slots per input so a port can be driven by keyboard and pad at once.
 // Bindings are kept per device, so switching a port to a multitap and back
 // does not clobber the gamepad mapping. Which pad each port reads comes from

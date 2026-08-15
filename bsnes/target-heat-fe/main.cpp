@@ -215,6 +215,13 @@ void Frontend::handleGamepadEvent(const SDL_Event& event) {
     if(SDL_GetGamepadID(app.pads[i]) != event.gdevice.which) continue;
     SDL_CloseGamepad(app.pads[i]);
     app.pads.erase(app.pads.begin() + i);
+
+    // the erase shifts everything after it down, so a player pointing past the
+    // unplugged pad would silently start reading a different controller
+    for(int& index : app.settings.padIndex) {
+      if(index == (int)i) index = -1;
+      else if(index > (int)i) index--;
+    }
     break;
   }
 }
@@ -226,7 +233,7 @@ bool Frontend::handleRebind(const SDL_Event& event) {
 
   if(app.capturing >= 0) {
     // only the pad this port reads may bind it, so two sticks stay distinct
-    SDL_Gamepad* owner = app.portPad(app.mapPort);
+    SDL_Gamepad* owner = app.portPad(app.mapPort, app.mapPlayer);
     Binding b;
     if(escape) app.capturing = -1;
     else if(InputMap::capture(event, b, owner ? SDL_GetGamepadID(owner) : 0)) {

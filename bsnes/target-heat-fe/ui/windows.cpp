@@ -19,7 +19,7 @@ void App::drawGamepadDiagnostics() {
 
   for(size_t i = 0; i < pads.size(); i++) {
     SDL_Gamepad* pad = pads[i];
-    ImGui::Text("port %d: %04x:%04x", (int)i + 1,
+    ImGui::Text("pad %d: %04x:%04x", (int)i + 1,
                 SDL_GetGamepadVendor(pad), SDL_GetGamepadProduct(pad));
 
     std::string held;
