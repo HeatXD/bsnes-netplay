@@ -8,12 +8,22 @@ namespace { constexpr int MaxRecent = 8; }
 
 const char* const HotkeyNames[HotkeyCount] = {
   "Pause", "Reset", "Fast Forward", "Fullscreen", "Screenshot",
-  "Frame Advance", "Power Cycle", "Mute", "Quit"
+  "Frame Advance", "Power Cycle", "Mute", "Quit",
+  "Slow Down", "Speed Up"
 };
 
 const char* const DefocusNames[DefocusCount] = {
   "Pause emulation", "Block input", "Allow input"
 };
+
+const char* const OutputNames[OutputCount] = {
+  "Center (whole pixels)", "Scale (fill the window)", "Stretch (ignore aspect)"
+};
+
+const char* const SpeedNames[SpeedCount] = {"50%", "75%", "100%", "150%", "200%"};
+
+// the core is given a slowdown factor, so these are the reciprocals
+const double SpeedScales[SpeedCount] = {2.0, 4.0 / 3.0, 1.0, 2.0 / 3.0, 0.5};
 
 // One line per setting, shared by load and save, so adding one is a single edit.
 namespace {
@@ -37,16 +47,17 @@ const IntField IntFields[] = {
   {"saturation",  &Settings::videoSaturation,  0,              200},
   {"defocus",     &Settings::defocusPolicy,    0,              DefocusCount - 1},
   {"turborate",   &Settings::turboRate,        1,              30},
+  {"output",      &Settings::outputMode,       0,              OutputCount - 1},
 };
 
 const BoolField BoolFields[] = {
   {"mute",           &Settings::mute},
   {"muteunfocused",  &Settings::muteUnfocused},
   {"aspect",         &Settings::aspectCorrect},
-  {"integer",        &Settings::integerScale},
   {"linear",         &Settings::linearFilter},
   {"showstatus",     &Settings::showStatus},
   {"overscancrop",   &Settings::overscanCrop},
+  {"hiresblur",      &Settings::hiresBlur},
   {"ppufast",        &Settings::hackPpuFast},
   {"nospritelimit",  &Settings::hackPpuNoSpriteLimit},
   {"dspfast",        &Settings::hackDspFast},
@@ -77,13 +88,6 @@ void Settings::applyKey(const std::string& key, const std::string& value) {
   }
   for(const StrField& f : StrFields) {
     if(key == f.key) { this->*f.field = f.path ? normalPath(value) : value; return; }
-  }
-
-  // legacy: a bool before the three-way policy replaced it. off meant the
-  // emulator kept running with input, which is DefocusAllowInput now
-  if(key == "pauseunfocused") {
-    defocusPolicy = number ? DefocusPause : DefocusAllowInput;
-    return;
   }
 
   if(key == "recent") {

@@ -195,15 +195,21 @@ void Shell::drawGame(const Settings& settings) {
   const float videoW = 256.0f * (settings.aspectCorrect ? 8.0f / 7.0f : 1.0f);
   const float videoH = settings.overscanCrop ? 224.0f : 240.0f;
 
-  float scale;
+  float w, h;
   if(settings.windowScale > 0) {
-    scale = (float)settings.windowScale;
+    w = videoW * settings.windowScale;
+    h = videoH * settings.windowScale;
+  } else if(settings.outputMode == OutputStretch) {
+    w = availW;
+    h = availH;
   } else {
     const float fit = SDL_min(availW / videoW, availH / videoH);
-    scale = settings.integerScale ? SDL_max(1.0f, SDL_floorf(fit)) : fit;
+    // below 1x there is no whole multiple to round to, so Center scales instead
+    const float scale = settings.outputMode == OutputCenter && fit >= 1.0f
+                      ? SDL_floorf(fit) : fit;
+    w = videoW * scale;
+    h = videoH * scale;
   }
-  const float w = videoW * scale;
-  const float h = videoH * scale;
   drawWidth = (int)(w + 0.5f);
   drawHeight = (int)(h + 0.5f);
 
@@ -216,6 +222,25 @@ void Shell::drawGame(const Settings& settings) {
   const ImVec2 p1(p0.x + w, p0.y + h);
   const ImVec2 uv1((float)frameWidth / textureWidth, (float)frameHeight / textureHeight);
   ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)(intptr_t)texture, p0, p1, ImVec2(0, 0), uv1);
+}
+
+void Shell::shrinkToFit(const Settings& settings) {
+  if(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) return;
+  SDL_RestoreWindow(window);  // a maximized window ignores a resize
+
+  const ImGuiViewport* view = ImGui::GetMainViewport();
+  // the bars sit outside the work area, so their height has to be added back
+  const float chrome = view->Size.y - view->WorkSize.y;
+  const float videoW = 256.0f * (settings.aspectCorrect ? 8.0f / 7.0f : 1.0f);
+  const float videoH = settings.overscanCrop ? 224.0f : 240.0f;
+
+  float scale = (float)settings.windowScale;
+  if(scale <= 0.0f) {
+    // no fixed scale picked, so shrink to the whole multiple already on screen
+    const float fit = SDL_min(view->WorkSize.x / videoW, view->WorkSize.y / videoH);
+    scale = SDL_max(1.0f, SDL_floorf(fit));
+  }
+  SDL_SetWindowSize(window, (int)(videoW * scale + 0.5f), (int)(videoH * scale + chrome + 0.5f));
 }
 
 namespace {

@@ -261,6 +261,10 @@ void Frontend::handleHotkey(const SDL_Event& event) {
     app.settings.save(app.settingsCfg);
   } else if(key == app.settings.hotkeys[HkQuit]) {
     app.running = false;
+  } else if(key == app.settings.hotkeys[HkSpeedDown]) {
+    app.setSpeed(app.speedIndex - 1);
+  } else if(key == app.settings.hotkeys[HkSpeedUp]) {
+    app.setSpeed(app.speedIndex + 1);
   }
 }
 
@@ -371,6 +375,7 @@ void applySettingsToCore(App& app) {
   app.core.setOverscanCrop(s.overscanCrop);
   app.core.setPaletteAdjust(s.videoGamma, s.videoLuminance, s.videoSaturation);
   app.core.setFilter(s.videoFilter);
+  app.core.setOption("Video/BlurEmulation", flag(s.hiresBlur));
 
   app.core.setOption("Hacks/PPU/Fast", flag(s.hackPpuFast));
   app.core.setOption("Hacks/PPU/NoSpriteLimit", flag(s.hackPpuNoSpriteLimit));

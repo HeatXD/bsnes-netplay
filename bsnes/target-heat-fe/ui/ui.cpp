@@ -51,6 +51,13 @@ const char* App::hotkeyShortcut(Hotkey key) const {
   return name && *name ? name : nullptr;
 }
 
+// the slow down and speed up hotkeys walk this same list
+void App::drawSpeedMenu() {
+  for(int i = 0; i < SpeedCount; i++) {
+    if(ImGui::MenuItem(SpeedNames[i], nullptr, speedIndex == i)) setSpeed(i);
+  }
+}
+
 void App::drawEmulationMenu() {
   if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause), paused, core.loaded())) paused = !paused;
   if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance), false, core.loaded())) {
@@ -60,6 +67,7 @@ void App::drawEmulationMenu() {
   if(ImGui::MenuItem("Fast Forward", hotkeyShortcut(HkFastForward), fastForward, core.loaded())) {
     toggleFastForward();
   }
+  if(ImGui::BeginMenu("Speed", core.loaded())) { drawSpeedMenu(); ImGui::EndMenu(); }
   if(ImGui::MenuItem("Mute", hotkeyShortcut(HkMute), settings.mute)) {
     settings.mute = !settings.mute;
     settings.save(settingsCfg);

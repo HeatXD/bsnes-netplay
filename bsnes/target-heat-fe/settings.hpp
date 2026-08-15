@@ -21,8 +21,10 @@ constexpr int DefaultAccent = 0x4296fa;
 // a text colour of -1 means follow the theme instead
 constexpr int FollowTheme = -1;
 
+// appended to, never reordered: the config file stores these by index
 enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot,
-             HkFrameAdvance, HkPowerCycle, HkMute, HkQuit, HotkeyCount };
+             HkFrameAdvance, HkPowerCycle, HkMute, HkQuit,
+             HkSpeedDown, HkSpeedUp, HotkeyCount };
 
 extern const char* const HotkeyNames[HotkeyCount];
 
@@ -31,6 +33,17 @@ enum Defocus { DefocusPause, DefocusBlockInput, DefocusAllowInput, DefocusCount 
 
 extern const char* const DefocusNames[DefocusCount];
 
+// how the frame fills the window, matching bsnes's own Output menu
+enum Output { OutputCenter, OutputScale, OutputStretch, OutputCount };
+
+extern const char* const OutputNames[OutputCount];
+
+// emulation speed presets
+enum Speed { SpeedHalf, SpeedSlow, SpeedNormal, SpeedFast, SpeedDouble, SpeedCount };
+
+extern const char* const SpeedNames[SpeedCount];
+extern const double SpeedScales[SpeedCount];
+
 struct Settings {
   int latencyMs = 48;
   int volume = 100;
@@ -38,11 +51,12 @@ struct Settings {
   bool muteUnfocused = false;
   std::string audioDevice;  // empty means the system default
   bool aspectCorrect = true;
-  bool integerScale = false;  // default is a fractional fit that fills the window
+  int outputMode = OutputScale;
   // bsnes ships the "Blur" shader on by default, which is just GL_LINEAR
   bool linearFilter = true;
   int windowScale = 0;  // 0 = fit to window
   bool overscanCrop = true;
+  bool hiresBlur = false;
   int videoGamma = 150;       // percent; bsnes's own default and range (100-200)
   int videoLuminance = 100;   // percent, 0-100
   int videoSaturation = 100;  // percent, 0-200

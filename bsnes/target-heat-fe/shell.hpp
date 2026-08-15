@@ -55,6 +55,7 @@ struct Shell {
     drawWidth = drawHeight = 0;
   }
   void drawGame(const Settings& settings);
+  void shrinkToFit(const Settings& settings);
   bool saveFrame(const std::string& path) const;
   bool saveWindow(const std::string& path) const;
 };

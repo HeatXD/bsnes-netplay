@@ -54,6 +54,8 @@ struct App {
   int capturing = -1;      // emulator button slot being rebound
   int capturingHotkey = -1;
   int gameSelected = 0;
+  // not persisted: bsnes drops back to normal speed for every game loaded
+  int speedIndex = SpeedNormal;
   double fps = 0.0;
   long long totalSamples = 0;
   long long emulatedFrames = 0;  // turbo's clock; must not depend on wall time
@@ -61,7 +63,16 @@ struct App {
   void scanGames();
   bool loadRom(const std::string& path);
   void unloadRom();
-  void applySpeed() { core.setSpeedScale(fastForward ? 1.0 / settings.fastForwardSpeed : 1.0); }
+  void applySpeed() {
+    double scale = SpeedScales[speedIndex];
+    if(fastForward) scale /= settings.fastForwardSpeed;
+    core.setSpeedScale(scale);
+  }
+  void setSpeed(int index) {
+    speedIndex = SDL_clamp(index, 0, SpeedCount - 1);
+    applySpeed();
+    showMessage(std::string("speed ") + SpeedNames[speedIndex]);
+  }
   void toggleFastForward() { fastForward = !fastForward; applySpeed(); }
   void reset() { core.reset(); paused = false; }
   void powerCycle() { core.power(); paused = false; }
@@ -95,6 +106,7 @@ struct App {
 
   const char* hotkeyShortcut(Hotkey key) const;
   void drawFileMenu();
+  void drawSpeedMenu();
   void drawEmulationMenu();
   void drawSettingsMenu();
   void drawMenuBar();
