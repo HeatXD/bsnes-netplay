@@ -78,12 +78,19 @@ void loadGamepadMappings() {
 }
 
 // SDL also queues an ADDED event for every pad already attached at startup, so
-// opening one twice would list the same stick under two ports
+// opening one twice would list the same stick under two slots
 void addPad(App& app, SDL_JoystickID id) {
   for(SDL_Gamepad* pad : app.pads) {
-    if(SDL_GetGamepadID(pad) == id) return;
+    if(pad && SDL_GetGamepadID(pad) == id) return;
   }
-  if(SDL_Gamepad* pad = SDL_OpenGamepad(id)) app.pads.push_back(pad);
+  SDL_Gamepad* opened = SDL_OpenGamepad(id);
+  if(!opened) return;
+
+  // reuse a slot left by an unplugged pad before growing the list
+  for(SDL_Gamepad*& slot : app.pads) {
+    if(!slot) { slot = opened; return; }
+  }
+  app.pads.push_back(opened);
 }
 
 void openGamepads(App& app) {
@@ -211,17 +218,12 @@ void Frontend::handleGamepadEvent(const SDL_Event& event) {
   }
   if(event.type != SDL_EVENT_GAMEPAD_REMOVED) return;
 
-  for(size_t i = 0; i < app.pads.size(); i++) {
-    if(SDL_GetGamepadID(app.pads[i]) != event.gdevice.which) continue;
-    SDL_CloseGamepad(app.pads[i]);
-    app.pads.erase(app.pads.begin() + i);
-
-    // the erase shifts everything after it down, so a player pointing past the
-    // unplugged pad would silently start reading a different controller
-    for(int& index : app.settings.padIndex) {
-      if(index == (int)i) index = -1;
-      else if(index > (int)i) index--;
-    }
+  // the slot is emptied rather than erased, so unplugging one pad never
+  // renumbers the others out from under whoever picked them
+  for(SDL_Gamepad*& pad : app.pads) {
+    if(!pad || SDL_GetGamepadID(pad) != event.gdevice.which) continue;
+    SDL_CloseGamepad(pad);
+    pad = nullptr;
     break;
   }
 }
@@ -475,7 +477,7 @@ void openRequestedPanel(App& app, const Options& opt) {
 
 void shutdownApp(App& app) {
   shutdownImGui();
-  for(SDL_Gamepad* pad : app.pads) SDL_CloseGamepad(pad);
+  for(SDL_Gamepad* pad : app.pads) if(pad) SDL_CloseGamepad(pad);
   app.core.unload();
   app.shell.shutdown();
 }

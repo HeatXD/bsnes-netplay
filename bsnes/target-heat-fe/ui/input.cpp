@@ -102,9 +102,11 @@ void App::drawControllerPicker() {
   auto padName = [](void* data, int index) -> const char* {
     if(index == 0) return "None";
     const auto& pads = *(const std::vector<SDL_Gamepad*>*)data;
-    const char* name = SDL_GetGamepadName(pads[index - 1]);
+    SDL_Gamepad* pad = pads[index - 1];
+    const char* name = pad ? SDL_GetGamepadName(pad) : nullptr;
     static char label[128];
-    SDL_snprintf(label, sizeof(label), "%d: %s", index, name ? name : "unnamed");
+    SDL_snprintf(label, sizeof(label), "%d: %s", index,
+                 pad ? (name ? name : "unnamed") : "(disconnected)");
     return label;
   };
 
@@ -167,5 +169,7 @@ void App::drawInputTab() {
     settings.save(settingsCfg);
   }
   ImGui::SameLine();
-  ImGui::Text("%d gamepad(s)", (int)pads.size());
+  int connected = 0;
+  for(SDL_Gamepad* pad : pads) connected += pad != nullptr;
+  ImGui::Text("%d gamepad(s)", connected);
 }

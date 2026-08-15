@@ -19,6 +19,7 @@ void App::drawGamepadDiagnostics() {
 
   for(size_t i = 0; i < pads.size(); i++) {
     SDL_Gamepad* pad = pads[i];
+    if(!pad) { ImGui::Text("pad %d: empty", (int)i + 1); continue; }
     ImGui::Text("pad %d: %04x:%04x", (int)i + 1,
                 SDL_GetGamepadVendor(pad), SDL_GetGamepadProduct(pad));
 
