@@ -64,7 +64,8 @@ jobs:
         sudo apt-get update -y -qq
         sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
           libxi-dev libxfixes-dev libxss-dev libwayland-dev libxkbcommon-dev \
-          libegl1-mesa-dev libgl1-mesa-dev libasound2-dev libpulse-dev libudev-dev
+          libegl1-mesa-dev libgl1-mesa-dev libasound2-dev libpulse-dev libudev-dev \
+          libdbus-1-dev
     - name: Make
       run: make -j4 -C bsnes target=heat-fe
     - name: Upload
