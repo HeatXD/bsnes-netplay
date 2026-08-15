@@ -6,6 +6,26 @@ void push(App& app, const char* key, bool value) {
 }
 }
 
+void App::restoreEnhancementDefaults() {
+  const Settings defaults;
+  settings.hackPpuFast = defaults.hackPpuFast;
+  settings.hackPpuNoSpriteLimit = defaults.hackPpuNoSpriteLimit;
+  settings.hackMode7Scale = defaults.hackMode7Scale;
+  settings.hackDspFast = defaults.hackDspFast;
+  settings.hackDspCubic = defaults.hackDspCubic;
+  settings.hackCoprocessorDelayedSync = defaults.hackCoprocessorDelayedSync;
+  settings.hackCoprocessorPreferHLE = defaults.hackCoprocessorPreferHLE;
+  settings.hackHotfixes = defaults.hackHotfixes;
+  push(*this, "Hacks/PPU/Fast", settings.hackPpuFast);
+  push(*this, "Hacks/PPU/NoSpriteLimit", settings.hackPpuNoSpriteLimit);
+  core.setOption("Hacks/PPU/Mode7/Scale", std::to_string(settings.hackMode7Scale));
+  push(*this, "Hacks/DSP/Fast", settings.hackDspFast);
+  push(*this, "Hacks/DSP/Cubic", settings.hackDspCubic);
+  push(*this, "Hacks/Coprocessor/DelayedSync", settings.hackCoprocessorDelayedSync);
+  push(*this, "Hacks/Coprocessor/PreferHLE", settings.hackCoprocessorPreferHLE);
+  push(*this, "Frontend/Hotfixes", settings.hackHotfixes);
+}
+
 void App::drawEnhancementsTab() {
   ImGui::TextDisabled("PPU (video)");
   if(ImGui::Checkbox("Fast mode##ppu", &settings.hackPpuFast)) push(*this, "Hacks/PPU/Fast", settings.hackPpuFast);
@@ -42,5 +62,11 @@ void App::drawEnhancementsTab() {
   const std::string hotfix = core.activeHotfix();
   if(!hotfix.empty()) {
     ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "Active: %s", hotfix.c_str());
+  }
+
+  ImGui::Separator();
+  if(ImGui::Button("Restore defaults##enhancements")) {
+    restoreEnhancementDefaults();
+    settings.save(settingsCfg);
   }
 }

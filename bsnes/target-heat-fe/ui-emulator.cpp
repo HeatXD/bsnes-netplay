@@ -1,5 +1,13 @@
 #include "ui.hpp"
 
+void App::restoreEmulatorDefaults() {
+  const Settings defaults;
+  settings.defocusPolicy = defaults.defocusPolicy;
+  settings.fastForwardSpeed = defaults.fastForwardSpeed;
+  settings.showStatus = defaults.showStatus;
+  applySpeed();
+}
+
 void App::drawEmulatorTab() {
   bool dirty = false;
   dirty |= ImGui::Combo("When window is unfocused", &settings.defocusPolicy,
@@ -11,5 +19,11 @@ void App::drawEmulatorTab() {
   ImGui::TextWrapped("Save RAM goes to the saves folder set under Paths, or next to the ROM"
                      " when that is unset. Game Boy titles run only through Super Game Boy,"
                      " which needs the SGB BIOS cartridge.");
+
+  ImGui::Separator();
+  if(ImGui::Button("Restore defaults##emulator")) {
+    restoreEmulatorDefaults();
+    dirty = true;
+  }
   if(dirty) settings.save(settingsCfg);
 }

@@ -1,5 +1,16 @@
 #include "ui.hpp"
 
+// all three default to empty, so the games folder goes too
+void App::restorePathDefaults() {
+  const Settings defaults;
+  settings.gamesDir = defaults.gamesDir;
+  settings.shotsDir = defaults.shotsDir;
+  settings.savesDir = defaults.savesDir;
+  core.setSavesDirectory(settings.savesDir);
+  scanGames();
+  gameSelected = 0;
+}
+
 void App::drawPathsTab() {
   ImGui::TextUnformatted("Games folder");
   ImGui::TextWrapped("%s", settings.gamesDir.empty() ? "(not set)" : settings.gamesDir.c_str());
@@ -36,5 +47,11 @@ void App::drawPathsTab() {
       input.save(std::string(base) + "input.cfg");
       showMessage("portable config written, restart to use it");
     }
+  }
+
+  ImGui::Separator();
+  if(ImGui::Button("Restore defaults##paths")) {
+    restorePathDefaults();
+    settings.save(settingsCfg);
   }
 }

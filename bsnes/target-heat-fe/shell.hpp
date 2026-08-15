@@ -26,6 +26,9 @@ struct Shell {
   const uint32_t* lastPixels = nullptr;
   int frameWidth = 0;
   int frameHeight = 0;
+  // the on-screen rectangle, after scaling
+  int drawWidth = 0;
+  int drawHeight = 0;
   // grows to fit HD mode 7, whose frames outrun the filters' worst case
   int textureWidth = 0;
   int textureHeight = 0;
@@ -46,7 +49,11 @@ struct Shell {
   void pushAudio(const Settings& settings, const float* samples, int frames, bool focused);
   // playback device names, for the settings picker
   static std::vector<std::string> listPlaybackDevices();
-  void clearFrame() { lastPixels = nullptr; frameWidth = frameHeight = 0; }
+  void clearFrame() {
+    lastPixels = nullptr;
+    frameWidth = frameHeight = 0;
+    drawWidth = drawHeight = 0;
+  }
   void drawGame(const Settings& settings);
   bool saveFrame(const std::string& path) const;
   bool saveWindow(const std::string& path) const;

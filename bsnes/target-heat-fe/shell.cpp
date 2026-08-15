@@ -204,6 +204,8 @@ void Shell::drawGame(const Settings& settings) {
   }
   const float w = videoW * scale;
   const float h = videoH * scale;
+  drawWidth = (int)(w + 0.5f);
+  drawHeight = (int)(h + 0.5f);
 
   const GLint filter = settings.linearFilter ? GL_LINEAR : GL_NEAREST;
   glBindTexture(GL_TEXTURE_2D, texture);

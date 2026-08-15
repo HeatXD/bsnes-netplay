@@ -1,5 +1,11 @@
 #include "ui.hpp"
 
+void App::restoreHotkeyDefaults() {
+  const Settings defaults;
+  for(int i = 0; i < HotkeyCount; i++) settings.hotkeys[i] = defaults.hotkeys[i];
+  capturingHotkey = -1;
+}
+
 void App::drawHotkeysTab() {
   ImGui::TextUnformatted(capturingHotkey >= 0 ? "press a key, esc to cancel"
                                               : "click a hotkey to rebind it");
@@ -22,5 +28,11 @@ void App::drawHotkeysTab() {
       ImGui::PopID();
     }
     ImGui::EndTable();
+  }
+
+  ImGui::Separator();
+  if(ImGui::Button("Restore defaults##hotkeys")) {
+    restoreHotkeyDefaults();
+    settings.save(settingsCfg);
   }
 }

@@ -78,6 +78,18 @@ void App::drawDevicePicker() {
   }
 }
 
+void App::restoreInputDefaults() {
+  const Settings defaults;
+  input.loadDefaults();
+  settings.turboRate = defaults.turboRate;
+  for(int port = 0; port < EmuCore::PortCount; port++) {
+    settings.turboMask[port] = defaults.turboMask[port];
+    settings.devices[port] = defaults.devices[port];
+    core.connect(port, settings.devices[port]);
+  }
+  capturing = -1;
+}
+
 void App::drawInputTab() {
   ImGui::Combo("Port", &mapPort, "Port 1\0Port 2\0");
   drawDevicePicker();
@@ -92,9 +104,10 @@ void App::drawInputTab() {
   if(ImGui::IsItemDeactivatedAfterEdit()) settings.save(settingsCfg);
 
   ImGui::Separator();
-  if(ImGui::Button("Restore defaults")) {
-    input.loadDefaults();
+  if(ImGui::Button("Restore defaults##input")) {
+    restoreInputDefaults();
     input.save(inputCfg);
+    settings.save(settingsCfg);
   }
   ImGui::SameLine();
   ImGui::Text("%d gamepad(s)", (int)pads.size());

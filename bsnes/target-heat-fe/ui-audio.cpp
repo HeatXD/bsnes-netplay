@@ -1,5 +1,15 @@
 #include "ui.hpp"
 
+void App::restoreAudioDefaults() {
+  const Settings defaults;
+  settings.latencyMs = defaults.latencyMs;
+  settings.volume = defaults.volume;
+  settings.mute = defaults.mute;
+  settings.muteUnfocused = defaults.muteUnfocused;
+  settings.audioDevice = defaults.audioDevice;
+  shell.reopenAudio(settings);
+}
+
 void App::drawAudioTab() {
   bool dirty = false;
   // save on release only, or a drag rewrites the file every frame
@@ -40,5 +50,11 @@ void App::drawAudioTab() {
   ImGui::TextWrapped("Audio is the master clock. Latency sets the backlog the loop drains to,"
                      " which is what paces the emulator to 60.098Hz on NTSC carts and"
                      " 50.007Hz on PAL ones.");
+
+  ImGui::Separator();
+  if(ImGui::Button("Restore defaults##audio")) {
+    restoreAudioDefaults();
+    dirty = true;
+  }
   if(dirty) settings.save(settingsCfg);
 }

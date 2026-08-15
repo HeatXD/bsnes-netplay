@@ -1,5 +1,21 @@
 #include "ui.hpp"
 
+void App::restoreVideoDefaults() {
+  const Settings defaults;
+  settings.aspectCorrect = defaults.aspectCorrect;
+  settings.integerScale = defaults.integerScale;
+  settings.linearFilter = defaults.linearFilter;
+  settings.windowScale = defaults.windowScale;
+  settings.overscanCrop = defaults.overscanCrop;
+  settings.videoGamma = defaults.videoGamma;
+  settings.videoLuminance = defaults.videoLuminance;
+  settings.videoSaturation = defaults.videoSaturation;
+  settings.videoFilter = defaults.videoFilter;
+  core.setOverscanCrop(settings.overscanCrop);
+  core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
+  core.setFilter(settings.videoFilter);
+}
+
 void App::drawVideoTab() {
   bool dirty = false;
   dirty |= ImGui::Checkbox("Aspect correction (8:7)", &settings.aspectCorrect);
@@ -41,6 +57,13 @@ void App::drawVideoTab() {
   }
 
   ImGui::Separator();
-  ImGui::Text("Output: %d x %d", shell.frameWidth, shell.frameHeight);
+  ImGui::Text("Console output: %d x %d", shell.frameWidth, shell.frameHeight);
+  ImGui::Text("Window output: %d x %d", shell.drawWidth, shell.drawHeight);
+
+  ImGui::Separator();
+  if(ImGui::Button("Restore defaults##video")) {
+    restoreVideoDefaults();
+    dirty = true;
+  }
   if(dirty) settings.save(settingsCfg);
 }
