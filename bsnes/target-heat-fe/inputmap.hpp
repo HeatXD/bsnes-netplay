@@ -40,7 +40,7 @@ inline int livePadCount(const std::vector<SDL_Gamepad*>& pads) {
 class InputMap {
 public:
   static constexpr int Ports = EmuCore::PortCount;
-  // keyboard, pad button, and a third for the stick or any other alternative
+  // interchangeable; the defaults fill them with a key, a pad button and a stick
   static constexpr int Slots = 3;
 
   InputMap();
