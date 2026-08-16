@@ -1,6 +1,6 @@
 #pragma once
 
-#include "emucore.hpp"
+#include "emucore/emucore.hpp"
 
 #include <SDL3/SDL.h>
 

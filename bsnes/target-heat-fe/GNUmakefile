@@ -40,7 +40,8 @@ imgui.flags := -I$(imgui.path) -I$(imgui.path)/backends
 flags += $(sdl3.flags) $(imgui.flags)
 
 # filter drives the CPU video filters; lzma unpacks .7z game archives
-objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-emucore ui-inputmap
+objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap
+objects += core-main core-media core-vfs core-video core-info
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
 objects += ui-custom ui-paths ui-windows ui-cartridge
 objects += imgui imgui-draw imgui-tables imgui-widgets imgui-sdl3 imgui-opengl3
@@ -55,8 +56,14 @@ obj/ui-settings.o: $(ui)/settings.cpp
 obj/ui-shell.o: $(ui)/shell.cpp
 obj/ui-app.o: $(ui)/app.cpp
 obj/ui-draw.o: $(ui)/ui/ui.cpp
-obj/ui-emucore.o: $(ui)/emucore.cpp
 obj/ui-inputmap.o: $(ui)/inputmap.cpp
+
+obj/core-main.o: $(ui)/emucore/core.cpp
+obj/core-media.o: $(ui)/emucore/media.cpp
+obj/core-vfs.o: $(ui)/emucore/vfs.cpp
+obj/core-video.o: $(ui)/emucore/video.cpp
+obj/core-info.o: $(ui)/emucore/info.cpp
+
 obj/ui-video.o: $(ui)/ui/video.cpp
 obj/ui-audio.o: $(ui)/ui/audio.cpp
 obj/ui-input.o: $(ui)/ui/input.cpp
