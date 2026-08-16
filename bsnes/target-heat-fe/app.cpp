@@ -87,6 +87,28 @@ bool App::loadRom(const std::string& entry) {
   return true;
 }
 
+void App::pushEnhancements() {
+  core.setOption("Frontend/Hotfixes", flag(settings.hackHotfixes));
+  core.setOption("Hacks/Entropy", EntropyNames[settings.hackEntropy]);
+  core.setOption("Hacks/CPU/Overclock", std::to_string(settings.hackCpuOverclock));
+  core.setOption("Hacks/CPU/FastMath", flag(settings.hackCpuFastMath));
+  core.setOption("Hacks/PPU/Fast", flag(settings.hackPpuFast));
+  core.setOption("Hacks/PPU/Deinterlace", flag(settings.hackPpuDeinterlace));
+  core.setOption("Hacks/PPU/NoSpriteLimit", flag(settings.hackPpuNoSpriteLimit));
+  core.setOption("Hacks/PPU/NoVRAMBlocking", flag(settings.hackPpuNoVRAMBlocking));
+  core.setOption("Hacks/PPU/Mode7/Scale", std::to_string(settings.hackMode7Scale));
+  core.setOption("Hacks/PPU/Mode7/Perspective", flag(settings.hackMode7Perspective));
+  core.setOption("Hacks/PPU/Mode7/Supersample", flag(settings.hackMode7Supersample));
+  core.setOption("Hacks/PPU/Mode7/Mosaic", flag(settings.hackMode7Mosaic));
+  core.setOption("Hacks/DSP/Fast", flag(settings.hackDspFast));
+  core.setOption("Hacks/DSP/Cubic", flag(settings.hackDspCubic));
+  core.setOption("Hacks/DSP/EchoShadow", flag(settings.hackDspEchoShadow));
+  core.setOption("Hacks/Coprocessor/DelayedSync", flag(settings.hackCoprocessorDelayedSync));
+  core.setOption("Hacks/Coprocessor/PreferHLE", flag(settings.hackCoprocessorPreferHLE));
+  core.setOption("Hacks/SA1/Overclock", std::to_string(settings.hackSa1Overclock));
+  core.setOption("Hacks/SuperFX/Overclock", std::to_string(settings.hackSuperFxOverclock));
+}
+
 void App::unloadRom() {
   core.unload();
   gameTitle.clear();

@@ -168,14 +168,15 @@ void Shell::pushVideo(const uint32_t* argb, int width, int height) {
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, argb);
 }
 
-void Shell::pushAudio(const Settings& settings, const float* samples, int frames, bool focused) {
+void Shell::pushAudio(const Settings& settings, const float* samples, int frames,
+                      float gain, bool unpaced) {
   if(frames <= 0) return;
-  const bool silent = settings.mute || (settings.muteUnfocused && !focused);
-  const float gain = silent ? 0.0f : settings.volume / 100.0f;
   if(gain != audioGain) {
     audioGain = gain;
     SDL_SetAudioStreamGain(audio, gain);
   }
+  // unpaced the emulator outruns the device, so cap the backlog instead
+  if(unpaced && SDL_GetAudioStreamQueued(audio) >= paceTarget(settings)) return;
   SDL_PutAudioStreamData(audio, samples, frames * 2 * (int)sizeof(float));
 }
 
@@ -186,12 +187,10 @@ void Shell::drawGame(const Settings& settings) {
   const float availW = view->WorkSize.x, availH = view->WorkSize.y;
   if(availW <= 0.0f || availH <= 0.0f) return;
 
-  // Geometry comes from the canonical SNES frame, never from the filtered
-  // pixel count: a filter changes resolution, not the picture's shape. NTSC
-  // is 602 wide and scanlines 480 tall, and sizing off those would stretch
-  // them. NTSC pixels are not square either; 8/7 takes 256x224 out to 4:3.
-  const float videoW = 256.0f * (settings.aspectCorrect ? 8.0f / 7.0f : 1.0f);
-  const float videoH = settings.overscanCrop ? 224.0f : 240.0f;
+  // NTSC output is 602 wide and scanlines 480 tall, and sizing off those would
+  // stretch them. NTSC pixels are not square either; 8/7 takes 256x224 to 4:3.
+  const float videoW = videoWidth(settings);
+  const float videoH = videoHeight(settings);
 
   float w, h;
   if(settings.windowScale > 0) {
@@ -201,7 +200,7 @@ void Shell::drawGame(const Settings& settings) {
     w = availW;
     h = availH;
   } else {
-    const float fit = SDL_min(availW / videoW, availH / videoH);
+    const float fit = fitScale(settings, availW, availH);
     // below 1x there is no whole multiple to round to, so Center scales instead
     const float scale = settings.outputMode == OutputCenter && fit >= 1.0f
                       ? SDL_floorf(fit) : fit;
@@ -233,16 +232,25 @@ void Shell::shrinkToFit(const Settings& settings) {
   const ImGuiViewport* view = ImGui::GetMainViewport();
   // the bars sit outside the work area, so their height has to be added back
   const float chrome = view->Size.y - view->WorkSize.y;
-  const float videoW = 256.0f * (settings.aspectCorrect ? 8.0f / 7.0f : 1.0f);
-  const float videoH = settings.overscanCrop ? 224.0f : 240.0f;
+  const float videoW = videoWidth(settings);
+  const float videoH = videoHeight(settings);
 
   float scale = (float)settings.windowScale;
   if(scale <= 0.0f) {
     // no fixed scale picked, so shrink to the whole multiple already on screen
-    const float fit = SDL_min(view->WorkSize.x / videoW, view->WorkSize.y / videoH);
-    scale = SDL_max(1.0f, SDL_floorf(fit));
+    scale = SDL_max(1.0f, SDL_floorf(fitScale(settings, view->WorkSize.x, view->WorkSize.y)));
   }
   SDL_SetWindowSize(window, (int)(videoW * scale + 0.5f), (int)(videoH * scale + chrome + 0.5f));
+}
+
+// the window shrinkToFit would build, measured against the display it sits on
+int Shell::maxScale(const Settings& settings) const {
+  const ImGuiViewport* view = ImGui::GetMainViewport();
+  const float chrome = view->Size.y - view->WorkSize.y;
+  SDL_Rect usable{};
+  SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(window), &usable);
+
+  return SDL_clamp((int)fitScale(settings, (float)usable.w, usable.h - chrome), 1, MaxWindowScale);
 }
 
 namespace {

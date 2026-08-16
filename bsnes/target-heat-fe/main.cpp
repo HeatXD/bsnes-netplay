@@ -137,7 +137,7 @@ void Frontend::renderUi() {
   int w = 0, h = 0;
   SDL_GetWindowSizeInPixels(app.shell.window, &w, &h);
   glViewport(0, 0, w, h);
-  glClearColor(0.08f, 0.08f, 0.09f, 1.0f);
+  glClearColor(0.f, 0.f, 0.f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
@@ -199,7 +199,7 @@ bool Frontend::stepFrame() {
   // a second wall-clock path would stack frames and run the game fast. Waiting
   // after the present means the next poll sees fresh events rather than ones
   // that went stale during the wait.
-  if(!stopped && !opt.fast) app.shell.pace(app.settings);
+  if(!stopped && !opt.fast && !app.unpaced()) app.shell.pace(app.settings);
 
   inFrame = false;
   return stopped;
@@ -209,6 +209,7 @@ void Frontend::handleWindowEvent(const SDL_Event& event) {
   if(event.type == SDL_EVENT_QUIT) app.running = false;
   if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED
   && event.window.windowID == SDL_GetWindowID(app.shell.window)) app.running = false;
+  if(event.type == SDL_EVENT_DROP_FILE && event.drop.data) app.loadRom(event.drop.data);
 }
 
 void Frontend::handleGamepadEvent(const SDL_Event& event) {
@@ -423,8 +424,6 @@ int Frontend::runUiShot() {
 // defaults until the matching tab happens to be opened.
 void applySettingsToCore(App& app) {
   const Settings& s = app.settings;
-  auto flag = [](bool on) { return on ? "true" : "false"; };
-  char number[16];
 
   app.core.setSavesDirectory(s.savesDir);
   app.core.setFirmwareDirectory(app.firmwareDir());
@@ -432,16 +431,7 @@ void applySettingsToCore(App& app) {
   app.core.setPaletteAdjust(s.videoGamma, s.videoLuminance, s.videoSaturation);
   app.core.setFilter(s.videoFilter);
   app.core.setOption("Video/BlurEmulation", flag(s.hiresBlur));
-
-  app.core.setOption("Hacks/PPU/Fast", flag(s.hackPpuFast));
-  app.core.setOption("Hacks/PPU/NoSpriteLimit", flag(s.hackPpuNoSpriteLimit));
-  SDL_itoa(s.hackMode7Scale, number, 10);
-  app.core.setOption("Hacks/PPU/Mode7/Scale", number);
-  app.core.setOption("Hacks/DSP/Fast", flag(s.hackDspFast));
-  app.core.setOption("Hacks/DSP/Cubic", flag(s.hackDspCubic));
-  app.core.setOption("Hacks/Coprocessor/DelayedSync", flag(s.hackCoprocessorDelayedSync));
-  app.core.setOption("Hacks/Coprocessor/PreferHLE", flag(s.hackCoprocessorPreferHLE));
-  app.core.setOption("Frontend/Hotfixes", flag(s.hackHotfixes));
+  app.pushEnhancements();
 }
 
 void loadConfigs(App& app) {
@@ -462,7 +452,7 @@ void wireCore(App& app) {
     app.shell.pushVideo(argb, width, height);
   };
   app.core.onAudio = [&app](const float* samples, int frames) {
-    app.shell.pushAudio(app.settings, samples, frames, app.focused());
+    app.shell.pushAudio(app.settings, samples, frames, app.audioGain(), app.unpaced());
     app.totalSamples += frames;
   };
 }

@@ -13,7 +13,7 @@ void App::restoreVideoDefaults() {
   settings.videoSaturation = defaults.videoSaturation;
   settings.videoFilter = defaults.videoFilter;
   core.setOverscanCrop(settings.overscanCrop);
-  core.setOption("Video/BlurEmulation", settings.hiresBlur ? "true" : "false");
+  core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
   core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
   core.setFilter(settings.videoFilter);
 }
@@ -24,8 +24,14 @@ void App::drawVideoTab() {
   dirty |= ImGui::Checkbox("Linear filtering (smooths fractional scales)", &settings.linearFilter);
   dirty |= ImGui::Combo("Output", &settings.outputMode, OutputNames, OutputCount);
 
-  static const char* scales[] = {"Fit window", "1x", "2x", "3x", "4x", "5x"};
-  dirty |= ImGui::Combo("Window scale", &settings.windowScale, scales, IM_ARRAYSIZE(scales));
+  if(ImGui::BeginCombo("Window scale",
+                       windowScaleLabel(settings.windowScale, settings).c_str())) {
+    for(int scale = 0; scale <= shell.maxScale(settings); scale++) {
+      const std::string label = windowScaleLabel(scale, settings);
+      if(ImGui::Selectable(label.c_str(), settings.windowScale == scale)) setWindowScale(scale);
+    }
+    ImGui::EndCombo();
+  }
   if(ImGui::Button("Shrink window to size")) shell.shrinkToFit(settings);
 
   ImGui::Separator();
@@ -34,12 +40,12 @@ void App::drawVideoTab() {
     dirty = true;
   }
   if(ImGui::Checkbox("Hires blur emulation (blends 512-wide modes)", &settings.hiresBlur)) {
-    core.setOption("Video/BlurEmulation", settings.hiresBlur ? "true" : "false");
+    core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
     dirty = true;
   }
 
   ImGui::Separator();
-  ImGui::TextUnformatted("Color Adjustment");
+  ImGui::TextDisabled("Color Adjustment");
   bool paletteDirty = false;
   paletteDirty |= ImGui::SliderInt("Gamma", &settings.videoGamma, 100, 200, "%d%%");
   paletteDirty |= ImGui::SliderInt("Luminance", &settings.videoLuminance, 0, 100, "%d%%");

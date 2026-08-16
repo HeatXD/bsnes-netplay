@@ -17,6 +17,18 @@ constexpr const char* GlslVersion = "#version 130";
 
 constexpr int AudioRate = 48000;
 
+// the canonical frame all geometry uses: a filter changes resolution, not shape
+inline float videoWidth(const Settings& settings) {
+  return 256.0f * (settings.aspectCorrect ? 8.0f / 7.0f : 1.0f);
+}
+inline float videoHeight(const Settings& settings) {
+  return settings.overscanCrop ? 224.0f : 240.0f;
+}
+// how many times the frame fits in a box, whichever axis runs out first
+inline float fitScale(const Settings& settings, float availWidth, float availHeight) {
+  return SDL_min(availWidth / videoWidth(settings), availHeight / videoHeight(settings));
+}
+
 struct Shell {
   SDL_Window* window = nullptr;
   SDL_GLContext gl = nullptr;
@@ -47,7 +59,9 @@ struct Shell {
   int displayFrameMs() const;
   void pace(const Settings& settings);
   void pushVideo(const uint32_t* argb, int width, int height);
-  void pushAudio(const Settings& settings, const float* samples, int frames, bool focused);
+  // unpaced means no audio clock, so a full backlog is dropped rather than queued
+  void pushAudio(const Settings& settings, const float* samples, int frames,
+                 float gain, bool unpaced);
   // playback device names, for the settings picker
   static std::vector<std::string> listPlaybackDevices();
   void clearFrame() {
@@ -57,6 +71,8 @@ struct Shell {
   }
   void drawGame(const Settings& settings);
   void shrinkToFit(const Settings& settings);
+  // largest whole multiple whose window still fits the display, chrome included
+  int maxScale(const Settings& settings) const;
   bool saveFrame(const std::string& path) const;
   bool saveWindow(const std::string& path) const;
 };

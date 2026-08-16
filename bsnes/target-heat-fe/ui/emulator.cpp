@@ -4,7 +4,11 @@ void App::restoreEmulatorDefaults() {
   const Settings defaults;
   settings.defocusPolicy = defaults.defocusPolicy;
   settings.fastForwardSpeed = defaults.fastForwardSpeed;
+  settings.fastForwardUnlimited = defaults.fastForwardUnlimited;
+  settings.fastForwardFrameSkip = defaults.fastForwardFrameSkip;
+  settings.fastForwardMute = defaults.fastForwardMute;
   settings.showStatus = defaults.showStatus;
+  settings.showToolTips = defaults.showToolTips;
   applySpeed();
 }
 
@@ -12,9 +16,30 @@ void App::drawEmulatorTab() {
   bool dirty = false;
   dirty |= ImGui::Combo("When window is unfocused", &settings.defocusPolicy,
                         DefocusNames, DefocusCount);
-  if(ImGui::SliderInt("Fast forward speed", &settings.fastForwardSpeed, 2, 16, "%dx")) applySpeed();
+
+  ImGui::Spacing();
+  ImGui::TextDisabled("Fast Forward");
+  ImGui::BeginDisabled(settings.fastForwardUnlimited);
+  if(ImGui::SliderInt("Limiter", &settings.fastForwardSpeed, 2, 16, "%dx")) applySpeed();
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  ImGui::EndDisabled();
+  tip("The top speed fast forward runs at.");
+  if(ImGui::Checkbox("Unlimited (as fast as the machine allows)",
+                     &settings.fastForwardUnlimited)) {
+    applySpeed();
+    dirty = true;
+  }
+  if(ImGui::SliderInt("Frame skip", &settings.fastForwardFrameSkip, 0, 9, "%d frames")) {
+    applySpeed();
+  }
+  dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  tip("Skipping frames raises the top fast forward rate; needs the fast PPU.");
+  dirty |= ImGui::Checkbox("Mute while fast forwarding", &settings.fastForwardMute);
+
+  ImGui::Spacing();
+  ImGui::TextDisabled("Interface");
   dirty |= ImGui::Checkbox("Show status bar", &settings.showStatus);
+  dirty |= ImGui::Checkbox("Show tool tips", &settings.showToolTips);
   ImGui::Separator();
   ImGui::TextWrapped("Save RAM goes to the saves folder under Paths, or next to the ROM.");
 

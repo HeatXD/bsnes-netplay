@@ -20,6 +20,8 @@ const char* const OutputNames[OutputCount] = {
   "Center (whole pixels)", "Scale (fill the window)", "Stretch (ignore aspect)"
 };
 
+const char* const EntropyNames[EntropyCount] = {"None", "Low", "High"};
+
 const char* const SpeedNames[SpeedCount] = {"50%", "75%", "100%", "150%", "200%"};
 
 // the core is given a slowdown factor, so these are the reciprocals
@@ -34,9 +36,14 @@ struct StrField { const char* key; std::string Settings::* field; bool path; };
 const IntField IntFields[] = {
   {"latency",     &Settings::latencyMs,        MinLatencyMs,   MaxLatencyMs},
   {"volume",      &Settings::volume,           0,              200},
-  {"windowscale", &Settings::windowScale,      0,              5},
+  {"windowscale", &Settings::windowScale,      0,              MaxWindowScale},
   {"ffspeed",     &Settings::fastForwardSpeed, 2,              16},
+  {"ffframeskip", &Settings::fastForwardFrameSkip, 0,          9},
   {"mode7scale",  &Settings::hackMode7Scale,   1,              8},
+  {"entropy",     &Settings::hackEntropy,      0,              EntropyCount - 1},
+  {"cpuoverclock",   &Settings::hackCpuOverclock,    100,      400},
+  {"sa1overclock",   &Settings::hackSa1Overclock,    100,      400},
+  {"superfxoverclock", &Settings::hackSuperFxOverclock, 100,   800},
   {"theme",       &Settings::theme,            0,              2},
   {"accent",      &Settings::accent,           0,              0xffffff},
   {"textcolor",   &Settings::textColor,        FollowTheme,    0xffffff},
@@ -59,12 +66,22 @@ const BoolField BoolFields[] = {
   {"overscancrop",   &Settings::overscanCrop},
   {"hiresblur",      &Settings::hiresBlur},
   {"ppufast",        &Settings::hackPpuFast},
+  {"deinterlace",    &Settings::hackPpuDeinterlace},
   {"nospritelimit",  &Settings::hackPpuNoSpriteLimit},
+  {"novramblocking", &Settings::hackPpuNoVRAMBlocking},
+  {"mode7perspective", &Settings::hackMode7Perspective},
+  {"mode7supersample", &Settings::hackMode7Supersample},
+  {"mode7mosaic",    &Settings::hackMode7Mosaic},
   {"dspfast",        &Settings::hackDspFast},
   {"dspcubic",       &Settings::hackDspCubic},
+  {"echoshadow",     &Settings::hackDspEchoShadow},
   {"delayedsync",    &Settings::hackCoprocessorDelayedSync},
   {"preferhle",      &Settings::hackCoprocessorPreferHLE},
   {"hotfixes",       &Settings::hackHotfixes},
+  {"fastmath",       &Settings::hackCpuFastMath},
+  {"ffunlimited",    &Settings::fastForwardUnlimited},
+  {"ffmute",         &Settings::fastForwardMute},
+  {"tooltips",       &Settings::showToolTips},
 };
 
 const StrField StrFields[] = {

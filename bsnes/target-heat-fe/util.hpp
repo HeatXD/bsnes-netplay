@@ -19,6 +19,9 @@ std::string pakPath(const std::string& dir);
 std::pair<std::string, std::string> splitPair(const std::string& entry);
 std::string recentLabel(const std::string& entry);
 
+// the core takes its option values as text
+inline const char* flag(bool on) { return on ? "true" : "false"; }
+
 bool isRom(const char* name);
 const char* romFilterPattern();
 

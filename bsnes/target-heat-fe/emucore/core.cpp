@@ -69,6 +69,10 @@ auto EmuCore::Impl::applyHacks() -> void {
   emulator->configure("Hacks/DSP/Cubic", hacks.dspCubic);
   emulator->configure("Hacks/Coprocessor/DelayedSync", hacks.coprocessorDelayedSync);
   emulator->configure("Hacks/Coprocessor/PreferHLE", hacks.coprocessorPreferHLE);
+
+  // a hotfix can take fast mode away, so the frame skip has to follow it here
+  ppuFastActive = ppuFast;
+  emulator->setFrameSkip(ppuFast ? frameSkip : 0);
 }
 
 // the core calls this once per resampled sample, ~800 times a frame; runFrame
@@ -120,6 +124,10 @@ void EmuCore::setFirmwareDirectory(const std::string& dir) { impl->firmwareDir =
 
 void EmuCore::setAudioFrequency(double hz) { Emulator::audio.setFrequency(hz); }
 void EmuCore::setSpeedScale(double scale) { Emulator::audio.setSpeedScale(scale); }
+void EmuCore::setFrameSkip(int frames) {
+  impl->frameSkip = frames < 0 ? 0 : frames;
+  impl->emulator->setFrameSkip(impl->ppuFastActive ? impl->frameSkip : 0);
+}
 
 void EmuCore::setInput(int port, int index, int16_t value) {
   if(port < 0 || port >= PortCount) return;

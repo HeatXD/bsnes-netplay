@@ -16,6 +16,7 @@ constexpr int DefaultFontSize = 13;
 constexpr int MinFontWeight = 50;
 constexpr int MaxFontWeight = 500;
 constexpr int DefaultFontWeight = 100;
+constexpr int MaxWindowScale = 9;
 // imgui's own dark-theme blue, packed as 0xRRGGBB
 constexpr int DefaultAccent = 0x4296fa;
 // a text colour of -1 means follow the theme instead
@@ -37,6 +38,12 @@ extern const char* const DefocusNames[DefocusCount];
 enum Output { OutputCenter, OutputScale, OutputStretch, OutputCount };
 
 extern const char* const OutputNames[OutputCount];
+
+// memory and register randomization at startup
+enum Entropy { EntropyNone, EntropyLow, EntropyHigh, EntropyCount };
+
+// these are the core's own "Hacks/Entropy" values, not just combo labels
+extern const char* const EntropyNames[EntropyCount];
 
 // emulation speed presets
 enum Speed { SpeedHalf, SpeedSlow, SpeedNormal, SpeedFast, SpeedDouble, SpeedCount };
@@ -63,15 +70,30 @@ struct Settings {
   std::string videoFilter = "None";
   int defocusPolicy = DefocusPause;
   int fastForwardSpeed = 4;
+  bool fastForwardUnlimited = false;
+  int fastForwardFrameSkip = 9;
+  bool fastForwardMute = false;
   bool hackPpuFast = true;
+  bool hackPpuDeinterlace = true;
   bool hackPpuNoSpriteLimit = false;
+  bool hackPpuNoVRAMBlocking = false;
   int hackMode7Scale = 1;
+  bool hackMode7Perspective = true;
+  bool hackMode7Supersample = false;
+  bool hackMode7Mosaic = true;
   bool hackDspFast = true;
   bool hackDspCubic = false;
+  bool hackDspEchoShadow = false;
   bool hackCoprocessorDelayedSync = true;
   bool hackCoprocessorPreferHLE = false;
   bool hackHotfixes = true;
+  int hackEntropy = EntropyLow;
+  bool hackCpuFastMath = false;
+  int hackCpuOverclock = 100;      // percent
+  int hackSa1Overclock = 100;
+  int hackSuperFxOverclock = 100;
   bool showStatus = true;
+  bool showToolTips = true;
   int theme = 0;  // 0 dark, 1 light, 2 classic
   int accent = DefaultAccent;
   int textColor = FollowTheme;

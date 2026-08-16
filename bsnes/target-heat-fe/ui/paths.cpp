@@ -17,7 +17,7 @@ void App::restorePathDefaults() {
 }
 
 void App::drawPathsTab() {
-  ImGui::TextUnformatted("Games folder");
+  ImGui::TextDisabled("Games folder");
   ImGui::TextWrapped("%s", settings.gamesDir.empty() ? "(not set)" : settings.gamesDir.c_str());
   if(ImGui::Button("Browse##games")) openFolderDialog(dirPick);
   ImGui::SameLine();
@@ -26,12 +26,12 @@ void App::drawPathsTab() {
   ImGui::Text("%d games", (int)games.size());
 
   ImGui::Separator();
-  ImGui::TextUnformatted("Screenshots folder");
+  ImGui::TextDisabled("Screenshots folder");
   ImGui::TextWrapped("%s", settings.shotsDir.empty() ? "(config folder)" : settings.shotsDir.c_str());
   if(ImGui::Button("Browse##shots")) openFolderDialog(shotDirPick);
 
   ImGui::Separator();
-  ImGui::TextUnformatted("Saves folder");
+  ImGui::TextDisabled("Saves folder");
   ImGui::TextWrapped("%s", settings.savesDir.empty() ? "(next to the ROM)" : settings.savesDir.c_str());
   if(ImGui::Button("Browse##saves")) openFolderDialog(savesDirPick);
   ImGui::SameLine();
@@ -42,7 +42,7 @@ void App::drawPathsTab() {
   }
 
   ImGui::Separator();
-  ImGui::TextUnformatted("Firmware folder");
+  ImGui::TextDisabled("Firmware folder");
   ImGui::TextWrapped("%s", firmwareDir().c_str());
   ImGui::TextWrapped("Holds dsp1b.program.rom and the like, for dumps that omit it.");
   if(ImGui::Button("Browse##firmware")) openFolderDialog(firmwareDirPick);
@@ -54,7 +54,7 @@ void App::drawPathsTab() {
   }
 
   ImGui::Separator();
-  ImGui::TextUnformatted("Base cartridges");
+  ImGui::TextDisabled("Base cartridges");
   ImGui::TextWrapped("Game Boy, BS-X and Sufami Turbo games run inside one of these.");
   for(const BiosSlot& slot : BiosSlots) {
     std::string& path = settings.*slot.path;

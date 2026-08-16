@@ -106,6 +106,8 @@ public:
   void setAudioFrequency(double hz);
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
   void setSpeedScale(double scale);
+  // frames to drop between rendered ones; only the fast PPU honours it
+  void setFrameSkip(int frames);
   void setInput(int port, int index, int16_t value);
 
   // video: overscan crop, palette adjustment (percentages match bsnes's own

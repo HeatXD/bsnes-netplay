@@ -17,7 +17,7 @@ bool App::drawColourSection() {
   }
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   ImGui::SameLine();
-  ImGui::TextUnformatted("buttons, tabs, sliders and selections");
+  ImGui::TextDisabled("buttons, tabs, sliders and selections");
 
   bool follow = settings.textColor == FollowTheme;
   if(ImGui::Checkbox("Text colour follows theme", &follow)) {
@@ -41,7 +41,7 @@ bool App::drawColourSection() {
 bool App::drawFontSection() {
   bool dirty = false;
 
-  ImGui::TextUnformatted("Font");
+  ImGui::TextDisabled("Font");
   ImGui::TextWrapped("%s", settings.fontPath.empty() ? "(built-in)" : settings.fontPath.c_str());
   if(ImGui::Button("Browse##font")) openFontDialog();
   ImGui::SameLine();

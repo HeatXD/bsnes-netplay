@@ -69,6 +69,9 @@ struct EmuCore::Impl : Emulator::Platform {
     bool hotfixes = true;
   } hacks;
   string activeHotfix;
+  // frame skip as asked for, and whether the PPU that honours it is really on
+  int frameSkip = 0;
+  bool ppuFastActive = true;
 
   std::string savesDir;     // frontend override; empty means next to the ROM
   std::string firmwareDir;

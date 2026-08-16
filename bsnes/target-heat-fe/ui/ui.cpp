@@ -20,6 +20,7 @@ const struct { const char* name; void (App::*draw)(); } SettingsTabs[] = {
   {"Hotkeys",       &App::drawHotkeysTab},
   {"Emulator",      &App::drawEmulatorTab},
   {"Enhancements",  &App::drawEnhancementsTab},
+  {"Compatibility", &App::drawCompatibilityTab},
   {"Customization", &App::drawCustomizationTab},
   {"Paths",         &App::drawPathsTab},
 };
@@ -50,6 +51,30 @@ void App::drawFileMenu() {
 const char* App::hotkeyShortcut(Hotkey key) const {
   const char* name = SDL_GetScancodeName((SDL_Scancode)settings.hotkeys[key]);
   return name && *name ? name : nullptr;
+}
+
+void App::setWindowScale(int scale) {
+  settings.windowScale = SDL_clamp(scale, 0, MaxWindowScale);
+  settings.save(settingsCfg);
+  shell.shrinkToFit(settings);
+}
+
+std::string windowScaleLabel(int scale, const Settings& settings) {
+  if(scale <= 0) return "Fit window";
+  char label[24];
+  SDL_snprintf(label, sizeof(label), "%dx (%dp)", scale, (int)videoHeight(settings) * scale);
+  return label;
+}
+
+void App::drawWindowSizeMenu() {
+  for(int scale = 0; scale <= shell.maxScale(settings); scale++) {
+    const std::string label = windowScaleLabel(scale, settings);
+    if(ImGui::MenuItem(label.c_str(), nullptr, settings.windowScale == scale)) {
+      setWindowScale(scale);
+    }
+  }
+  ImGui::Separator();
+  if(ImGui::MenuItem("Shrink window to size")) shell.shrinkToFit(settings);
 }
 
 // the slow down and speed up hotkeys walk this same list
@@ -83,6 +108,7 @@ void App::drawSettingsMenu() {
     if(ImGui::MenuItem(SettingsTabs[i].name)) { showSettings = true; settingsTab = i; }
   }
   ImGui::Separator();
+  if(ImGui::BeginMenu("Window Size", !fullscreen())) { drawWindowSizeMenu(); ImGui::EndMenu(); }
   if(ImGui::MenuItem("Show Status Bar", nullptr, &settings.showStatus)) {
     settings.save(settingsCfg);
   }
@@ -138,21 +164,26 @@ void App::drawStatusBar() {
   ImGui::End();
 }
 
-// wide enough that the tab bar never elides a label, at whatever font size
+// tabs clip rather than scroll, so being a pixel short truncates a label;
+// the per-tab term mirrors TabItemCalcSize()
 static float settingsWidth() {
   const ImGuiStyle& style = ImGui::GetStyle();
   float tabs = 0.0f;
   for(const auto& tab : SettingsTabs) {
-    tabs += ImGui::CalcTextSize(tab.name).x + style.FramePadding.x * 2.0f
+    tabs += ImGui::CalcTextSize(tab.name).x + style.FramePadding.x * 2.0f + 1.0f
           + style.ItemInnerSpacing.x;
   }
-  return SDL_max(520.0f, tabs + style.WindowPadding.x * 2.0f + style.ScrollbarSize);
+  return SDL_max(520.0f, tabs + style.WindowPadding.x * 2.0f + style.ScrollbarSize
+                       + style.WindowBorderSize * 2.0f);
 }
 
 void App::drawSettingsWindow() {
   if(!showSettings) return;
 
-  placeFloating(settingsWidth(), 480.0f);
+  // measured every frame, so a resize or a font change cannot squeeze the tab bar
+  const float width = settingsWidth();
+  placeFloating(width, 480.0f);
+  ImGui::SetNextWindowSizeConstraints(ImVec2(width, 240.0f), ImVec2(FLT_MAX, FLT_MAX));
   if(!ImGui::Begin("Settings", &showSettings)) { ImGui::End(); return; }
 
   if(ImGui::BeginTabBar("settingstabs")) {

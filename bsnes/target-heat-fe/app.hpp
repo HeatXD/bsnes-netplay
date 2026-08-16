@@ -81,8 +81,22 @@ struct App {
   void unloadRom();
   void applySpeed() {
     double scale = SpeedScales[speedIndex];
-    if(fastForward) scale /= settings.fastForwardSpeed;
+    // unlimited has no target rate to resample towards
+    if(fastForward && !settings.fastForwardUnlimited) scale /= settings.fastForwardSpeed;
     core.setSpeedScale(scale);
+    core.setFrameSkip(fastForward ? settings.fastForwardFrameSkip : 0);
+  }
+  // unlimited fast forward runs with no audio clock driving the loop
+  bool unpaced() const { return fastForward && settings.fastForwardUnlimited; }
+  bool muted() const {
+    return settings.mute || (settings.muteUnfocused && !focused())
+        || (fastForward && settings.fastForwardMute);
+  }
+  // bsnes drops a limited fast forward to 65%: decimated audio is harsh
+  float audioGain() const {
+    if(muted()) return 0.0f;
+    const bool limited = fastForward && !settings.fastForwardUnlimited;
+    return settings.volume / 100.0f * (limited ? 0.65f : 1.0f);
   }
   void setSpeed(int index) {
     speedIndex = SDL_clamp(index, 0, SpeedCount - 1);
@@ -101,6 +115,10 @@ struct App {
     return (SDL_GetWindowFlags(shell.window) & SDL_WINDOW_FULLSCREEN) != 0;
   }
   void toggleFullscreen() { SDL_SetWindowFullscreen(shell.window, !fullscreen()); }
+  // hover help, suppressed by the tool tips setting
+  void tip(const char* text) const {
+    if(settings.showToolTips) ImGui::SetItemTooltip("%s", text);
+  }
   void openPick(FilePick& pick, const SDL_DialogFileFilter* filters, const char* dir);
   const char* gamesDirOrNull() const;
   SDL_Gamepad* portPad(int port, int player) const {
@@ -130,7 +148,9 @@ struct App {
   }
 
   const char* hotkeyShortcut(Hotkey key) const;
+  void setWindowScale(int scale);
   void drawFileMenu();
+  void drawWindowSizeMenu();
   void drawSpeedMenu();
   void drawEmulationMenu();
   void drawSettingsMenu();
@@ -153,8 +173,13 @@ struct App {
   void drawHotkeysTab();
   void restoreEmulatorDefaults();
   void drawEmulatorTab();
+  // every Hacks/* option in one push; the core caches them, so both tabs and
+  // startup have to say the whole set
+  void pushEnhancements();
   void restoreEnhancementDefaults();
   void drawEnhancementsTab();
+  void restoreCompatibilityDefaults();
+  void drawCompatibilityTab();
   void drawCartridgeWindow();
   bool drawColourSection();
   bool drawFontSection();
