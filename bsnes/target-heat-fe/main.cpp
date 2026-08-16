@@ -241,8 +241,8 @@ bool Frontend::handleRebind(const SDL_Event& event) {
     if(escape) app.capturing = -1;
     else if(InputMap::capture(event, b, owner ? SDL_GetGamepadID(owner) : 0)) {
       app.input.binding(app.mapPort, app.core.connectedDevice(app.mapPort),
-                        app.capturing / InputMap::Slots,
-                        app.capturing % InputMap::Slots) = b;
+                        app.capturing / InputMap::SlotCount,
+                        app.capturing % InputMap::SlotCount) = b;
       app.input.save(app.inputCfg);
       app.capturing = -1;
     }

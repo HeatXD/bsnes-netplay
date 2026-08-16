@@ -42,6 +42,9 @@ public:
   static constexpr int Ports = EmuCore::PortCount;
   // interchangeable; the defaults fill them with a key, a pad button and a stick
   static constexpr int Slots = 3;
+  // each input carries a second set of slots that auto-fires while held
+  static constexpr int TurboSlot = Slots;
+  static constexpr int SlotCount = Slots * 2;
 
   InputMap();
 
@@ -65,7 +68,7 @@ public:
   static bool capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad = 0);
 
 private:
-  using Slotted = std::array<Binding, Slots>;
+  using Slotted = std::array<Binding, SlotCount>;
   using PerInput = std::array<Slotted, EmuCore::MaxInputs>;
   using PerDevice = std::array<PerInput, EmuCore::DeviceCount>;
 

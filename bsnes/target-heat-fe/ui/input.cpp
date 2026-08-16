@@ -1,11 +1,5 @@
 #include "ui.hpp"
 
-namespace {
-// only the face and shoulder buttons make sense to auto-fire
-bool turboEligible(int button) {
-  return button >= EmuCore::B && button <= EmuCore::R;
-}
-}  // namespace
 
 // the core names a multitap's inputs "Port 3 - Up": controller, then button
 std::string App::playerLabel(int device, int player) const {
@@ -14,11 +8,39 @@ std::string App::playerLabel(int device, int player) const {
   return dash == std::string::npos ? name : name.substr(0, dash);
 }
 
-void App::drawBindingTable(int device) {
-  const auto& deviceInputs = core.inputs(device);
-  const bool turboCapable = device == EmuCore::Gamepad;
+// one row of bind buttons: the plain set, or the turbo set that auto-fires
+void App::drawBindingRow(int device, int b, bool turbo) {
   SDL_Gamepad* pad = portPad(mapPort, mapPlayer);
   const bool* keys = SDL_GetKeyboardState(nullptr);
+
+  ImGui::TableNextRow();
+  ImGui::TableNextColumn();
+  const std::string& name = core.inputs(device)[b].name;
+  const size_t dash = name.rfind(" - ");
+  const std::string label = (dash == std::string::npos ? name : name.substr(dash + 3))
+                          + (turbo ? " turbo" : "");
+  ImGui::TextUnformatted(label.c_str());
+
+  for(int slot = 0; slot < InputMap::Slots; slot++) {
+    ImGui::TableNextColumn();
+    const int id = b * InputMap::SlotCount + (turbo ? InputMap::TurboSlot : 0) + slot;
+    const Binding& binding = input.binding(mapPort, device, b, id % InputMap::SlotCount);
+    ImGui::PushID(id);
+
+    // held bindings light up, so a press shows even on the wrong pad
+    const bool held = capturing != id && bindingActive(binding, keys, pad);
+    if(held) ImGui::PushStyleColor(ImGuiCol_Button, accentColor());
+
+    const std::string text = capturing == id ? "..." : binding.label(pad);
+    if(ImGui::Button(text.c_str(), ImVec2(-1.0f, 0.0f))) capturing = id;
+
+    if(held) ImGui::PopStyleColor();
+    ImGui::PopID();
+  }
+}
+
+void App::drawBindingTable(int device) {
+  const auto& deviceInputs = core.inputs(device);
 
   // a multitap's inputs are four controllers in a row; show one at a time
   const int players = core.playersFor(device);
@@ -26,7 +48,7 @@ void App::drawBindingTable(int device) {
   const int last = players > 1 ? first + EmuCore::ButtonCount : (int)deviceInputs.size();
 
   // content sizing would let the long pad labels swallow the row
-  if(!ImGui::BeginTable("bindings", 2 + InputMap::Slots,
+  if(!ImGui::BeginTable("bindings", 1 + InputMap::Slots,
                         ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
 
   ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed);
@@ -36,52 +58,28 @@ void App::drawBindingTable(int device) {
     SDL_snprintf(label, sizeof(label), "Mapping #%d", slot + 1);
     ImGui::TableSetupColumn(label);
   }
-  ImGui::TableSetupColumn("Turbo", ImGuiTableColumnFlags_WidthFixed);
   ImGui::TableHeadersRow();
 
+  auto bindable = [&](int b) {
+    return deviceInputs[b].type != EmuCore::Axis && deviceInputs[b].type != EmuCore::Rumble;
+  };
+
   for(int b = first; b < last; b++) {
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
-    const std::string& name = deviceInputs[b].name;
-    const size_t dash = name.rfind(" - ");
-    ImGui::TextUnformatted(dash == std::string::npos ? name.c_str() : name.c_str() + dash + 3);
+    if(bindable(b)) { drawBindingRow(device, b, false); continue; }
 
     // pointer and analog inputs have no key or button to bind
-    const bool analog = deviceInputs[b].type == EmuCore::Axis
-                     || deviceInputs[b].type == EmuCore::Rumble;
-
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted(deviceInputs[b].name.c_str());
     for(int slot = 0; slot < InputMap::Slots; slot++) {
       ImGui::TableNextColumn();
-      if(analog) { ImGui::TextDisabled("n/a"); continue; }
-
-      const int id = b * InputMap::Slots + slot;
-      const Binding& binding = input.binding(mapPort, device, b, slot);
-      ImGui::PushID(id);
-
-      // held bindings light up, so a press shows even on the wrong pad
-      const bool held = capturing != id && bindingActive(binding, keys, pad);
-      if(held) ImGui::PushStyleColor(ImGuiCol_Button, accentColor());
-
-      const std::string label = capturing == id ? "..." : binding.label(pad);
-      if(ImGui::Button(label.c_str(), ImVec2(-1.0f, 0.0f))) capturing = id;
-
-      if(held) ImGui::PopStyleColor();
-      ImGui::PopID();
+      ImGui::TextDisabled("n/a");
     }
+  }
 
-    ImGui::TableNextColumn();
-    if(turboCapable && turboEligible(b)) {
-      bool on = (settings.turboMask[mapPort] & (1 << b)) != 0;
-      ImGui::PushID(1000 + b);
-      if(ImGui::Checkbox("##turbo", &on)) {
-        if(on) settings.turboMask[mapPort] |= (1 << b);
-        else settings.turboMask[mapPort] &= ~(1 << b);
-        settings.save(settingsCfg);
-      }
-      ImGui::PopID();
-    } else {
-      ImGui::TextDisabled("-");
-    }
+  // the turbo sets sit together below rather than doubling up every button
+  for(int b = first; b < last; b++) {
+    if(bindable(b)) drawBindingRow(device, b, true);
   }
   ImGui::EndTable();
 }
@@ -135,7 +133,6 @@ void App::restoreInputDefaults() {
   input.loadDefaults();
   settings.turboRate = defaults.turboRate;
   for(int port = 0; port < EmuCore::PortCount; port++) {
-    settings.turboMask[port] = defaults.turboMask[port];
     settings.devices[port] = defaults.devices[port];
     core.connect(port, settings.devices[port]);
   }

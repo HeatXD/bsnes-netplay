@@ -119,7 +119,6 @@ struct Settings {
   int padIndex[EmuCore::PortCount * EmuCore::MaxPlayers] = {0, -1, -1, -1,
                                                             1, -1, -1, -1};
   int turboRate = 8;  // Hz
-  int turboMask[EmuCore::PortCount] = {0, 0};  // bit per EmuCore::Button
 
   void applyKey(const std::string& key, const std::string& value);
   void load(const std::string& path);

@@ -163,16 +163,16 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
       // a multitap's inputs are four consecutive controllers of twelve
       const int player = players > 1 ? button / EmuCore::ButtonCount : 0;
       SDL_Gamepad* pad = playerPads[player < players ? player : players - 1];
-      bool pressed = false;
+      bool pressed = false, turbo = false;
 
-      for(int slot = 0; slot < Slots && !pressed; slot++) {
-        pressed = bindingActive(bindings[port][device][button][slot], keys, pad);
+      for(int slot = 0; slot < Slots; slot++) {
+        const Slotted& slots = bindings[port][device][button];
+        pressed = pressed || bindingActive(slots[slot], keys, pad);
+        turbo = turbo || bindingActive(slots[TurboSlot + slot], keys, pad);
       }
 
-      if(pressed && device == EmuCore::Gamepad && button < EmuCore::ButtonCount
-      && (settings.turboMask[port] & (1 << button)) && turboPhaseOff) {
-        pressed = false;
-      }
+      // a held turbo bind replaces the plain one rather than adding to it
+      if(turbo) pressed = !turboPhaseOff;
       core.setInput(port, button, pressed ? 1 : 0);
     }
   }
@@ -211,7 +211,7 @@ bool InputMap::save(const std::string& path) const {
   for(int port = 0; port < Ports; port++) {
     for(int device = 0; device < EmuCore::DeviceCount; device++) {
       for(int index = 0; index < EmuCore::MaxInputs; index++) {
-        for(int slot = 0; slot < Slots; slot++) {
+        for(int slot = 0; slot < SlotCount; slot++) {
           const Binding& b = bindings[port][device][index][slot];
           if(b.type == Binding::None) continue;
           char line[128];
@@ -242,7 +242,7 @@ bool InputMap::load(const std::string& path) {
     if(port < 0 || port >= Ports) continue;
     if(device < 0 || device >= EmuCore::DeviceCount) continue;
     if(index < 0 || index >= EmuCore::MaxInputs) continue;
-    if(slot < 0 || slot >= Slots) continue;
+    if(slot < 0 || slot >= SlotCount) continue;
 
     bindings[port][device][index][slot] = {(Binding::Type)type, code, dir};
   }

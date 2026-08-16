@@ -166,6 +166,7 @@ struct App {
   void drawDevicePicker();
   void drawControllerPicker();
   std::string playerLabel(int device, int player) const;
+  void drawBindingRow(int device, int input, bool turbo);
   void drawBindingTable(int device);
   void restoreInputDefaults();
   void drawInputTab();
