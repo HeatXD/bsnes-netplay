@@ -44,8 +44,7 @@ void App::drawPathsTab() {
   ImGui::Separator();
   ImGui::TextUnformatted("Firmware folder");
   ImGui::TextWrapped("%s", firmwareDir().c_str());
-  ImGui::TextWrapped("Holds dsp1b.program.rom and the like, for carts whose dump"
-                     " leaves the coprocessor firmware out.");
+  ImGui::TextWrapped("Holds dsp1b.program.rom and the like, for dumps that omit it.");
   if(ImGui::Button("Browse##firmware")) openFolderDialog(firmwareDirPick);
   ImGui::SameLine();
   if(!settings.firmwareDir.empty() && ImGui::Button("Reset##firmware")) {

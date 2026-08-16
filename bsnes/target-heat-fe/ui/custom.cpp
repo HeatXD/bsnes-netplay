@@ -82,9 +82,7 @@ void App::drawCustomizationTab() {
     restoreAppearanceDefaults();
     dirty = true;
   }
-  ImGui::TextWrapped("The font file is remembered by path. If it moves, the built-in"
-                     " font is used instead. Weight thickens the glyphs rather than"
-                     " switching to a bold face; for real bold, pick a bold font file.");
+  ImGui::TextWrapped("Weight thickens the glyphs rather than switching to a bold face.");
 
   if(dirty) settings.save(settingsCfg);
 }

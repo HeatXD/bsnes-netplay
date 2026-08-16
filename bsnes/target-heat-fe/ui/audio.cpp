@@ -47,9 +47,7 @@ void App::drawAudioTab() {
   ImGui::Separator();
   ImGui::Text("Frequency: %d Hz", AudioRate);
   ImGui::Text("Queued: %d bytes", (int)SDL_GetAudioStreamQueued(shell.audio));
-  ImGui::TextWrapped("Audio is the master clock. Latency sets the backlog the loop drains to,"
-                     " which is what paces the emulator to 60.098Hz on NTSC carts and"
-                     " 50.007Hz on PAL ones.");
+  ImGui::TextWrapped("Audio paces the emulator; latency is the backlog it drains to.");
 
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##audio")) {

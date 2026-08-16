@@ -34,9 +34,8 @@ inline int livePadCount(const std::vector<SDL_Gamepad*>& pads) {
   return live;
 }
 
-// Two slots per input so a port can be driven by keyboard and pad at once.
-// Bindings are kept per device, so switching a port to a multitap and back
-// does not clobber the gamepad mapping. Which pad each port reads comes from
+// Bindings are kept per device, so switching a port to a multitap and back does
+// not clobber the gamepad mapping. Which pad each port reads comes from
 // Settings::padIndex.
 class InputMap {
 public:

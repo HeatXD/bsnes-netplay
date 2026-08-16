@@ -16,9 +16,7 @@ void App::drawEmulatorTab() {
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   dirty |= ImGui::Checkbox("Show status bar", &settings.showStatus);
   ImGui::Separator();
-  ImGui::TextWrapped("Save RAM goes to the saves folder set under Paths, or next to the ROM"
-                     " when that is unset. Game Boy titles run only through Super Game Boy,"
-                     " which needs the SGB BIOS cartridge.");
+  ImGui::TextWrapped("Save RAM goes to the saves folder under Paths, or next to the ROM.");
 
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##emulator")) {

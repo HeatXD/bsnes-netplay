@@ -16,6 +16,7 @@ constexpr const char* GlslVersion = "#version 130";
 #endif
 
 constexpr int AudioRate = 48000;
+
 struct Shell {
   SDL_Window* window = nullptr;
   SDL_GLContext gl = nullptr;

@@ -13,8 +13,6 @@ constexpr int GlMajor = 3, GlMinor = 0;
 #endif
 }
 
-
-
 bool Shell::initVideo() {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GlMajor);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GlMinor);
