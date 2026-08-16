@@ -12,7 +12,7 @@ struct FilterEntry {
   Filter::Size size;
   Filter::Render render;
   // input dimensions the filter was written for; 0 means always eligible.
-  // frames outside this (hires, HD mode 7) fall back to None, same as bsnes.
+  // frames outside this (hires, HD mode 7) fall back to None
   uint maxWidth, maxHeight;
 };
 
@@ -36,8 +36,7 @@ constexpr FilterEntry Filters[] = {
 constexpr int FilterCount = sizeof(Filters) / sizeof(Filters[0]);
 }  // namespace
 
-// Mirrors bsnes's own Program::updateVideoPalette (target-bsnes/program/video.cpp):
-// saturation mixes channels via a per-pixel grayscale, then gamma, then luminance.
+// saturation mixes channels via a per-pixel grayscale, then gamma, then luminance
 auto EmuCore::Impl::buildPalette() -> void {
   const double gamma = videoGamma / 100.0;
   const double luminance = videoLuminance / 100.0;
@@ -99,7 +98,7 @@ auto EmuCore::Impl::buildPalette() -> void {
 auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint height, uint scale) -> void {
   if(!owner.onVideo) return;
 
-  // crop before filtering, as bsnes does, so the filter sees exactly the
+  // crop before filtering, so the filter sees exactly the
   // visible picture and its edge rows are the ones actually shown
   if(overscanCrop) {
     uint multiplier = height / 240;
@@ -108,7 +107,7 @@ auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint 
   }
 
   // HD mode 7 and hires/interlaced frames outside a filter's working size
-  // fall back to the identity filter, same as bsnes's own filterSelect
+  // fall back to the identity filter
   const FilterEntry* filter = &Filters[filterIndex];
   bool eligible = scale == 1 && filter->maxWidth
                 && width <= filter->maxWidth && height <= filter->maxHeight;

@@ -17,7 +17,7 @@ auto EmuCore::Impl::media(uint id) -> Media* {
 }
 
 auto EmuCore::Impl::savePath(const Media& media, const string& name) -> string {
-  // a pak folder keeps its own saves, as bsnes does
+  // a pak folder keeps its own saves
   if(media.pak()) return {media.location, name};
   if(savesDir.empty()) return {Location::notsuffix(media.location), ".", name};
   return {savesDir.c_str(), "/", media.name(), ".", name};

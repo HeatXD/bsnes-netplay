@@ -143,7 +143,7 @@ auto EmuCore::Impl::loadSuperFamicom(const string& location) -> bool {
   superFamicom.manifest = manifest ? manifest : heuristics.manifest();
   sfcDocument = BML::unserialize(superFamicom.manifest);
 
-  // bsnes titles its window with the file name, not the cartridge header
+  // the window title is the file name, not the cartridge header
   info.title = superFamicom.name();
   info.headerTitle = heuristics.title();
   info.region = heuristics.videoRegion();

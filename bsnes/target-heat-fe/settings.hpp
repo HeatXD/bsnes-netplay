@@ -34,7 +34,7 @@ enum Defocus { DefocusPause, DefocusBlockInput, DefocusAllowInput, DefocusCount 
 
 extern const char* const DefocusNames[DefocusCount];
 
-// how the frame fills the window, matching bsnes's own Output menu
+// how the frame fills the window
 enum Output { OutputCenter, OutputScale, OutputStretch, OutputCount };
 
 extern const char* const OutputNames[OutputCount];
@@ -59,18 +59,17 @@ struct Settings {
   std::string audioDevice;  // empty means the system default
   bool aspectCorrect = true;
   int outputMode = OutputScale;
-  // bsnes ships the "Blur" shader on by default, which is just GL_LINEAR
   bool linearFilter = true;
   int windowScale = 0;  // 0 = fit to window
   bool overscanCrop = true;
   bool hiresBlur = false;
-  int videoGamma = 150;       // percent; bsnes's own default and range (100-200)
+  int videoGamma = 150;       // percent, 100-200
   int videoLuminance = 100;   // percent, 0-100
   int videoSaturation = 100;  // percent, 0-200
   std::string videoFilter = "None";
   int defocusPolicy = DefocusPause;
   int fastForwardSpeed = 4;
-  bool fastForwardUnlimited = false;
+  bool fastForwardUnlimited = true;
   int fastForwardFrameSkip = 9;
   bool fastForwardMute = false;
   bool hackPpuFast = true;
@@ -119,7 +118,7 @@ struct Settings {
   // multitap puts four players on one port, so this is per player, not port.
   int padIndex[EmuCore::PortCount * EmuCore::MaxPlayers] = {0, -1, -1, -1,
                                                             1, -1, -1, -1};
-  int turboRate = 10;  // Hz
+  int turboRate = 8;  // Hz
   int turboMask[EmuCore::PortCount] = {0, 0};  // bit per EmuCore::Button
 
   void applyKey(const std::string& key, const std::string& value);

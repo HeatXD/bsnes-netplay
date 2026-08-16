@@ -5,8 +5,8 @@
 #include <cstdlib>
 
 namespace {
-// per-title hack overrides ported from target-bsnes's hackCompatibility();
-// games that break under fast PPU/DSP timing. region is null to match any.
+// per-title overrides for games that break under fast PPU/DSP timing;
+// region is null to match any
 struct Hotfix { const char* title; const char* region; bool disablePPU; bool disableDSP; };
 constexpr Hotfix Hotfixes[] = {
   {"AIR STRIKE PATROL",       nullptr, true,  false},
@@ -52,8 +52,8 @@ auto EmuCore::Impl::applyHacks() -> void {
   bool dspFast = hacks.dspFast;
   activeHotfix = "";
 
-  // unconditional, as in bsnes: these games are broken under fast timing and
-  // the hotfixes toggle never re-enables it for them
+  // unconditional: these games are broken under fast timing and the
+  // hotfixes toggle never re-enables it for them
   for(auto& hf : Hotfixes) {
     if(info.headerTitle != hf.title) continue;
     if(hf.region && info.region != hf.region) continue;

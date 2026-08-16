@@ -42,7 +42,7 @@ struct EmuCore::Impl : Emulator::Platform {
 
   // heuristics summary of the base cartridge, for the Cartridge window
   struct {
-    string title;        // the file or folder name, as bsnes titles its window
+    string title;        // the file or folder name, used for the window title
     string headerTitle;  // the cartridge header's own title, which hotfixes match
     string region;
     string board;

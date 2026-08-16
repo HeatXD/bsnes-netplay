@@ -46,7 +46,7 @@ bool Shell::initVideo() {
   textureHeight = EmuCore::MaxHeight;
   // GL_RGB, not GL_RGBA: the 2xSaI family blends through a 0xFEFEFE mask that
   // drops the alpha byte, so interpolated pixels arrive fully transparent and
-  // would blend into the background. bsnes sidesteps this with an XRGB surface.
+  // would blend into the background.
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0,
                GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
   return true;

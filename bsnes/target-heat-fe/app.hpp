@@ -69,7 +69,7 @@ struct App {
   int capturing = -1;      // emulator button slot being rebound
   int capturingHotkey = -1;
   int gameSelected = 0;
-  // not persisted: bsnes drops back to normal speed for every game loaded
+  // not persisted: every game starts at normal speed
   int speedIndex = SpeedNormal;
   double fps = 0.0;
   long long totalSamples = 0;
@@ -92,7 +92,7 @@ struct App {
     return settings.mute || (settings.muteUnfocused && !focused())
         || (fastForward && settings.fastForwardMute);
   }
-  // bsnes drops a limited fast forward to 65%: decimated audio is harsh
+  // a limited fast forward plays at 65%: decimated audio is harsh
   float audioGain() const {
     if(muted()) return 0.0f;
     const bool limited = fastForward && !settings.fastForwardUnlimited;
@@ -124,7 +124,7 @@ struct App {
   SDL_Gamepad* portPad(int port, int player) const {
     return resolvePad(pads, settings.padIndex[padSlot(port, player)]);
   }
-  // unset means a Firmware folder beside the config, as bsnes locates its own
+  // unset means a Firmware folder beside the config
   std::string firmwareDir() const {
     return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;
   }

@@ -51,7 +51,7 @@ public:
   enum class Medium { SuperFamicom, GameBoy, BSMemory, SufamiTurbo };
   static Medium mediumOf(const std::string& location);
 
-  // the bsnes core's own version
+  // the emulator core's own version
   static std::string version();
 
   EmuCore();
@@ -73,7 +73,7 @@ public:
   void reset();
   void runFrame();
 
-  // the file name, as bsnes titles its window
+  // the file name, which the window title uses
   std::string title() const;
   // the cartridge header's own title, which hotfixes match on
   std::string headerTitle() const;
@@ -110,9 +110,9 @@ public:
   void setFrameSkip(int frames);
   void setInput(int port, int index, int16_t value);
 
-  // video: overscan crop, palette adjustment (percentages match bsnes's own
-  // slider ranges: gamma 100-200, luminance 0-100, saturation 0-200), and
-  // the CPU filter, selected by name so a settings file survives reordering
+  // video: overscan crop, palette adjustment (gamma 100-200, luminance 0-100,
+  // saturation 0-200), and the CPU filter, selected by name so a settings file
+  // survives reordering
   void setOverscanCrop(bool crop);
   void setPaletteAdjust(int gammaPercent, int luminancePercent, int saturationPercent);
   void setFilter(const std::string& name);
