@@ -130,7 +130,8 @@ void App::drawControllerPicker() {
 
 void App::restoreInputDefaults() {
   const Settings defaults;
-  input.loadDefaults();
+  input.loadButtonDefaults();
+  input.loadPointerDefaults(core);
   settings.turboRate = defaults.turboRate;
   for(int port = 0; port < EmuCore::PortCount; port++) {
     settings.devices[port] = defaults.devices[port];

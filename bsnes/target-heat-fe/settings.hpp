@@ -17,6 +17,7 @@ constexpr int MinFontWeight = 50;
 constexpr int MaxFontWeight = 500;
 constexpr int DefaultFontWeight = 100;
 constexpr int MaxWindowScale = 9;
+constexpr int MaxMode7Scale = 8;
 // imgui's own dark-theme blue, packed as 0xRRGGBB
 constexpr int DefaultAccent = 0x4296fa;
 // a text colour of -1 means follow the theme instead
@@ -25,9 +26,18 @@ constexpr int FollowTheme = -1;
 // appended to, never reordered: the config file stores these by index
 enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot,
              HkFrameAdvance, HkPowerCycle, HkMute, HkQuit,
-             HkSpeedDown, HkSpeedUp, HotkeyCount };
+             HkSpeedDown, HkSpeedUp,
+             HkUnloadGame, HkMouseCapture,
+             HkMode7Down, HkMode7Up, HkSupersample, HotkeyCount };
 
-extern const char* const HotkeyNames[HotkeyCount];
+// how a hotkey's several mappings combine: any one, or all of them at once
+enum Logic { LogicOr, LogicAnd, LogicCount };
+
+extern const char* const LogicNames[LogicCount];
+
+const char* HotkeyName(int index);
+// SDL_SCANCODE_UNKNOWN where bsnes ships the action unbound too
+SDL_Scancode HotkeyDefault(int index);
 
 // window-unfocused behaviour while a game runs
 enum Defocus { DefocusPause, DefocusBlockInput, DefocusAllowInput, DefocusCount };

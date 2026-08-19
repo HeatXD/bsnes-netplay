@@ -108,6 +108,19 @@ std::string Binding::label(SDL_Gamepad* pad) const {
 InputMap::InputMap() { loadDefaults(); }
 
 void InputMap::loadDefaults() {
+  loadButtonDefaults();
+  loadHotkeyDefaults();
+}
+
+void InputMap::loadHotkeyDefaults() {
+  hotkeys = {};
+  for(int i = 0; i < HotkeyCount; i++) {
+    if(HotkeyDefault(i) == SDL_SCANCODE_UNKNOWN) continue;
+    hotkeys[i][0] = {Binding::Key, (int)HotkeyDefault(i), 0};
+  }
+}
+
+void InputMap::loadButtonDefaults() {
   bindings = {};
 
   // slot 0 keyboard, slot 1 pad, slot 2 stick; only port 1 gets keyboard keys
@@ -222,6 +235,16 @@ bool InputMap::save(const std::string& path) const {
       }
     }
   }
+  for(int index = 0; index < HotkeyCount; index++) {
+    for(int slot = 0; slot < HotkeySlots; slot++) {
+      const Binding& b = hotkeys[index][slot];
+      if(b.type == Binding::None) continue;
+      char line[128];
+      int n = SDL_snprintf(line, sizeof(line), "h %d %d %d %d %d\n",
+                           index, slot, (int)b.type, b.code, b.direction);
+      text.append(line, n);
+    }
+  }
   return writeText(path, text);
 }
 
@@ -235,6 +258,17 @@ bool InputMap::load(const std::string& path) {
     if(end == std::string::npos) end = text.size();
     std::string line = text.substr(pos, end - pos);
     pos = end + 1;
+
+    if(line[0] == 'h') {
+      int index = 0, slot = 0, type = 0, code = 0, dir = 0;
+      if(SDL_sscanf(line.c_str() + 1, "%d %d %d %d %d", &index, &slot, &type, &code, &dir) != 5) continue;
+      if(index < 0 || index >= HotkeyCount) continue;
+      if(slot < 0 || slot >= HotkeySlots) continue;
+      // the first line clears the defaults, so an unbound hotkey stays unbound
+      if(!hotkeysLoaded) { hotkeys = {}; hotkeysLoaded = true; }
+      hotkeys[index][slot] = {(Binding::Type)type, code, dir};
+      continue;
+    }
 
     int port = 0, device = 0, index = 0, slot = 0, type = 0, code = 0, dir = 0;
     if(SDL_sscanf(line.c_str(), "%d %d %d %d %d %d %d",

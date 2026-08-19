@@ -68,7 +68,7 @@ struct App {
   int mapPort = 0;
   int mapPlayer = 0;  // which of a multitap's controllers is being mapped
   int capturing = -1;      // emulator button slot being rebound
-  int capturingHotkey = -1;
+  int capturingHotkey = -1;  // hotkey index * HotkeySlots + slot
   int gameSelected = 0;
   // not persisted: every game starts at normal speed
   int speedIndex = SpeedNormal;
@@ -150,6 +150,8 @@ struct App {
   void openSufamiPairDialog();
   void takeScreenshot();
   void saveMemoryTick();
+  void pollHotkeys();
+  void triggerHotkey(int index);
 
   ImVec4 accentColor() const { return unpackColor(settings.accent); }
   void applyPreset();
@@ -163,7 +165,7 @@ struct App {
     SDL_Log("%s", text.c_str());
   }
 
-  const char* hotkeyShortcut(Hotkey key) const;
+  std::string hotkeyShortcut(Hotkey key) const;
   void setWindowScale(int scale);
   void drawFileMenu();
   void drawWindowSizeMenu();

@@ -251,13 +251,12 @@ bool Frontend::handleRebind(const SDL_Event& event) {
   }
 
   if(app.capturingHotkey >= 0) {
-    if(event.type == SDL_EVENT_KEY_DOWN) {
-      const bool clear = event.key.scancode == SDL_SCANCODE_DELETE
-                      || event.key.scancode == SDL_SCANCODE_BACKSPACE;
-      if(!escape) {
-        app.settings.hotkeys[app.capturingHotkey] = clear ? 0 : (int)event.key.scancode;
-        app.settings.save(app.settingsCfg);
-      }
+    Binding b;
+    if(escape) app.capturingHotkey = -1;
+    else if(InputMap::capture(event, b)) {
+      app.input.hotkey(app.capturingHotkey / InputMap::HotkeySlots,
+                       app.capturingHotkey % InputMap::HotkeySlots) = b;
+      app.input.save(app.inputCfg);
       app.capturingHotkey = -1;
     }
     return true;
@@ -266,37 +265,13 @@ bool Frontend::handleRebind(const SDL_Event& event) {
   return false;
 }
 
+// Ctrl+O is a menu accelerator rather than a hotkey, so it stays event driven
 void Frontend::handleHotkey(const SDL_Event& event) {
   if(event.type != SDL_EVENT_KEY_DOWN || event.key.repeat) return;
   if(ImGui::GetIO().WantCaptureKeyboard) return;
 
-  const int key = (int)event.key.scancode;
   if(event.key.scancode == SDL_SCANCODE_O && (event.key.mod & SDL_KMOD_CTRL)) {
     app.openRomDialog();
-  } else if(key == app.settings.hotkeys[HkPause] && app.core.loaded()) {
-    app.paused = !app.paused;
-  } else if(key == app.settings.hotkeys[HkReset] && app.core.loaded()) {
-    app.reset();
-  } else if(key == app.settings.hotkeys[HkFastForward]) {
-    app.toggleFastForward();
-  } else if(key == app.settings.hotkeys[HkScreenshot]) {
-    app.takeScreenshot();
-  } else if(key == app.settings.hotkeys[HkFullscreen]) {
-    app.toggleFullscreen();
-  } else if(key == app.settings.hotkeys[HkFrameAdvance] && app.core.loaded()) {
-    app.paused = true;
-    app.advanceOneFrame();
-  } else if(key == app.settings.hotkeys[HkPowerCycle] && app.core.loaded()) {
-    app.powerCycle();
-  } else if(key == app.settings.hotkeys[HkMute]) {
-    app.settings.mute = !app.settings.mute;
-    app.settings.save(app.settingsCfg);
-  } else if(key == app.settings.hotkeys[HkQuit]) {
-    app.running = false;
-  } else if(key == app.settings.hotkeys[HkSpeedDown]) {
-    app.setSpeed(app.speedIndex - 1);
-  } else if(key == app.settings.hotkeys[HkSpeedUp]) {
-    app.setSpeed(app.speedIndex + 1);
   }
 }
 
@@ -456,6 +431,11 @@ void loadConfigs(App& app) {
   app.settingsCfg = prefFile("settings.cfg");
   app.input.load(app.inputCfg);
   app.settings.load(app.settingsCfg);
+  // a config written before hotkeys became bindings carries bare scancodes
+  if(!app.input.hasHotkeys() && app.settings.legacyHotkeyCount > 0) {
+    app.input.migrateHotkeys(app.settings.legacyHotkeys, app.settings.legacyHotkeyCount);
+    app.input.save(app.inputCfg);
+  }
   applySettingsToCore(app);
 
   for(int port = 0; port < EmuCore::PortCount; port++) {

@@ -43,14 +43,16 @@ void App::drawFileMenu() {
   }
 
   ImGui::Separator();
-  if(ImGui::MenuItem("Close Game", nullptr, false, core.loaded())) unloadRom();
-  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit))) running = false;
+  if(ImGui::MenuItem("Close Game", hotkeyShortcut(HkUnloadGame).c_str(), false, core.loaded())) {
+    unloadRom();
+  }
+  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit).c_str())) running = false;
 }
 
-// hotkey scancode as a menu shortcut label; empty when unbound
-const char* App::hotkeyShortcut(Hotkey key) const {
-  const char* name = SDL_GetScancodeName((SDL_Scancode)settings.hotkeys[key]);
-  return name && *name ? name : nullptr;
+// the first mapping, as a menu shortcut label; empty when unbound
+std::string App::hotkeyShortcut(Hotkey key) const {
+  const Binding& binding = input.hotkey(key, 0);
+  return binding.type == Binding::None ? std::string() : binding.label();
 }
 
 void App::setWindowScale(int scale) {
@@ -85,22 +87,22 @@ void App::drawSpeedMenu() {
 }
 
 void App::drawEmulationMenu() {
-  if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause), paused, core.loaded())) paused = !paused;
-  if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance), false, core.loaded())) {
+  if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause).c_str(), paused, core.loaded())) paused = !paused;
+  if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance).c_str(), false, core.loaded())) {
     paused = true;
     advanceOneFrame();
   }
-  if(ImGui::MenuItem("Fast Forward", hotkeyShortcut(HkFastForward), fastForward, core.loaded())) {
+  if(ImGui::MenuItem("Fast Forward", hotkeyShortcut(HkFastForward).c_str(), fastForward, core.loaded())) {
     toggleFastForward();
   }
   if(ImGui::BeginMenu("Speed", core.loaded())) { drawSpeedMenu(); ImGui::EndMenu(); }
-  if(ImGui::MenuItem("Mute", hotkeyShortcut(HkMute), settings.mute)) {
+  if(ImGui::MenuItem("Mute", hotkeyShortcut(HkMute).c_str(), settings.mute)) {
     settings.mute = !settings.mute;
     settings.save(settingsCfg);
   }
   ImGui::Separator();
-  if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset), false, core.loaded())) reset();
-  if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle), false, core.loaded())) powerCycle();
+  if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset).c_str(), false, core.loaded())) reset();
+  if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, core.loaded())) powerCycle();
 }
 
 void App::drawSettingsMenu() {
@@ -109,6 +111,12 @@ void App::drawSettingsMenu() {
   }
   ImGui::Separator();
   if(ImGui::BeginMenu("Window Size", !fullscreen())) { drawWindowSizeMenu(); ImGui::EndMenu(); }
+  if(ImGui::MenuItem("Fullscreen", hotkeyShortcut(HkFullscreen).c_str(), fullscreen())) {
+    toggleFullscreen();
+  }
+  if(ImGui::MenuItem("Capture Mouse", hotkeyShortcut(HkMouseCapture).c_str(), mouseCaptured)) {
+    toggleMouseCapture();
+  }
   if(ImGui::MenuItem("Show Status Bar", nullptr, &settings.showStatus)) {
     settings.save(settingsCfg);
   }
@@ -126,7 +134,8 @@ void App::drawMenuBar() {
     if(ImGui::MenuItem("Cartridge", nullptr, showCartridge, core.loaded())) {
       showCartridge = !showCartridge;
     }
-    if(ImGui::MenuItem("Save Screenshot", "F12", false, core.loaded())) takeScreenshot();
+    if(ImGui::MenuItem("Save Screenshot", hotkeyShortcut(HkScreenshot).c_str(),
+                       false, core.loaded())) takeScreenshot();
     ImGui::EndMenu();
   }
 

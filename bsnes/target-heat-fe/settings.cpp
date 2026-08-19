@@ -6,10 +6,33 @@
 
 namespace { constexpr int MaxRecent = 8; }
 
-const char* const HotkeyNames[HotkeyCount] = {
-  "Pause", "Reset", "Fast Forward", "Fullscreen", "Screenshot",
-  "Frame Advance", "Power Cycle", "Mute", "Quit",
-  "Slow Down", "Speed Up"
+// name and default key together; appended to, never reordered
+namespace {
+constexpr struct { const char* name; SDL_Scancode key; } Hotkeys[HotkeyCount] = {
+  {"Pause",                SDL_SCANCODE_F2},
+  {"Reset",                SDL_SCANCODE_F3},
+  {"Fast Forward",         SDL_SCANCODE_F4},
+  {"Fullscreen",           SDL_SCANCODE_F11},
+  {"Screenshot",           SDL_SCANCODE_F12},
+  {"Frame Advance",        SDL_SCANCODE_F1},
+  {"Power Cycle",          SDL_SCANCODE_F6},
+  {"Mute",                 SDL_SCANCODE_F8},
+  {"Quit",                 SDL_SCANCODE_UNKNOWN},
+  {"Slow Down",            SDL_SCANCODE_F9},
+  {"Speed Up",             SDL_SCANCODE_F10},
+  {"Unload Game",          SDL_SCANCODE_UNKNOWN},
+  {"Toggle Mouse Capture", SDL_SCANCODE_F5},
+  {"Decrease HD Mode 7",   SDL_SCANCODE_UNKNOWN},
+  {"Increase HD Mode 7",   SDL_SCANCODE_UNKNOWN},
+  {"Toggle Supersampling", SDL_SCANCODE_UNKNOWN},
+};
+}  // namespace
+
+const char* HotkeyName(int index) { return Hotkeys[index].name; }
+SDL_Scancode HotkeyDefault(int index) { return Hotkeys[index].key; }
+
+const char* const LogicNames[LogicCount] = {
+  "Or (any mapping triggers it)", "And (every mapping must be held)"
 };
 
 const char* const DefocusNames[DefocusCount] = {
@@ -39,7 +62,7 @@ const IntField IntFields[] = {
   {"windowscale", &Settings::windowScale,      0,              MaxWindowScale},
   {"ffspeed",     &Settings::fastForwardSpeed, 2,              16},
   {"ffframeskip", &Settings::fastForwardFrameSkip, 0,          9},
-  {"mode7scale",  &Settings::hackMode7Scale,   1,              8},
+  {"mode7scale",  &Settings::hackMode7Scale,   1,              MaxMode7Scale},
   {"entropy",     &Settings::hackEntropy,      0,              EntropyCount - 1},
   {"cpuoverclock",   &Settings::hackCpuOverclock,    100,      400},
   {"sa1overclock",   &Settings::hackSa1Overclock,    100,      400},
@@ -128,8 +151,20 @@ void Settings::applyKey(const std::string& key, const std::string& value) {
     if(index >= 0 && index < count) slots[index] = number;
     return true;
   };
-  if(!indexed("device", devices, EmuCore::PortCount)
-  && !indexed("hotkey", hotkeys, HotkeyCount)) {
+  if(key.rfind("hotkey", 0) == 0 && SDL_isdigit((unsigned char)key[6])) {
+    const int index = SDL_atoi(key.c_str() + 6);
+    if(index >= 0 && index < HotkeyCount) {
+      legacyHotkeys[index] = number;
+      legacyHotkeyCount = SDL_max(legacyHotkeyCount, index + 1);
+    }
+    return;
+  }
+  if(key.rfind("recentdir", 0) == 0) {
+    const int index = SDL_atoi(key.c_str() + 9);
+    if(index >= 0 && index < EmuCore::MediumCount) recentDir[index] = normalPath(value);
+    return;
+  }
+  if(!indexed("device", devices, EmuCore::PortCount)) {
     indexed("pad", padIndex, EmuCore::PortCount * EmuCore::MaxPlayers);
   }
 }
@@ -171,7 +206,6 @@ void Settings::save(const std::string& path) const {
   for(const BoolField& f : BoolFields) addInt(f.key, this->*f.field);
   for(const StrField& f : StrFields) add(f.key, this->*f.field);
   for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("device", i, devices[i]);
-  for(int i = 0; i < HotkeyCount; i++) addIndexed("hotkey", i, hotkeys[i]);
   for(int i = 0; i < EmuCore::PortCount * EmuCore::MaxPlayers; i++) addIndexed("pad", i, padIndex[i]);
   for(int i = 0; i < EmuCore::MediumCount; i++) {
     char key[16];

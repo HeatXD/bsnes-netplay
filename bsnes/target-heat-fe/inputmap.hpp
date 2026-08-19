@@ -45,10 +45,15 @@ public:
   // each input carries a second set of slots that auto-fires while held
   static constexpr int TurboSlot = Slots;
   static constexpr int SlotCount = Slots * 2;
+  // a hotkey takes a key and a pad button, so a stick alone can drive the app
+  static constexpr int HotkeySlots = 2;
 
   InputMap();
 
   void loadDefaults();
+  // the two tabs reset independently, so neither wipes the other's page
+  void loadButtonDefaults();
+  void loadHotkeyDefaults();
   bool load(const std::string& path);
   bool save(const std::string& path) const;
 
@@ -58,6 +63,16 @@ public:
   const Binding& binding(int port, int device, int index, int slot) const {
     return bindings[port][device][index][slot];
   }
+
+  Binding& hotkey(int index, int slot) { return hotkeys[index][slot]; }
+  const Binding& hotkey(int index, int slot) const { return hotkeys[index][slot]; }
+  // false when the config predates bindings, so its scancodes can be migrated
+  bool hasHotkeys() const { return hotkeysLoaded; }
+  void migrateHotkeys(const int* scancodes, int count);
+
+  // any pad may press a hotkey; AND wants every bound slot held at once
+  bool hotkeyHeld(int index, const InputSample& sample,
+                  const std::vector<SDL_Gamepad*>& pads, int logic) const;
 
   // frame is the emulated frame count, so turbo timing tracks the emulator's
   // own clock and stays correct under fast forward
@@ -73,4 +88,6 @@ private:
   using PerDevice = std::array<PerInput, EmuCore::DeviceCount>;
 
   std::array<PerDevice, Ports> bindings{};
+  std::array<std::array<Binding, HotkeySlots>, HotkeyCount> hotkeys{};
+  bool hotkeysLoaded = false;
 };

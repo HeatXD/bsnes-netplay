@@ -265,6 +265,61 @@ void App::applyFont() {
   ImGui_ImplOpenGL3_DestroyFontsTexture();  // recreated by the next NewFrame
 }
 
+void App::triggerHotkey(int index) {
+  bool enhanced = false;  // set by the cases that change an enhancement setting
+
+  switch(index) {
+  case HkPause: if(core.loaded()) paused = !paused; break;
+  case HkReset: if(core.loaded()) reset(); break;
+  case HkFastForward: toggleFastForward(); break;
+  case HkFullscreen: toggleFullscreen(); break;
+  case HkScreenshot: takeScreenshot(); break;
+  case HkFrameAdvance:
+    if(core.loaded()) { paused = true; advanceOneFrame(); }
+    break;
+  case HkPowerCycle: if(core.loaded()) powerCycle(); break;
+  case HkMute:
+    settings.mute = !settings.mute;
+    settings.save(settingsCfg);
+    break;
+  case HkQuit: running = false; break;
+  case HkSpeedDown: setSpeed(speedIndex - 1); break;
+  case HkSpeedUp: setSpeed(speedIndex + 1); break;
+  case HkUnloadGame: if(core.loaded()) unloadRom(); break;
+  case HkMouseCapture: toggleMouseCapture(); break;
+  case HkMode7Down:
+  case HkMode7Up:
+    settings.hackMode7Scale = SDL_clamp(settings.hackMode7Scale
+                                        + (index == HkMode7Up ? 1 : -1), 1, MaxMode7Scale);
+    showMessage("HD mode 7 scale " + std::to_string(settings.hackMode7Scale) + "x");
+    enhanced = true;
+    break;
+  case HkSupersample:
+    settings.hackMode7Supersample = !settings.hackMode7Supersample;
+    showMessage(std::string("supersampling ") + (settings.hackMode7Supersample ? "on" : "off"));
+    enhanced = true;
+    break;
+  }
+
+  if(enhanced) {
+    pushEnhancements();
+    settings.save(settingsCfg);
+  }
+}
+
+// polled, not event driven: a hotkey may be a pad button or a chord
+void App::pollHotkeys() {
+  const bool typing = ImGui::GetIO().WantCaptureKeyboard;
+  const bool rebinding = capturing >= 0 || capturingHotkey >= 0;
+
+  for(int i = 0; i < HotkeyCount; i++) {
+    const bool held = !typing && !rebinding
+                   && input.hotkeyHeld(i, sample, pads, settings.hotkeyLogic);
+    if(held && !hotkeyWasHeld[i]) triggerHotkey(i);
+    hotkeyWasHeld[i] = held;
+  }
+}
+
 void App::takeScreenshot() {
   std::string dir = settings.shotsDir.empty() ? configDir() : settings.shotsDir;
   if(!dir.empty() && dir.back() != '/' && dir.back() != '\\') dir += '/';
