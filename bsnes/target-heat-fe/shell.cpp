@@ -227,7 +227,7 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
 }
 
 void Shell::shrinkToFit(const Settings& settings) {
-  if(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) return;
+  if(fullscreen()) return;
   SDL_RestoreWindow(window);  // a maximized window ignores a resize
 
   const ImGuiViewport* view = ImGui::GetMainViewport();

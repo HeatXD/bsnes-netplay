@@ -64,6 +64,9 @@ struct Shell {
                  float gain, bool unpaced);
   // playback device names, for the settings picker
   static std::vector<std::string> listPlaybackDevices();
+  bool fullscreen() const {
+    return (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
+  }
   void clearFrame() {
     lastPixels = nullptr;
     frameWidth = frameHeight = 0;
