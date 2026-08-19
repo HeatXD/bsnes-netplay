@@ -7,6 +7,9 @@ void App::restoreAudioDefaults() {
   settings.mute = defaults.mute;
   settings.muteUnfocused = defaults.muteUnfocused;
   settings.audioDevice = defaults.audioDevice;
+  settings.audioSkew = defaults.audioSkew;
+  settings.audioBalance = defaults.audioBalance;
+  applyAudioTuning();
   shell.reopenAudio(settings);
 }
 
@@ -17,6 +20,15 @@ void App::drawAudioTab() {
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   ImGui::SliderInt("Volume (%)", &settings.volume, 0, 200);
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  if(ImGui::SliderInt("Balance", &settings.audioBalance, 0, 100,
+                      settings.audioBalance == 50 ? "centred" : "%d")) applyAudioTuning();
+  dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  tip("0 is hard left, 100 hard right.");
+  if(ImGui::SliderInt("Skew (Hz)", &settings.audioSkew, -MaxAudioSkew, MaxAudioSkew, "%+d")) {
+    applyAudioTuning();
+  }
+  dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  tip("Raise it if the sound card runs slow and the backlog keeps growing.");
   dirty |= ImGui::Checkbox("Mute", &settings.mute);
   dirty |= ImGui::Checkbox("Mute when window is unfocused", &settings.muteUnfocused);
 
@@ -45,7 +57,7 @@ void App::drawAudioTab() {
   }
 
   ImGui::Separator();
-  ImGui::Text("Frequency: %d Hz", AudioRate);
+  ImGui::Text("Frequency: %d Hz (resampling to %d)", AudioRate, AudioRate + settings.audioSkew);
   ImGui::Text("Queued: %d bytes", (int)SDL_GetAudioStreamQueued(shell.audio));
   ImGui::TextWrapped("Audio paces the emulator; latency is the backlog it drains to.");
 

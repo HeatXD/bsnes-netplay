@@ -450,7 +450,7 @@ void loadConfigs(App& app) {
 }
 
 void wireCore(App& app) {
-  app.core.setAudioFrequency(AudioRate);
+  app.applyAudioTuning();
   app.core.onVideo = [&app](const uint32_t* argb, int width, int height) {
     app.shell.pushVideo(argb, width, height);
   };

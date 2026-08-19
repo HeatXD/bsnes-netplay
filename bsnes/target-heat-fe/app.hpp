@@ -112,6 +112,11 @@ struct App {
     showMessage(std::string("speed ") + SpeedNames[speedIndex]);
   }
   void toggleFastForward() { fastForward = !fastForward; applySpeed(); }
+  // skew trims a card that runs fast or slow until the backlog stops drifting
+  void applyAudioTuning() {
+    core.setAudioFrequency(AudioRate + settings.audioSkew);
+    core.setAudioBalance(SDL_clamp((settings.audioBalance - 50) / 50.0, -1.0, 1.0));
+  }
   void reset() { core.reset(); paused = false; }
   void powerCycle() { core.power(); paused = false; }
   void advanceOneFrame() { frameAdvance = true; }

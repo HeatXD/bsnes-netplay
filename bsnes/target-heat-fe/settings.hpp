@@ -18,6 +18,7 @@ constexpr int MaxFontWeight = 500;
 constexpr int DefaultFontWeight = 100;
 constexpr int MaxWindowScale = 9;
 // bsnes' own range: the resampler is fed the device rate plus this many Hz
+constexpr int MaxAudioSkew = 5000;
 constexpr int MaxMode7Scale = 8;
 // imgui's own dark-theme blue, packed as 0xRRGGBB
 constexpr int DefaultAccent = 0x4296fa;
@@ -66,6 +67,8 @@ struct Settings {
   int latencyMs = 48;
   int volume = 100;
   // Hz added to the resampler's target rate, to trim a drifting sound card
+  int audioSkew = 0;
+  int audioBalance = 50;  // 0 hard left, 50 centred, 100 hard right
   bool mute = false;
   bool muteUnfocused = false;
   std::string audioDevice;  // empty means the system default

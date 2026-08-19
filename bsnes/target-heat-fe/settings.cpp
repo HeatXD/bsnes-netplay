@@ -78,6 +78,10 @@ const IntField IntFields[] = {
   {"defocus",     &Settings::defocusPolicy,    0,              DefocusCount - 1},
   {"turborate",   &Settings::turboRate,        1,              30},
   {"output",      &Settings::outputMode,       0,              OutputCount - 1},
+  {"audioskew",   &Settings::audioSkew,        -MaxAudioSkew,  MaxAudioSkew},
+  {"audiobalance", &Settings::audioBalance,    0,              100},
+  {"autosaveinterval", &Settings::autoSaveInterval, 5,         600},
+  {"hotkeylogic", &Settings::hotkeyLogic,      0,              LogicCount - 1},
 };
 
 const BoolField BoolFields[] = {

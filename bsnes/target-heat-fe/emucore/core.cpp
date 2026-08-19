@@ -132,6 +132,7 @@ void EmuCore::saveMemory() {
 
 void EmuCore::setAudioFrequency(double hz) { Emulator::audio.setFrequency(hz); }
 void EmuCore::setSpeedScale(double scale) { Emulator::audio.setSpeedScale(scale); }
+void EmuCore::setAudioBalance(double balance) { Emulator::audio.setBalance(balance); }
 void EmuCore::setFrameSkip(int frames) {
   impl->frameSkip = frames < 0 ? 0 : frames;
   impl->emulator->setFrameSkip(impl->ppuFastActive ? impl->frameSkip : 0);

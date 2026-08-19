@@ -122,6 +122,7 @@ public:
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
   void setSpeedScale(double scale);
   // -1 is hard left, 0 centred, +1 hard right
+  void setAudioBalance(double balance);
   // flush save RAM without unloading, for the auto-save timer
   void saveMemory();
   // frames to drop between rendered ones; only the fast PPU honours it
