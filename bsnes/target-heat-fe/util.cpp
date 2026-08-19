@@ -14,6 +14,13 @@ std::string fileName(const std::string& path) {
   return path.substr(start, end + 1 - start);
 }
 
+std::string parentDir(const std::string& path) {
+  const size_t end = path.find_last_not_of("/\\");
+  if(end == std::string::npos) return {};
+  const size_t slash = path.find_last_of("/\\", end);
+  return slash == std::string::npos ? std::string() : path.substr(0, slash);
+}
+
 std::string fileStem(const std::string& path) {
   const std::string name = fileName(path);
   const size_t dot = name.find_last_of('.');

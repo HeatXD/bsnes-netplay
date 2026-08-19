@@ -8,6 +8,8 @@
 inline constexpr const char* AppName = "bsnes heat-fe";
 
 std::string fileName(const std::string& path);
+// the other half of fileName(): everything before the last separator
+std::string parentDir(const std::string& path);
 std::string fileStem(const std::string& path);
 // globs return '/', dialogs return native separators; compare like with like
 std::string normalPath(const std::string& path);

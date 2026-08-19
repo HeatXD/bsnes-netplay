@@ -144,7 +144,9 @@ struct App {
   void openRomDialog();
   void openFolderDialog(FilePick& pick) { openPick(pick, nullptr, gamesDirOrNull()); }
   void openFontDialog();
-  void openMediaDialog(FilePick& pick, const char* label, const char* extensions);
+  void openMediaDialog(FilePick& pick, const char* label, const char* extensions,
+                       EmuCore::Medium medium = EmuCore::Medium::SuperFamicom);
+  const char* startDirFor(EmuCore::Medium medium);
   void openSufamiPairDialog();
   void takeScreenshot();
 

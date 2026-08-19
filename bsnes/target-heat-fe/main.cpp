@@ -315,7 +315,10 @@ void Frontend::drainPicks() {
   // cancelling the second cartridge loads slot A alone rather than nothing
   if(takePick(app.sufamiAPick, picked)) {
     app.sufamiPending = picked;
-    if(!picked.empty()) app.openMediaDialog(app.sufamiBPick, "Sufami Turbo ROMs", "st;zip;7z");
+    if(!picked.empty()) {
+      app.openMediaDialog(app.sufamiBPick, "Sufami Turbo ROMs", "st;zip;7z",
+                          EmuCore::Medium::SufamiTurbo);
+    }
   }
   if(takePick(app.sufamiBPick, picked) && !app.sufamiPending.empty()) {
     app.loadRom(picked.empty() ? app.sufamiPending : app.sufamiPending + "|" + picked);

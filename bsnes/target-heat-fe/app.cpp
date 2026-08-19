@@ -93,6 +93,7 @@ bool App::loadRom(const std::string& entry) {
   gameTitle = fileStem(first);
   SDL_SetWindowTitle(shell.window, (gameTitle + " - " + AppName).c_str());
   settings.addRecent(entry);
+  rememberDir(first);
   settings.save(settingsCfg);
   paused = false;
   speedIndex = SpeedNormal;
@@ -157,19 +158,27 @@ const char* App::gamesDirOrNull() const {
   return settings.gamesDir.empty() ? nullptr : settings.gamesDir.c_str();
 }
 
-void App::openRomDialog() {
-  const SDL_DialogFileFilter filters[] = {{"SNES ROMs", romFilterPattern()}, {"All files", "*"}};
-  openPick(romPick, filters, gamesDirOrNull());
+// the folder this medium was last opened from, falling back to the games folder
+const char* App::startDirFor(EmuCore::Medium medium) {
+  const std::string& remembered = settings.recentDir[(int)medium];
+  if(!remembered.empty() && isDirectory(remembered)) return remembered.c_str();
+  return gamesDirOrNull();
 }
 
-void App::openMediaDialog(FilePick& pick, const char* label, const char* extensions) {
+void App::openRomDialog() {
+  const SDL_DialogFileFilter filters[] = {{"SNES ROMs", romFilterPattern()}, {"All files", "*"}};
+  openPick(romPick, filters, startDirFor(EmuCore::Medium::SuperFamicom));
+}
+
+void App::openMediaDialog(FilePick& pick, const char* label, const char* extensions,
+                          EmuCore::Medium medium) {
   const SDL_DialogFileFilter filters[] = {{label, extensions}, {"All files", "*"}};
-  openPick(pick, filters, gamesDirOrNull());
+  openPick(pick, filters, startDirFor(medium));
 }
 
 void App::openSufamiPairDialog() {
   sufamiPending.clear();
-  openMediaDialog(sufamiAPick, "Sufami Turbo ROMs", "st;zip;7z");
+  openMediaDialog(sufamiAPick, "Sufami Turbo ROMs", "st;zip;7z", EmuCore::Medium::SufamiTurbo);
 }
 
 void App::openFontDialog() {
