@@ -148,6 +148,15 @@ void App::drawStatusBar() {
   if(ImGui::BeginViewportSideBar("##status", view, ImGuiDir_Down, ImGui::GetFrameHeight(),
                                  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_MenuBar)) {
     if(ImGui::BeginMenuBar()) {
+      if(core.loaded()) {
+        // bsnes marks the same thing with an icon
+        const bool clean = core.verified();
+        ImGui::TextColored(clean ? ImVec4(0.4f, 0.85f, 0.4f, 1.0f)
+                                 : ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "%s", clean ? "*" : "?");
+        tip(clean ? "A known clean game image; PCB emulation is exact."
+                  : "Not a verified game image; PCB emulation relies on heuristics.");
+        ImGui::SameLine();
+      }
       ImGui::TextUnformatted(!status.empty() ? status.c_str()
                              : core.loaded() ? gameTitle.c_str() : "no game");
 
@@ -219,4 +228,5 @@ void App::drawUi() {
   drawToolsWindow();
   drawCartridgeWindow();
   drawAboutWindow();
+  drawUnverifiedPrompt();
 }

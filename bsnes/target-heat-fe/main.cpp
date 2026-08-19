@@ -336,6 +336,16 @@ void Frontend::drainPicks() {
     app.core.setSavesDirectory(app.settings.savesDir);
     app.settings.save(app.settingsCfg);
   }
+  if(takePick(app.patchesDirPick, picked) && !picked.empty()) {
+    app.settings.patchesDir = normalPath(picked);
+    app.core.setPatchesDirectory(app.settings.patchesDir);
+    app.settings.save(app.settingsCfg);
+  }
+  if(takePick(app.databaseDirPick, picked) && !picked.empty()) {
+    app.settings.databaseDir = normalPath(picked);
+    app.refreshDatabaseDir();
+    app.settings.save(app.settingsCfg);
+  }
   if(takePick(app.firmwareDirPick, picked) && !picked.empty()) {
     app.settings.firmwareDir = normalPath(picked);
     app.core.setFirmwareDirectory(app.firmwareDir());
@@ -427,6 +437,9 @@ void applySettingsToCore(App& app) {
 
   app.core.setSavesDirectory(s.savesDir);
   app.core.setFirmwareDirectory(app.firmwareDir());
+  app.refreshDatabaseDir();
+  app.core.setPatchesDirectory(s.patchesDir);
+  app.core.setIpsHeadered(s.ipsHeadered);
   app.core.setOverscanCrop(s.overscanCrop);
   app.core.setPaletteAdjust(s.videoGamma, s.videoLuminance, s.videoSaturation);
   app.core.setFilter(s.videoFilter);

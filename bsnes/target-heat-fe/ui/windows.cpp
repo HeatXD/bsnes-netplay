@@ -149,3 +149,39 @@ void App::drawAboutWindow() {
   }
   ImGui::End();
 }
+
+void App::drawUnverifiedPrompt() {
+  if(!unverifiedPrompt) return;
+
+  const char* id = "Unverified game";
+  if(!ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
+
+  const ImGuiViewport* view = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(ImVec2(view->WorkPos.x + view->WorkSize.x / 2.0f,
+                                 view->WorkPos.y + view->WorkSize.y / 2.0f),
+                          ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+  if(!ImGui::BeginPopupModal(id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+
+  ImGui::Text("%s is not in the games database; its board layout is guessed.",
+              gameTitle.c_str());
+  ImGui::Separator();
+
+  if(ImGui::Button("Run it")) {
+    unverifiedPrompt = false;
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::SameLine();
+  if(ImGui::Button("Always run")) {
+    unverifiedPrompt = false;
+    settings.warnUnverified = false;
+    settings.save(settingsCfg);
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::SameLine();
+  if(ImGui::Button("Cancel")) {
+    unverifiedPrompt = false;
+    unloadRom();
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::EndPopup();
+}

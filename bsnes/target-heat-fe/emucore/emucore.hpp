@@ -49,6 +49,7 @@ public:
 
   // only this layer can see inside an archive, so it picks the slot
   enum class Medium { SuperFamicom, GameBoy, BSMemory, SufamiTurbo };
+  static constexpr int MediumCount = 4;
   static Medium mediumOf(const std::string& location);
 
   // the emulator core's own version
@@ -66,6 +67,8 @@ public:
   std::string loadError() const;
   // a load succeeds without these, running the coprocessor on zeroes
   std::string missingFiles() const;
+  // a patch was found beside the game but could not be applied
+  std::string patchError() const;
   void unload();
   bool loaded() const;
 
@@ -88,6 +91,10 @@ public:
   std::string checksum() const;
   // the media sitting in the base cartridge's slots
   const std::vector<SlotInfo>& slots() const;
+  // the game plus its slot media were all found in the games database
+  bool verified() const;
+  // a soft patch was applied to at least one medium on load
+  bool patched() const;
 
   // core setting, by the interface's own name: "Hacks/PPU/Fast" and friends.
   // "Frontend/Hotfixes" is a pseudo key for the per-title hotfix toggle,
@@ -103,9 +110,16 @@ public:
   void setSavesDirectory(const std::string& dir);
   // holds dsp1b.program.rom and friends, for carts that ship no firmware
   void setFirmwareDirectory(const std::string& dir);
+  // a game found in here is verified and uses its manifest, not a heuristic
+  void setDatabaseDirectory(const std::string& dir);
+  // where a loose .bps/.ips is looked for; empty means beside the ROM
+  void setPatchesDirectory(const std::string& dir);
+  // IPS cannot say whether it targets a copier header, so the user must
+  void setIpsHeadered(bool headered);
   void setAudioFrequency(double hz);
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
   void setSpeedScale(double scale);
+  // -1 is hard left, 0 centred, +1 hard right
   // frames to drop between rendered ones; only the fast PPU honours it
   void setFrameSkip(int frames);
   void setInput(int port, int index, int16_t value);

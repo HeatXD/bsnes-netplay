@@ -49,6 +49,7 @@ struct App {
   std::string gameTitle;
 
   FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick, pakPick, firmwareDirPick;
+  FilePick patchesDirPick, databaseDirPick;
   FilePick sgbBiosPick, bsxBiosPick, stBiosPick;
   FilePick sufamiAPick, sufamiBPick;
   std::string sufamiPending;
@@ -128,6 +129,18 @@ struct App {
   std::string firmwareDir() const {
     return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;
   }
+  // resolving this stats the disk, so readers take the cache below
+  std::string databaseDir() const;
+  std::string databaseDirCache;
+  void refreshDatabaseDir() {
+    databaseDirCache = databaseDir();
+    core.setDatabaseDirectory(databaseDirCache);
+  }
+  // each folder row re-pushes its path to the core after a change
+  void pushSavesDir() { core.setSavesDirectory(settings.savesDir); }
+  void pushPatchesDir() { core.setPatchesDirectory(settings.patchesDir); }
+  // the folder a picker for this medium should reopen in
+  void rememberDir(const std::string& path);
   void openRomDialog();
   void openFolderDialog(FilePick& pick) { openPick(pick, nullptr, gamesDirOrNull()); }
   void openFontDialog();

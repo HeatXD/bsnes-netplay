@@ -27,6 +27,8 @@ struct Media {
   string location;  // a trailing '/' marks a pak folder rather than a file
   string manifest;
   vector<uint8_t> program, data, expansion, firmware;
+  bool verified = false;  // found in the games database by sha256
+  bool patched = false;   // a .bps or .ips was applied on load
 
   explicit operator bool() const { return (bool)location; }
   auto pak() const -> bool { return location.endsWith("/"); }
@@ -38,6 +40,9 @@ struct EmuCore::Impl : Emulator::Platform {
   Emulator::Interface* emulator = nullptr;
 
   Media superFamicom, gameBoy, bsMemory, sufamiTurboA, sufamiTurboB;
+  auto allMedia() -> std::array<Media*, 5> {
+    return {&superFamicom, &gameBoy, &bsMemory, &sufamiTurboA, &sufamiTurboB};
+  }
   Markup::Node sfcDocument;  // the base cart's manifest, parsed for firmware ids
 
   // heuristics summary of the base cartridge, for the Cartridge window
@@ -52,8 +57,9 @@ struct EmuCore::Impl : Emulator::Platform {
   } info;
 
   string error;
-  string missing;  // required files the last load could not find
-  // rebuilt on load rather than per call: the Cartridge window asks every frame
+  string missing;      // required files the last load could not find
+  string patchError;   // a patch was found but could not be applied
+  // rebuilt on load, not per call: the windows reading these ask every frame
   std::vector<EmuCore::SlotInfo> slotCache;
 
   // cached hack settings, applied on load/power/reset since several only
@@ -75,6 +81,9 @@ struct EmuCore::Impl : Emulator::Platform {
 
   std::string savesDir;     // frontend override; empty means next to the ROM
   std::string firmwareDir;
+  std::string databaseDir;
+  std::string patchesDir;
+  bool ipsHeadered = false;
 
   std::array<uint32_t, 32768> palette{};
   std::vector<uint32_t> videoOut;      // final cropped frame, tightly packed
@@ -111,6 +120,13 @@ struct EmuCore::Impl : Emulator::Platform {
 
   //media.cpp
   auto loadSuperFamicom(const string& location) -> bool;
+  template<typename Heuristic>
+  auto loadCart(Media& slot, const string& location, uint minSize,
+                const vector<string>& pakFiles, const vector<string>& databases) -> bool;
+  // replaces a heuristic manifest with the database's when the hash matches
+  auto lookupDatabase(Media& slot, const vector<string>& databases, const string& sha256,
+                      const string& headerTitle = {}) -> void;
+  auto applyPatches(Media& slot, vector<uint8_t>& rom, const string& location) -> void;
 
   //Emulator::Platform
   auto open(uint id, string name, vfs::file::mode mode, bool required) -> shared_pointer<vfs::file> override;

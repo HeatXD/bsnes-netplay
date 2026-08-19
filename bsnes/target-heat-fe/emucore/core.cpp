@@ -121,6 +121,14 @@ double EmuCore::refreshRate() const {
 
 void EmuCore::setSavesDirectory(const std::string& dir) { impl->savesDir = dir; }
 void EmuCore::setFirmwareDirectory(const std::string& dir) { impl->firmwareDir = dir; }
+void EmuCore::setDatabaseDirectory(const std::string& dir) { impl->databaseDir = dir; }
+void EmuCore::setPatchesDirectory(const std::string& dir) { impl->patchesDir = dir; }
+
+// the core writes every dirty memory out through the same path unload uses
+void EmuCore::saveMemory() {
+  if(!loaded()) return;
+  impl->emulator->save();
+}
 
 void EmuCore::setAudioFrequency(double hz) { Emulator::audio.setFrequency(hz); }
 void EmuCore::setSpeedScale(double scale) { Emulator::audio.setSpeedScale(scale); }

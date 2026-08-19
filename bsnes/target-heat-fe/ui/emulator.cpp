@@ -9,6 +9,11 @@ void App::restoreEmulatorDefaults() {
   settings.fastForwardMute = defaults.fastForwardMute;
   settings.showStatus = defaults.showStatus;
   settings.showToolTips = defaults.showToolTips;
+  settings.warnUnverified = defaults.warnUnverified;
+  settings.autoSaveMemory = defaults.autoSaveMemory;
+  settings.autoSaveInterval = defaults.autoSaveInterval;
+  settings.ipsHeadered = defaults.ipsHeadered;
+  core.setIpsHeadered(settings.ipsHeadered);
   applySpeed();
 }
 

@@ -10,6 +10,7 @@
 #include <heuristics/sufami-turbo.cpp>
 
 #include <lzma/lzma.hpp>
+#include <nall/beat/single/apply.hpp>
 
 namespace {
 // nall only splits paths on '/', so a windows path would come back whole
@@ -47,6 +48,45 @@ auto mediumOfData(const vector<uint8_t>& rom) -> EmuCore::Medium {
   return EmuCore::Medium::SuperFamicom;
 }
 
+// bsnes asks per patch whether the ROM is headered; here it is a setting
+auto applyPatchIPS(vector<uint8_t>& data, const vector<uint8_t>& patch, bool headered) -> bool {
+  if(patch.size() < 8) return false;
+  if(memory::compare(patch.data(), "PATCH", 5) != 0) return false;
+
+  for(uint index = 5;;) {
+    if(index == patch.size() - 6
+    && memory::compare(&patch.data()[index], "EOF", 3) == 0) {
+      uint32_t truncate = patch[index + 3] << 16 | patch[index + 4] << 8 | patch[index + 5];
+      data.resize(truncate);
+      return true;
+    }
+    if(index == patch.size() - 3
+    && memory::compare(&patch.data()[index], "EOF", 3) == 0) return true;
+    if(index >= patch.size()) break;
+
+    int32_t offset = patch(index++, 0) << 16 | patch(index++, 0) << 8 | patch(index++, 0);
+    if(headered) offset -= 512;
+    uint16_t length = patch(index++, 0) << 8 | patch(index++, 0);
+
+    if(length == 0) {  // run-length record: a repeat count and one fill byte
+      uint16_t repeat = patch(index++, 0) << 8 | patch(index++, 0);
+      uint8_t fill = patch(index++, 0);
+      while(repeat--) {
+        if(offset >= 0) data(offset) = fill;
+        offset++;
+      }
+    } else {
+      while(length--) {
+        if(offset >= 0) data(offset) = patch(index, 0);
+        offset++;
+        index++;
+      }
+    }
+  }
+  // the EOF marker was not where it should be, but the data is already patched
+  return true;
+}
+
 auto loadFile(const string& location) -> vector<uint8_t> {
   auto suffix = Location::suffix(location).downcase();
   if(suffix == ".zip") {
@@ -62,6 +102,36 @@ auto loadFile(const string& location) -> vector<uint8_t> {
   }
   if(suffix == ".7z") return LZMA::extract(location);
   return file::read(location);
+}
+
+struct Patches { vector<uint8_t> ips, bps; };
+
+// one archive scan answers both suffixes; a loose patch sits beside the ROM
+auto readPatches(const string& location, const std::string& patchesDir) -> Patches {
+  Patches patches;
+  if(location.endsWith("/")) {
+    patches.ips = file::read({location, "patch.ips"});
+    patches.bps = file::read({location, "patch.bps"});
+    return patches;
+  }
+
+  if(Location::suffix(location).downcase() == ".zip") {
+    Decode::ZIP archive;
+    if(archive.open(location)) {
+      for(auto& entry : archive.file) {
+        if(!patches.ips && entry.name.iendsWith(".ips")) patches.ips = archive.extract(entry);
+        if(!patches.bps && entry.name.iendsWith(".bps")) patches.bps = archive.extract(entry);
+      }
+    }
+    if(patches.ips || patches.bps) return patches;
+  }
+
+  const string stem = patchesDir.empty()
+    ? Location::notsuffix(location)
+    : string{patchesDir.c_str(), "/", Location::prefix(location)};
+  patches.ips = file::read({stem, ".ips"});
+  patches.bps = file::read({stem, ".bps"});
+  return patches;
 }
 
 // a pak reads its parts from the folder; a loose ROM may have a .bml beside it
@@ -87,20 +157,66 @@ auto loadParts(const string& location, const vector<string>& pakFiles,
   return rom;
 }
 
+}  // namespace
+
 // every slot medium is a manifest plus one program ROM
 template<typename Heuristic>
-auto loadCart(Media& slot, const string& location, uint minSize,
-              const vector<string>& pakFiles) -> bool {
+auto EmuCore::Impl::loadCart(Media& slot, const string& location, uint minSize,
+                             const vector<string>& pakFiles,
+                             const vector<string>& databases) -> bool {
   string manifest;
   auto rom = loadParts(location, pakFiles, manifest);
   if(rom.size() < minSize) return false;
 
   slot.location = location;
+  applyPatches(slot, rom, location);
   slot.manifest = manifest ? manifest : Heuristic(rom, location).manifest();
   slot.program = rom;
+  if(!manifest && !databaseDir.empty()) {
+    lookupDatabase(slot, databases, Hash::SHA256(rom).digest());
+  }
   return true;
 }
-}  // namespace
+
+auto EmuCore::Impl::applyPatches(Media& slot, vector<uint8_t>& rom,
+                                 const string& location) -> void {
+  auto patches = readPatches(location, patchesDir);
+
+  if(auto& patch = patches.ips) {
+    if(applyPatchIPS(rom, patch, ipsHeadered)) slot.patched = true;
+    else patchError = {"the .ips patch for ", Location::file(location), " is malformed"};
+  }
+  if(auto& patch = patches.bps) {
+    string manifest, error;
+    if(auto output = Beat::Single::apply(rom, patch, manifest, error); output && !error) {
+      rom = move(*output);
+      slot.patched = true;
+    } else {
+      patchError = {error ? error : string{"the .bps patch could not be applied"},
+                    " -- this patch wants the headerless ROM"};
+    }
+  }
+}
+
+// a hit means the dump is known good, so its manifest beats the heuristic
+auto EmuCore::Impl::lookupDatabase(Media& slot, const vector<string>& databases,
+                                   const string& sha256, const string& headerTitle) -> void {
+  if(databaseDir.empty()) return;
+
+  Markup::Node game;
+  for(auto& database : databases) {
+    auto text = string::read({databaseDir.c_str(), "/", database, ".bml"});
+    // parsing the whole database to answer one hash is the expensive way round
+    if(!text.find(sha256)) continue;
+    if((game = BML::unserialize(text)[{"game(sha256=", sha256, ")"}])) break;
+  }
+  if(!game) return;
+
+  slot.manifest = BML::serialize(game);
+  // the database omits the header title, which the per-title hotfixes match on
+  if(headerTitle) slot.manifest.append("  title: ", headerTitle, "\n");
+  slot.verified = true;
+}
 
 EmuCore::Medium EmuCore::mediumOf(const std::string& path) {
   const string location = normalize(path);
@@ -125,6 +241,22 @@ EmuCore::Medium EmuCore::mediumOf(const std::string& path) {
 
 std::string EmuCore::loadError() const { return (const char*)impl->error; }
 std::string EmuCore::missingFiles() const { return (const char*)impl->missing; }
+std::string EmuCore::patchError() const { return (const char*)impl->patchError; }
+bool EmuCore::patched() const {
+  for(const Media* slot : impl->allMedia()) if(slot->patched) return true;
+  return false;
+}
+
+// verified only if every medium in the machine was found in the database
+bool EmuCore::verified() const {
+  if(!loaded()) return false;
+  for(const Media* slot : impl->allMedia()) {
+    if(*slot && !slot->verified) return false;
+  }
+  return true;
+}
+
+void EmuCore::setIpsHeadered(bool headered) { impl->ipsHeadered = headered; }
 
 auto EmuCore::Impl::loadSuperFamicom(const string& location) -> bool {
   string manifest;
@@ -138,9 +270,14 @@ auto EmuCore::Impl::loadSuperFamicom(const string& location) -> bool {
     rom.resize(rom.size() - 512);
   }
 
-  auto heuristics = Heuristics::SuperFamicom(rom, location);
   superFamicom.location = location;
+  applyPatches(superFamicom, rom, location);
+
+  auto heuristics = Heuristics::SuperFamicom(rom, location);
+  info.checksum = Hash::SHA256(rom).digest();
   superFamicom.manifest = manifest ? manifest : heuristics.manifest();
+  // a hand-written manifest beside the ROM wins over the database
+  if(!manifest) lookupDatabase(superFamicom, {"Super Famicom"}, info.checksum, heuristics.title());
   sfcDocument = BML::unserialize(superFamicom.manifest);
 
   // the window title is the file name, not the cartridge header
@@ -148,7 +285,6 @@ auto EmuCore::Impl::loadSuperFamicom(const string& location) -> bool {
   info.headerTitle = heuristics.title();
   info.region = heuristics.videoRegion();
   info.board = heuristics.board();
-  info.checksum = Hash::SHA256(rom).digest();
   info.romSize = heuristics.romSize();
   info.ramSize = heuristics.ramSize() + heuristics.expansionRamSize();
 
@@ -170,6 +306,7 @@ bool EmuCore::load(const GameSpec& spec) {
   unload();
   impl->error = "";
   impl->missing = "";
+  impl->patchError = "";
 
   if(spec.superFamicom.empty()) {
     impl->error = "no base cartridge";
@@ -183,19 +320,23 @@ bool EmuCore::load(const GameSpec& spec) {
 
   if(!core.loadSuperFamicom(normalize(spec.superFamicom))) failed = "cartridge";
   if(want(spec.gameBoy)
-  && !loadCart<Heuristics::GameBoy>(core.gameBoy, normalize(spec.gameBoy), 0x4000, {"program.rom"})) {
+  && !core.loadCart<Heuristics::GameBoy>(core.gameBoy, normalize(spec.gameBoy), 0x4000,
+                                         {"program.rom"}, {"Game Boy", "Game Boy Color"})) {
     failed = "Game Boy ROM";
   }
   if(want(spec.bsMemory)
-  && !loadCart<Heuristics::BSMemory>(core.bsMemory, normalize(spec.bsMemory), 0x8000, {"program.rom", "program.flash"})) {
+  && !core.loadCart<Heuristics::BSMemory>(core.bsMemory, normalize(spec.bsMemory), 0x8000,
+                                          {"program.rom", "program.flash"}, {"BS Memory"})) {
     failed = "BS Memory ROM";
   }
   if(want(spec.sufamiTurboA)
-  && !loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboA, normalize(spec.sufamiTurboA), 0x20000, {"program.rom"})) {
+  && !core.loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboA, normalize(spec.sufamiTurboA),
+                                             0x20000, {"program.rom"}, {"Sufami Turbo"})) {
     failed = "Sufami Turbo cartridge";
   }
   if(want(spec.sufamiTurboB)
-  && !loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboB, normalize(spec.sufamiTurboB), 0x20000, {"program.rom"})) {
+  && !core.loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboB, normalize(spec.sufamiTurboB),
+                                             0x20000, {"program.rom"}, {"Sufami Turbo"})) {
     failed = "second Sufami Turbo cartridge";
   }
   if(failed) {
@@ -229,11 +370,7 @@ bool EmuCore::load(const GameSpec& spec) {
 
 void EmuCore::unload() {
   impl->emulator->unload();
-  impl->superFamicom = {};
-  impl->gameBoy = {};
-  impl->bsMemory = {};
-  impl->sufamiTurboA = {};
-  impl->sufamiTurboB = {};
+  for(Media* slot : impl->allMedia()) *slot = {};
   impl->sfcDocument = {};
   impl->info = {};
   impl->slotCache.clear();

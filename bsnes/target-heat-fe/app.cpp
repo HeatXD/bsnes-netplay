@@ -10,6 +10,23 @@ const BiosSlot BiosSlots[3] = {
   {"Sufami Turbo",   "##st",  &App::stBiosPick,  &Settings::stBios},
 };
 
+// beside the exe first, so a portable copy carries its own database
+std::string App::databaseDir() const {
+  if(!settings.databaseDir.empty()) return settings.databaseDir;
+  if(const char* base = SDL_GetBasePath()) {
+    const std::string beside = std::string(base) + "Database";
+    if(isDirectory(beside)) return beside;
+  }
+  return configDir() + "Database";
+}
+
+void App::rememberDir(const std::string& path) {
+  const std::string normal = normalPath(path);
+  if(std::string dir = parentDir(normal); !dir.empty()) {
+    settings.recentDir[(int)EmuCore::mediumOf(normal)] = dir;
+  }
+}
+
 void App::scanGames() {
   games.clear();
   if(settings.gamesDir.empty()) return;
@@ -81,9 +98,19 @@ bool App::loadRom(const std::string& entry) {
   speedIndex = SpeedNormal;
   applySpeed();
 
+  // held before the first frame, so cancelling means nothing ever ran
+  unverifiedPrompt = settings.warnUnverified && !core.verified();
+
+  const std::string patchError = core.patchError();
   const std::string missing = core.missingFiles();
-  showMessage(missing.empty() ? "loaded " + gameTitle
-                              : "loaded " + gameTitle + ", missing " + missing);
+
+  std::string note;
+  auto add = [&](const std::string& text) { note += (note.empty() ? ", " : "; ") + text; };
+  if(core.patched()) add("patch applied");
+  if(!patchError.empty()) add(patchError);
+  if(!missing.empty()) add("missing " + missing);
+
+  showMessage((core.verified() ? "loaded verified " : "loaded ") + gameTitle + note);
   return true;
 }
 

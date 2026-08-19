@@ -91,6 +91,9 @@ struct Settings {
   int hackCpuOverclock = 100;      // percent
   int hackSa1Overclock = 100;
   int hackSuperFxOverclock = 100;
+  bool warnUnverified = false;
+  // IPS says nothing about copier headers, so the user tells us once
+  bool ipsHeadered = false;
   bool showStatus = true;
   bool showToolTips = true;
   int theme = 0;  // 0 dark, 1 light, 2 classic
@@ -103,21 +106,27 @@ struct Settings {
   std::string shotsDir;
   std::string savesDir;     // empty means next to the ROM
   std::string firmwareDir;  // empty means a Firmware folder beside the config
+  std::string patchesDir;   // empty means beside the ROM
+  std::string databaseDir;  // empty means a Database folder beside the exe
   // base cartridges the slot media ride in
   std::string sgbBios;
   std::string bsxBios;
   std::string stBios;
   std::vector<std::string> recent;
-  int hotkeys[HotkeyCount] = {SDL_SCANCODE_F2, SDL_SCANCODE_F3, SDL_SCANCODE_F4,
-                              SDL_SCANCODE_F11, SDL_SCANCODE_F12,
-                              SDL_SCANCODE_F1, SDL_SCANCODE_F6, SDL_SCANCODE_F8, 0,
-                              SDL_SCANCODE_F9, SDL_SCANCODE_F10};
-  int devices[EmuCore::PortCount] = {EmuCore::Gamepad, EmuCore::Gamepad};
+  // per medium, so a Game Boy ROM cannot send the Sufami Turbo dialog astray
+  std::string recentDir[EmuCore::MediumCount];
+  // the bindings live in InputMap; only the combining rule is a setting
+  int hotkeyLogic = LogicOr;
+  // a pre-binding config's scancodes; the count marks which ones it carried
+  int legacyHotkeys[HotkeyCount] = {};
+  int legacyHotkeyCount = 0;
+  int devices[EmuCore::PortCount] = {EmuCore::Gamepad, EmuCore::Gamepad, EmuCore::None};
   // Which opened pad drives each player, -1 for none; one stick can enumerate
   // as several devices, so the working one is chosen rather than assumed. A
   // multitap puts four players on one port, so this is per player, not port.
   int padIndex[EmuCore::PortCount * EmuCore::MaxPlayers] = {0, -1, -1, -1,
-                                                            1, -1, -1, -1};
+                                                            1, -1, -1, -1,
+                                                            -1, -1, -1, -1};
   int turboRate = 8;  // Hz
 
   void applyKey(const std::string& key, const std::string& value);

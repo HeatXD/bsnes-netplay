@@ -95,6 +95,8 @@ const StrField StrFields[] = {
   {"sgbbios",     &Settings::sgbBios,     true},
   {"bsxbios",     &Settings::bsxBios,     true},
   {"stbios",      &Settings::stBios,      true},
+  {"patchesdir",  &Settings::patchesDir,  true},
+  {"databasedir", &Settings::databaseDir, true},
 };
 }  // namespace
 
@@ -171,6 +173,11 @@ void Settings::save(const std::string& path) const {
   for(int i = 0; i < EmuCore::PortCount; i++) addIndexed("device", i, devices[i]);
   for(int i = 0; i < HotkeyCount; i++) addIndexed("hotkey", i, hotkeys[i]);
   for(int i = 0; i < EmuCore::PortCount * EmuCore::MaxPlayers; i++) addIndexed("pad", i, padIndex[i]);
+  for(int i = 0; i < EmuCore::MediumCount; i++) {
+    char key[16];
+    SDL_snprintf(key, sizeof(key), "recentdir%d", i);
+    add(key, recentDir[i]);
+  }
   for(const std::string& rom : recent) add("recent", rom);
 
   writeText(path, text);
