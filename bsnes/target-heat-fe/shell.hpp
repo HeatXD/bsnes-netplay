@@ -77,6 +77,8 @@ struct Shell {
   // tint multiplies the frame, which is how the idle dimming is applied
   void drawGame(const Settings& settings, unsigned tint = 0xffffffffu);
   void shrinkToFit(const Settings& settings);
+  // recentres on the configured display, or the one the window is already on
+  void center(const Settings& settings);
   // moves the window to the configured display, leaving its size alone
   void moveToDisplay(const Settings& settings);
   // largest whole multiple whose window still fits the display, chrome included

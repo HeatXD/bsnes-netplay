@@ -295,6 +295,12 @@ void Shell::moveToDisplay(const Settings& settings) {
   centerOn(display);
 }
 
+void Shell::center(const Settings& settings) {
+  if(fullscreen()) return;
+  SDL_RestoreWindow(window);  // a maximized window already fills the display
+  centerOn(chosenDisplay(settings));
+}
+
 // the window shrinkToFit would build, measured against the display it sits on
 int Shell::maxScale(const Settings& settings) const {
   const ImGuiViewport* view = ImGui::GetMainViewport();

@@ -58,6 +58,8 @@ void App::drawVideoTab() {
   tip("Which monitor the window and fullscreen use.");
 
   if(ImGui::Button("Shrink window to size")) shell.shrinkToFit(settings);
+  ImGui::SameLine();
+  if(ImGui::Button("Center window")) shell.center(settings);
 
   ImGui::Separator();
   if(ImGui::Checkbox("Crop overscan (8 lines top/bottom)", &settings.overscanCrop)) {

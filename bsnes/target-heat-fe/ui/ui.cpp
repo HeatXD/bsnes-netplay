@@ -78,6 +78,7 @@ void App::drawWindowSizeMenu() {
   }
   ImGui::Separator();
   if(ImGui::MenuItem("Shrink window to size")) shell.shrinkToFit(settings);
+  if(ImGui::MenuItem("Center window")) shell.center(settings);
 }
 
 // the slow down and speed up hotkeys walk this same list
