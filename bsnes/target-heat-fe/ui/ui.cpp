@@ -24,6 +24,17 @@ const struct { const char* name; void (App::*draw)(); } SettingsTabs[] = {
   {"Customization", &App::drawCustomizationTab},
   {"Paths",         &App::drawPathsTab},
 };
+
+// "(empty)", or when the slot was written
+std::string stateStamp(int64_t seconds) {
+  if(seconds == 0) return "(empty)";
+  SDL_DateTime when;
+  if(!SDL_TimeToDateTime(SDL_SECONDS_TO_NS(seconds), &when, true)) return "(saved)";
+  char text[32];
+  SDL_snprintf(text, sizeof(text), "(%04d-%02d-%02d %02d:%02d)",
+               when.year, when.month, when.day, when.hour, when.minute);
+  return text;
+}
 }  // namespace
 
 void App::drawFileMenu() {
@@ -88,6 +99,52 @@ void App::drawSpeedMenu() {
   }
 }
 
+// one menu for both directions: the slot list and its labels are the same
+void App::drawStateMenu(bool loading) {
+  for(int slot = 1; slot <= StateSlots; slot++) {
+    const std::string name = slotName(slot);
+    const std::string label = "Slot " + name + " " + stateStamp(stateTime(name));
+    // loading an empty slot only prints a message, so it stays disabled
+    if(ImGui::MenuItem(label.c_str(), nullptr, stateSlot == slot,
+                       !loading || hasState(name))) {
+      stateSlot = slot;
+      if(loading) loadState(name); else saveState(name);
+    }
+  }
+  if(!loading) return;
+
+  ImGui::Separator();
+  if(ImGui::MenuItem("Undo Last Save", hotkeyShortcut(HkUndoState).c_str(),
+                     false, hasState("undo"))) loadState("undo");
+  if(ImGui::MenuItem("Redo Last Undo", hotkeyShortcut(HkRedoState).c_str(),
+                     false, hasState("redo"))) loadState("redo");
+  if(ImGui::MenuItem("Auto-resume State", nullptr, false, hasState("auto"))) loadState("auto");
+  ImGui::Separator();
+  if(ImGui::MenuItem("Remove All States")) confirmRemoveStates = true;
+}
+
+void App::drawRemoveStatesPrompt() {
+  if(confirmRemoveStates && !ImGui::IsPopupOpen("Remove states")) {
+    ImGui::OpenPopup("Remove states");
+  }
+  if(!ImGui::BeginPopupModal("Remove states", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) return;
+
+  ImGui::Text("Permanently remove every state for %s?", gameTitle.c_str());
+  ImGui::Separator();
+  if(ImGui::Button("Remove")) {
+    removeAllStates();
+    confirmRemoveStates = false;
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::SameLine();
+  if(ImGui::Button("Cancel")) {
+    confirmRemoveStates = false;
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::EndPopup();
+}
+
 void App::drawEmulationMenu() {
   if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause).c_str(), paused, core.loaded())) paused = !paused;
   if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance).c_str(), false, core.loaded())) {
@@ -102,6 +159,10 @@ void App::drawEmulationMenu() {
     settings.mute = !settings.mute;
     settings.save(settingsCfg);
   }
+  ImGui::Separator();
+  if(ImGui::BeginMenu("Save State", core.loaded())) { drawStateMenu(false); ImGui::EndMenu(); }
+  if(ImGui::BeginMenu("Load State", core.loaded())) { drawStateMenu(true); ImGui::EndMenu(); }
+
   ImGui::Separator();
   if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset).c_str(), false, core.loaded())) reset();
   if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, core.loaded())) powerCycle();
@@ -241,4 +302,5 @@ void App::drawUi() {
   drawManifestWindow();
   drawAboutWindow();
   drawUnverifiedPrompt();
+  drawRemoveStatesPrompt();
 }

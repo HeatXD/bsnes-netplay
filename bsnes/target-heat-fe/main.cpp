@@ -19,6 +19,7 @@ struct Options {
   int shotW = 0, shotH = 0;
   bool fast = false;
   bool uiFullscreen = false;
+  bool stateTest = false;
 };
 
 Options parseArgs(int argc, char** argv) {
@@ -28,6 +29,7 @@ Options parseArgs(int argc, char** argv) {
     const bool hasValue = i + 1 < argc;
 
     if(SDL_strcmp(arg, "--fast") == 0) opt.fast = true;
+    else if(SDL_strcmp(arg, "--state-test") == 0) opt.stateTest = true;
     else if(SDL_strcmp(arg, "--ui-fullscreen") == 0) opt.uiFullscreen = true;
     else if(SDL_strcmp(arg, "--frames") == 0 && hasValue) opt.frameLimit = SDL_atoi(argv[++i]);
     else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) opt.uiShot = argv[++i];
@@ -123,6 +125,7 @@ struct Frontend {
   void drainPicks();
   int runLoop();
   int runUiShot();
+  int runStateTest();
 };
 
 void Frontend::renderUi() {
@@ -329,6 +332,11 @@ void Frontend::drainPicks() {
     app.refreshDatabaseDir();
     app.settings.save(app.settingsCfg);
   }
+  if(takePick(app.statesDirPick, picked) && !picked.empty()) {
+    app.settings.statesDir = normalPath(picked);
+    app.refreshStatesDir();
+    app.settings.save(app.settingsCfg);
+  }
   if(takePick(app.firmwareDirPick, picked) && !picked.empty()) {
     app.settings.firmwareDir = normalPath(picked);
     app.core.setFirmwareDirectory(app.firmwareDir());
@@ -412,6 +420,58 @@ int Frontend::runUiShot() {
   return ok ? 0 : 1;
 }
 
+// save, diverge, restore: the same frames must come back, blob and file alike
+int Frontend::runStateTest() {
+  auto hashFrame = [&] {
+    // FNV-1a over the frame the core last handed the shell
+    uint64_t hash = 1469598103934665603ull;
+    const int pixels = app.shell.frameWidth * app.shell.frameHeight;
+    for(int i = 0; i < pixels; i++) {
+      hash = (hash ^ app.shell.lastPixels[i]) * 1099511628211ull;
+    }
+    return hash;
+  };
+  // a restored machine has not drawn yet, so only what it renders next says anything
+  auto replay = [&](int count) {
+    for(int i = 0; i < count; i++) app.core.runFrame();
+    return hashFrame();
+  };
+
+  const int settle = opt.frameLimit > 0 ? opt.frameLimit : 60;
+  const uint64_t at = replay(opt.warmFrames);
+
+  const std::vector<uint8_t> state = app.core.serialize();
+  if(state.empty()) { SDL_Log("state test: FAIL, the core refused to serialize"); return 1; }
+  SDL_Log("state size %d bytes, frame %016llx", (int)state.size(), (unsigned long long)at);
+
+  const uint64_t ahead = replay(settle);
+  if(ahead == at) { SDL_Log("state test: FAIL, %d frames changed nothing", settle); return 1; }
+
+  const bool restored = app.core.unserialize(state);
+  const bool blob = restored && replay(settle) == ahead;
+  SDL_Log("blob restore %s: %d frames replay to %016llx",
+          blob ? "ok" : "FAILED", settle, (unsigned long long)ahead);
+
+  // and again through the file layer, header, folders and all
+  const bool wrote = app.saveState("statetest", true);
+  const uint64_t further = replay(settle);
+  const bool read = app.loadState("statetest");
+  const bool filed = wrote && read && replay(settle) == further;
+  SDL_Log("file round trip %s: %s", filed ? "ok" : "FAILED",
+          app.statePath("statetest").c_str());
+  app.removeState("statetest");
+
+  // a state from another game must be refused rather than half-applied
+  std::vector<uint8_t> damaged = state;
+  damaged.resize(damaged.size() / 2);
+  const bool refused = !app.core.unserialize(damaged);
+  SDL_Log("truncated state refused: %s", refused ? "ok" : "FAILED");
+
+  const bool pass = blob && filed && refused;
+  SDL_Log("state test: %s", pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}
+
 // The core caches these rather than reading Settings per frame, so a loaded
 // config has to be pushed in explicitly; without this it keeps its own
 // defaults until the matching tab happens to be opened.
@@ -423,6 +483,8 @@ void applySettingsToCore(App& app) {
   app.refreshDatabaseDir();
   app.core.setPatchesDirectory(s.patchesDir);
   app.core.setIpsHeadered(s.ipsHeadered);
+  app.refreshStatesDir();
+  app.pushSerialization();
   app.core.setOverscanCrop(s.overscanCrop);
   app.core.setPaletteAdjust(s.videoGamma, s.videoLuminance, s.videoSaturation);
   app.core.setFilter(s.videoFilter);
@@ -474,7 +536,8 @@ void openRequestedPanel(App& app, const Options& opt) {
 void shutdownApp(App& app) {
   shutdownImGui();
   for(SDL_Gamepad* pad : app.pads) if(pad) SDL_CloseGamepad(pad);
-  app.core.unload();
+  // quitting with a game up otherwise skips the auto-resume state
+  if(app.core.loaded()) app.unloadRom();
   app.shell.shutdown();
 }
 
@@ -500,14 +563,16 @@ int main(int argc, char** argv) {
   openRequestedPanel(app, opt);
 
   if(!opt.romPath.empty()) app.loadRom(opt.romPath);
-  if(opt.frameLimit && opt.uiShot.empty() && !app.core.loaded()) {
+  if((opt.frameLimit || opt.stateTest) && opt.uiShot.empty() && !app.core.loaded()) {
     SDL_Log("no rom loaded");
     shutdownApp(app);
     return 1;
   }
 
   Frontend frontend{app, opt};
-  const int code = opt.uiShot.empty() ? frontend.runLoop() : frontend.runUiShot();
+  const int code = opt.stateTest  ? frontend.runStateTest()
+                 : opt.uiShot.empty() ? frontend.runLoop()
+                 : frontend.runUiShot();
 
   shutdownApp(app);
   return code;

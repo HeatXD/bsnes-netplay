@@ -40,7 +40,7 @@ imgui.flags := -I$(imgui.path) -I$(imgui.path)/backends
 flags += $(sdl3.flags) $(imgui.flags)
 
 # filter drives the CPU video filters; lzma unpacks .7z game archives
-objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap
+objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
 objects += core-main core-media core-vfs core-video core-info
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
 objects += ui-custom ui-paths ui-windows ui-manifest ui-compat
@@ -57,6 +57,7 @@ obj/ui-shell.o: $(ui)/shell.cpp
 obj/ui-app.o: $(ui)/app.cpp
 obj/ui-draw.o: $(ui)/ui/ui.cpp
 obj/ui-inputmap.o: $(ui)/inputmap.cpp
+obj/ui-states.o: $(ui)/states.cpp
 
 obj/core-main.o: $(ui)/emucore/core.cpp
 obj/core-media.o: $(ui)/emucore/media.cpp

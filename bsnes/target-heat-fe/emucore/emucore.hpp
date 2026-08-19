@@ -79,6 +79,11 @@ public:
   void reset();
   void runFrame();
 
+  // a save state blob, empty when the core refused to make one. The whole
+  // machine, so a state only reloads into the same game.
+  std::vector<uint8_t> serialize();
+  bool unserialize(const std::vector<uint8_t>& state);
+
   // the file name, which the window title uses
   std::string title() const;
   // the cartridge header's own title, which hotfixes match on

@@ -113,6 +113,8 @@ bool App::loadRom(const std::string& entry) {
   if(!missing.empty()) add("missing " + missing);
 
   showMessage((core.verified() ? "loaded verified " : "loaded ") + gameTitle + note);
+  // after the message, so a failed resume is what the status line ends on
+  if(settings.autoStateOnLoad && hasState("auto")) loadState("auto");
   return true;
 }
 
@@ -159,6 +161,8 @@ void App::pushEnhancements() {
 }
 
 void App::unloadRom() {
+  // the game is still in the core, so this has to happen before the unload
+  if(settings.autoStateOnUnload) saveState("auto", true);
   core.unload();
   gameTitle.clear();
   shell.clearFrame();
@@ -314,6 +318,12 @@ void App::triggerHotkey(int index) {
     showMessage("HD mode 7 scale " + std::to_string(settings.hackMode7Scale) + "x");
     enhanced = true;
     break;
+  case HkSaveState: if(core.loaded()) saveState(slotName(stateSlot)); break;
+  case HkLoadState: if(core.loaded()) loadState(slotName(stateSlot)); break;
+  case HkUndoState: if(core.loaded()) loadState("undo"); break;
+  case HkRedoState: if(core.loaded()) loadState("redo"); break;
+  case HkSlotDown: if(core.loaded()) setStateSlot(stateSlot - 1); break;
+  case HkSlotUp: if(core.loaded()) setStateSlot(stateSlot + 1); break;
   case HkSupersample:
     settings.hackMode7Supersample = !settings.hackMode7Supersample;
     showMessage(std::string("supersampling ") + (settings.hackMode7Supersample ? "on" : "off"));

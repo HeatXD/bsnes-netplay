@@ -119,6 +119,29 @@ bool writeText(const std::string& path, const std::string& text) {
   return SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
 
+std::vector<uint8_t> readBytes(const std::string& path) {
+  size_t size = 0;
+  void* data = SDL_LoadFile(path.c_str(), &size);
+  if(!data) return {};
+  std::vector<uint8_t> bytes((const uint8_t*)data, (const uint8_t*)data + size);
+  SDL_free(data);
+  return bytes;
+}
+
+bool writeBytes(const std::string& path, const void* data, size_t size) {
+  return SDL_SaveFile(path.c_str(), data, size);
+}
+
+bool ensureDir(const std::string& path) {
+  return isDirectory(path) || SDL_CreateDirectory(path.c_str());
+}
+
+int64_t fileTime(const std::string& path) {
+  SDL_PathInfo info;
+  if(!SDL_GetPathInfo(path.c_str(), &info)) return 0;
+  return SDL_NS_TO_SECONDS(info.modify_time);
+}
+
 void SDLCALL onPicked(void* userdata, const char* const* filelist, int) {
   auto* pick = (FilePick*)userdata;
   Guard guard(pick->mutex);

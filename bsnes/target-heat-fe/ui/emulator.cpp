@@ -12,6 +12,10 @@ void App::restoreEmulatorDefaults() {
   settings.warnUnverified = defaults.warnUnverified;
   settings.autoSaveMemory = defaults.autoSaveMemory;
   settings.autoSaveInterval = defaults.autoSaveInterval;
+  settings.serialization = defaults.serialization;
+  settings.autoStateOnUnload = defaults.autoStateOnUnload;
+  settings.autoStateOnLoad = defaults.autoStateOnLoad;
+  pushSerialization();
   settings.ipsHeadered = defaults.ipsHeadered;
   core.setIpsHeadered(settings.ipsHeadered);
   applySpeed();
@@ -51,6 +55,23 @@ void App::drawEmulatorTab() {
   ImGui::EndDisabled();
 
   ImGui::Spacing();
+  ImGui::TextDisabled("Save States");
+  if(ImGui::Combo("Serialization", &settings.serialization,
+                  SerializationNames, SerialCount)) {
+    pushSerialization();
+    dirty = true;
+  }
+  tip("Strict winds the coprocessors further forward first; slower, but safer.");
+  dirty |= ImGui::Checkbox("Save an auto-resume state when a game is closed",
+                           &settings.autoStateOnUnload);
+  ImGui::BeginDisabled(!settings.autoStateOnUnload);
+  if(!settings.autoStateOnUnload) settings.autoStateOnLoad = false;
+  dirty |= ImGui::Checkbox("Resume from it when the game is loaded again",
+                           &settings.autoStateOnLoad);
+  ImGui::EndDisabled();
+  tip("The auto-resume state has a slot of its own.");
+
+  ImGui::Spacing();
   ImGui::TextDisabled("Games");
   dirty |= ImGui::Checkbox("Warn on unverified games", &settings.warnUnverified);
   tip("An unverified image has its board layout guessed from the ROM.");
@@ -66,6 +87,7 @@ void App::drawEmulatorTab() {
   dirty |= ImGui::Checkbox("Show tool tips", &settings.showToolTips);
   ImGui::Separator();
   ImGui::TextWrapped("Save RAM goes to the saves folder under Paths, or next to the ROM.");
+  ImGui::TextWrapped("States go to the states folder, one file per slot per game.");
 
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##emulator")) {

@@ -25,6 +25,12 @@ constexpr struct { const char* name; SDL_Scancode key; } Hotkeys[HotkeyCount] = 
   {"Decrease HD Mode 7",   SDL_SCANCODE_UNKNOWN},
   {"Increase HD Mode 7",   SDL_SCANCODE_UNKNOWN},
   {"Toggle Supersampling", SDL_SCANCODE_UNKNOWN},
+  {"Save State",           SDL_SCANCODE_UNKNOWN},
+  {"Load State",           SDL_SCANCODE_UNKNOWN},
+  {"Undo Last Save",       SDL_SCANCODE_UNKNOWN},
+  {"Redo Last Undo",       SDL_SCANCODE_UNKNOWN},
+  {"Previous State Slot",  SDL_SCANCODE_UNKNOWN},
+  {"Next State Slot",      SDL_SCANCODE_UNKNOWN},
 };
 }  // namespace
 
@@ -44,6 +50,8 @@ const char* const OutputNames[OutputCount] = {
 };
 
 const char* const EntropyNames[EntropyCount] = {"None", "Low", "High"};
+
+const char* const SerializationNames[SerialCount] = {"Fast", "Strict"};
 
 const char* const SpeedNames[SpeedCount] = {"50%", "75%", "100%", "150%", "200%"};
 
@@ -82,6 +90,7 @@ const IntField IntFields[] = {
   {"audiobalance", &Settings::audioBalance,    0,              100},
   {"autosaveinterval", &Settings::autoSaveInterval, 5,         600},
   {"hotkeylogic", &Settings::hotkeyLogic,      0,              LogicCount - 1},
+  {"serialization", &Settings::serialization,  0,              SerialCount - 1},
 };
 
 const BoolField BoolFields[] = {
@@ -113,6 +122,8 @@ const BoolField BoolFields[] = {
   {"warnunverified", &Settings::warnUnverified},
   {"autosavememory", &Settings::autoSaveMemory},
   {"ipsheadered",    &Settings::ipsHeadered},
+  {"autostateunload", &Settings::autoStateOnUnload},
+  {"autostateload",  &Settings::autoStateOnLoad},
 };
 
 const StrField StrFields[] = {
@@ -128,6 +139,7 @@ const StrField StrFields[] = {
   {"stbios",      &Settings::stBios,      true},
   {"patchesdir",  &Settings::patchesDir,  true},
   {"databasedir", &Settings::databaseDir, true},
+  {"statesdir",   &Settings::statesDir,   true},
   {"display",     &Settings::displayName, false},
 };
 }  // namespace

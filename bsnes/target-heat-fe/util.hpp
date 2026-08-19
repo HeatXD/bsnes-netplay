@@ -2,8 +2,10 @@
 
 #include <SDL3/SDL.h>
 
+#include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 inline constexpr const char* AppName = "bsnes heat-fe";
 
@@ -33,6 +35,12 @@ std::string prefFile(const char* name);
 
 std::string readText(const std::string& path);
 bool writeText(const std::string& path, const std::string& text);
+std::vector<uint8_t> readBytes(const std::string& path);
+bool writeBytes(const std::string& path, const void* data, size_t size);
+// creates missing parents too; true when the folder exists afterwards
+bool ensureDir(const std::string& path);
+// modification time in seconds since the epoch, 0 when there is no such file
+int64_t fileTime(const std::string& path);
 
 struct Guard {
   SDL_Mutex* mutex;

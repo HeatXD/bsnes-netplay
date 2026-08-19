@@ -49,7 +49,7 @@ struct App {
   std::string gameTitle;
 
   FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick, pakPick, firmwareDirPick;
-  FilePick patchesDirPick, databaseDirPick;
+  FilePick patchesDirPick, databaseDirPick, statesDirPick;
   FilePick sgbBiosPick, bsxBiosPick, stBiosPick;
   FilePick sufamiAPick, sufamiBPick;
   std::string sufamiPending;
@@ -70,6 +70,8 @@ struct App {
   int capturing = -1;      // emulator button slot being rebound
   int capturingHotkey = -1;  // hotkey index * HotkeySlots + slot
   int gameSelected = 0;
+  int stateSlot = 1;  // 1..StateSlots; a session choice, not a setting
+  bool confirmRemoveStates = false;
   // not persisted: every game starts at normal speed
   int speedIndex = SpeedNormal;
   double fps = 0.0;
@@ -152,6 +154,9 @@ struct App {
     databaseDirCache = databaseDir();
     core.setDatabaseDirectory(databaseDirCache);
   }
+  // resolving this stats nothing, but the Paths row shows the resolved value
+  std::string statesDirCache;
+  void refreshStatesDir() { statesDirCache = statesDir(); }
   // each folder row re-pushes its path to the core after a change
   void pushSavesDir() { core.setSavesDirectory(settings.savesDir); }
   void pushPatchesDir() { core.setPatchesDirectory(settings.patchesDir); }
@@ -166,6 +171,24 @@ struct App {
   void openSufamiPairDialog();
   void takeScreenshot();
   void saveMemoryTick();
+
+  //states.cpp
+  // resolved states folder, and the per-game folder holding the slots
+  std::string statesDir() const;
+  std::string stateFolder() const;
+  std::string statePath(const std::string& name) const;
+  // slots are named by number; undo, redo and auto are named outright
+  static std::string slotName(int slot);
+  static std::string stateLabel(const std::string& name);
+  int64_t stateTime(const std::string& name) const;
+  bool hasState(const std::string& name) const;
+  bool saveState(const std::string& name, bool quiet = false);
+  bool loadState(const std::string& name);
+  bool removeState(const std::string& name);
+  void removeAllStates();
+  void setStateSlot(int slot);
+  // the core reads this when a state is taken, not when it is set
+  void pushSerialization();
   void pollHotkeys();
   void triggerHotkey(int index);
 
@@ -186,6 +209,8 @@ struct App {
   void drawFileMenu();
   void drawWindowSizeMenu();
   void drawSpeedMenu();
+  void drawStateMenu(bool loading);
+  void drawRemoveStatesPrompt();
   void drawEmulationMenu();
   void drawSettingsMenu();
   void drawMenuBar();

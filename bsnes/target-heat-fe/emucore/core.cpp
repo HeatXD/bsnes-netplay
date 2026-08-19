@@ -195,6 +195,29 @@ void EmuCore::reset() {
   impl->emulator->reset();
 }
 
+// the core downgrades Fast to Strict itself where it corrupts (sfc/system/system.cpp:24)
+std::vector<uint8_t> EmuCore::serialize() {
+  if(!loaded()) return {};
+  serializer s = impl->emulator->serialize();
+  if(!s.size()) return {};
+  return std::vector<uint8_t>(s.data(), s.data() + s.size());
+}
+
+// the core checks its header but not the buffer length, so a short blob reads off the end
+bool EmuCore::unserialize(const std::vector<uint8_t>& state) {
+  if(!loaded() || state.size() < 8) return false;
+
+  auto field = [&](int index) {
+    const uint8_t* at = state.data() + index * 4;
+    return (uint32_t)at[0] | (uint32_t)at[1] << 8 | (uint32_t)at[2] << 16 | (uint32_t)at[3] << 24;
+  };
+  if(field(0) != 0x31545342) return false;  // "BST1", as the core stamps it
+  if(field(1) != state.size()) return false;
+
+  serializer s{state.data(), (uint)state.size()};
+  return impl->emulator->unserialize(s);
+}
+
 void EmuCore::runFrame() {
   impl->audioOut.clear();
   impl->emulator->run();

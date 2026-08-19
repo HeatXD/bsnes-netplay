@@ -30,7 +30,9 @@ enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot,
              HkFrameAdvance, HkPowerCycle, HkMute, HkQuit,
              HkSpeedDown, HkSpeedUp,
              HkUnloadGame, HkMouseCapture,
-             HkMode7Down, HkMode7Up, HkSupersample, HotkeyCount };
+             HkMode7Down, HkMode7Up, HkSupersample,
+             HkSaveState, HkLoadState, HkUndoState, HkRedoState,
+             HkSlotDown, HkSlotUp, HotkeyCount };
 
 // how a hotkey's several mappings combine: any one, or all of them at once
 enum Logic { LogicOr, LogicAnd, LogicCount };
@@ -40,6 +42,15 @@ extern const char* const LogicNames[LogicCount];
 const char* HotkeyName(int index);
 // SDL_SCANCODE_UNKNOWN where bsnes ships the action unbound too
 SDL_Scancode HotkeyDefault(int index);
+
+// how far the cothreads are wound forward before a state is taken
+enum Serialization { SerialFast, SerialStrict, SerialCount };
+
+// the core's own "System/Serialization/Method" values, not just combo labels
+extern const char* const SerializationNames[SerialCount];
+
+// quick state slots, as bsnes ships them
+constexpr int StateSlots = 9;
 
 // window-unfocused behaviour while a game runs
 enum Defocus { DefocusPause, DefocusBlockInput, DefocusAllowInput, DefocusCount };
@@ -112,6 +123,10 @@ struct Settings {
   bool warnUnverified = false;
   bool autoSaveMemory = true;
   int autoSaveInterval = 30;  // seconds
+  int serialization = SerialFast;
+  // resume where the last session left off, through a slot of its own
+  bool autoStateOnUnload = false;
+  bool autoStateOnLoad = false;
   // IPS says nothing about copier headers, so the user tells us once
   bool ipsHeadered = false;
   bool showStatus = true;
@@ -128,6 +143,7 @@ struct Settings {
   std::string firmwareDir;  // empty means a Firmware folder beside the config
   std::string patchesDir;   // empty means beside the ROM
   std::string databaseDir;  // empty means a Database folder beside the exe
+  std::string statesDir;    // empty means a States folder beside the config
   // base cartridges the slot media ride in
   std::string sgbBios;
   std::string bsxBios;
