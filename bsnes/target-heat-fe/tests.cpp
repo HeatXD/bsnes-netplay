@@ -48,8 +48,18 @@ int runStateTest(App& app, int warmFrames, int frames) {
   const bool filed = wrote && read && replay(settle) == further;
   SDL_Log("file round trip %s: %s", filed ? "ok" : "FAILED",
           app.statePath("statetest").c_str());
+
+  // undo and redo are memory slots: loading must be reversible, and redoing
+  // must land back where the undo came from
+  app.saveState("statetest", true);
+  const uint64_t loop = replay(settle);
+  app.loadState("statetest");
+  const bool undone = app.loadState("undo");
+  const bool redone = app.loadState("redo");
+  const bool reversible = undone && redone && replay(settle) == loop;
+  SDL_Log("undo and redo %s, held in memory (%d and %d bytes)",
+          reversible ? "ok" : "FAILED", (int)app.undoState.size(), (int)app.redoState.size());
   app.removeState("statetest");
-  app.removeState("undo");  // loadState wrote one on the way past
   SDL_RemovePath(app.stateFolder().c_str());
   SDL_RemovePath(app.statesDir().c_str());
   app.settings.statesDir = userStates;
@@ -60,7 +70,7 @@ int runStateTest(App& app, int warmFrames, int frames) {
   const bool refused = !app.core.unserialize(damaged);
   SDL_Log("truncated state refused: %s", refused ? "ok" : "FAILED");
 
-  const bool pass = blob && filed && refused;
+  const bool pass = blob && filed && reversible && refused;
   SDL_Log("state test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }

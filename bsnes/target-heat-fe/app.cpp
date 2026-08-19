@@ -90,6 +90,8 @@ bool App::loadRom(const std::string& entry) {
     return false;
   }
 
+  undoState.clear();
+  redoState.clear();
   gameTitle = fileStem(first);
   SDL_SetWindowTitle(shell.window, (gameTitle + " - " + AppName).c_str());
   settings.addRecent(entry);

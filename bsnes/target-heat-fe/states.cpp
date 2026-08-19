@@ -48,21 +48,40 @@ std::string App::stateLabel(const std::string& name) {
   return "state " + name;
 }
 
+std::vector<uint8_t>* App::memorySlot(const std::string& name) {
+  if(name == "undo") return &undoState;
+  if(name == "redo") return &redoState;
+  return nullptr;
+}
+
+const std::vector<uint8_t>* App::memorySlot(const std::string& name) const {
+  return const_cast<App*>(this)->memorySlot(name);
+}
+
 int64_t App::stateTime(const std::string& name) const {
-  if(!core.loaded()) return 0;
+  if(!core.loaded() || memorySlot(name)) return 0;
   return fileTime(statePath(name));
 }
 
-bool App::hasState(const std::string& name) const { return stateTime(name) != 0; }
+bool App::hasState(const std::string& name) const {
+  if(const std::vector<uint8_t>* held = memorySlot(name)) return !held->empty();
+  return stateTime(name) != 0;
+}
 
 // quiet leaves the status line to the user's own action
 bool App::saveState(const std::string& name, bool quiet) {
   if(!core.loaded()) return false;
 
-  const std::vector<uint8_t> payload = core.serialize();
+  std::vector<uint8_t> payload = core.serialize();
   if(payload.empty()) {
     if(!quiet) showMessage("could not capture " + stateLabel(name));
     return false;
+  }
+
+  if(std::vector<uint8_t>* held = memorySlot(name)) {
+    *held = std::move(payload);
+    if(!quiet) showMessage("saved " + stateLabel(name));
+    return true;
   }
 
   std::vector<uint8_t> file(HeaderSize + payload.size());
@@ -83,6 +102,23 @@ bool App::saveState(const std::string& name, bool quiet) {
 bool App::loadState(const std::string& name) {
   if(!core.loaded()) return false;
 
+  // copied out first: taking the undo snapshot below overwrites the buffers
+  if(const std::vector<uint8_t>* held = memorySlot(name)) {
+    if(held->empty()) {
+      showMessage(stateLabel(name) + " is empty");
+      return false;
+    }
+    const std::vector<uint8_t> payload = *held;
+    saveState(name == "undo" ? "redo" : "undo", true);
+    if(!core.unserialize(payload)) {
+      showMessage(stateLabel(name) + " does not match this game");
+      return false;
+    }
+    paused = false;
+    showMessage("loaded " + stateLabel(name));
+    return true;
+  }
+
   const std::vector<uint8_t> file = readBytes(statePath(name));
   if(file.empty()) {
     showMessage(stateLabel(name) + " is empty");
@@ -94,9 +130,8 @@ bool App::loadState(const std::string& name) {
     return false;
   }
 
-  // undo goes back to what is being replaced; undoing itself feeds redo
-  if(name != "undo") saveState("undo", true);
-  else saveState("redo", true);
+  // undo goes back to what is being replaced
+  saveState("undo", true);
 
   const std::vector<uint8_t> payload(file.begin() + HeaderSize, file.end());
   if(!core.unserialize(payload)) {
@@ -110,13 +145,23 @@ bool App::loadState(const std::string& name) {
 }
 
 bool App::removeState(const std::string& name) {
-  if(!core.loaded() || !hasState(name)) return false;
+  if(!core.loaded()) return false;
+  if(std::vector<uint8_t>* held = memorySlot(name)) {
+    const bool had = !held->empty();
+    held->clear();
+    return had;
+  }
+  if(!hasState(name)) return false;
   return SDL_RemovePath(statePath(name).c_str());
 }
 
 void App::removeAllStates() {
   for(int slot = 1; slot <= StateSlots; slot++) removeState(slotName(slot));
-  for(const auto& special : SpecialSlots) removeState(special.name);
+  for(const auto& special : SpecialSlots) {
+    removeState(special.name);
+    // a build before undo and redo moved into memory left files behind
+    SDL_RemovePath(statePath(special.name).c_str());
+  }
   // the folder goes too when nothing is left in it
   SDL_RemovePath(stateFolder().c_str());
   showMessage("removed every state for " + gameTitle);

@@ -185,6 +185,11 @@ struct App {
   int64_t stateTime(const std::string& name) const;
   bool hasState(const std::string& name) const;
   bool saveState(const std::string& name, bool quiet = false);
+  // undo and redo never outlive the session, so they are kept in memory rather
+  // than written out; every other slot is a file
+  std::vector<uint8_t>* memorySlot(const std::string& name);
+  const std::vector<uint8_t>* memorySlot(const std::string& name) const;
+  std::vector<uint8_t> undoState, redoState;
   bool loadState(const std::string& name);
   bool removeState(const std::string& name);
   void removeAllStates();
