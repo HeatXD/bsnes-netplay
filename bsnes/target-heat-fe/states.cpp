@@ -9,6 +9,11 @@ namespace {
 constexpr uint8_t Magic[4] = {'H', 'F', 'S', '1'};
 constexpr size_t HeaderSize = 8;  // magic, then the payload length
 
+// the slots that are not numbered; anything walking every state walks these too
+constexpr struct { const char* name; const char* label; } SpecialSlots[] = {
+  {"undo", "undo state"}, {"redo", "redo state"}, {"auto", "auto-resume state"},
+};
+
 void writeLE32(uint8_t* out, uint32_t value) {
   out[0] = (uint8_t)value;
   out[1] = (uint8_t)(value >> 8);
@@ -37,9 +42,9 @@ std::string App::statePath(const std::string& name) const {
 std::string App::slotName(int slot) { return std::to_string(slot); }
 
 std::string App::stateLabel(const std::string& name) {
-  if(name == "undo") return "undo state";
-  if(name == "redo") return "redo state";
-  if(name == "auto") return "auto-resume state";
+  for(const auto& special : SpecialSlots) {
+    if(name == special.name) return special.label;
+  }
   return "state " + name;
 }
 
@@ -111,7 +116,7 @@ bool App::removeState(const std::string& name) {
 
 void App::removeAllStates() {
   for(int slot = 1; slot <= StateSlots; slot++) removeState(slotName(slot));
-  for(const char* name : {"undo", "redo", "auto"}) removeState(name);
+  for(const auto& special : SpecialSlots) removeState(special.name);
   // the folder goes too when nothing is left in it
   SDL_RemovePath(stateFolder().c_str());
   showMessage("removed every state for " + gameTitle);
@@ -122,8 +127,4 @@ void App::setStateSlot(int slot) {
   stateSlot = slot < 1 ? StateSlots : slot > StateSlots ? 1 : slot;
   const bool filled = hasState(slotName(stateSlot));
   showMessage("state slot " + slotName(stateSlot) + (filled ? "" : " (empty)"));
-}
-
-void App::pushSerialization() {
-  core.setOption("System/Serialization/Method", SerializationNames[settings.serialization]);
 }

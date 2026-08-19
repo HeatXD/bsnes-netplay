@@ -107,16 +107,12 @@ bool portableMode() {
 std::string prefFile(const char* name) { return configDir() + name; }
 
 std::string readText(const std::string& path) {
-  size_t size = 0;
-  void* data = SDL_LoadFile(path.c_str(), &size);
-  if(!data) return {};
-  std::string text((const char*)data, size);
-  SDL_free(data);
-  return text;
+  const std::vector<uint8_t> bytes = readBytes(path);
+  return std::string(bytes.begin(), bytes.end());
 }
 
 bool writeText(const std::string& path, const std::string& text) {
-  return SDL_SaveFile(path.c_str(), text.data(), text.size());
+  return writeBytes(path, text.data(), text.size());
 }
 
 std::vector<uint8_t> readBytes(const std::string& path) {

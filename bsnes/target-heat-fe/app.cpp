@@ -114,7 +114,9 @@ bool App::loadRom(const std::string& entry) {
 
   showMessage((core.verified() ? "loaded verified " : "loaded ") + gameTitle + note);
   // after the message, so a failed resume is what the status line ends on
-  if(settings.autoStateOnLoad && hasState("auto")) loadState("auto");
+  if(settings.autoStateOnLoad && settings.autoStateOnUnload && hasState("auto")) {
+    loadState("auto");
+  }
   return true;
 }
 

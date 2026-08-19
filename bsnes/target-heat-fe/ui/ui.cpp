@@ -103,10 +103,11 @@ void App::drawSpeedMenu() {
 void App::drawStateMenu(bool loading) {
   for(int slot = 1; slot <= StateSlots; slot++) {
     const std::string name = slotName(slot);
-    const std::string label = "Slot " + name + " " + stateStamp(stateTime(name));
+    // one stat per slot: the stamp and the enable flag both come from it
+    const int64_t when = stateTime(name);
+    const std::string label = "Slot " + name + " " + stateStamp(when);
     // loading an empty slot only prints a message, so it stays disabled
-    if(ImGui::MenuItem(label.c_str(), nullptr, stateSlot == slot,
-                       !loading || hasState(name))) {
+    if(ImGui::MenuItem(label.c_str(), nullptr, stateSlot == slot, !loading || when != 0)) {
       stateSlot = slot;
       if(loading) loadState(name); else saveState(name);
     }

@@ -7,9 +7,9 @@ struct FolderRow {
   const char* unset;   // shown when the path is empty, unless one is resolved for it
   const char* help;
   std::string Settings::* path;
-  std::string App::* resolved;
+  std::string (App::*resolved)() const;  // shown when the setting is empty
   FilePick App::* pick;
-  void (App::*push)();
+  void (App::*push)();  // null when nothing downstream caches the path
 };
 
 const FolderRow FolderRows[] = {
@@ -19,10 +19,10 @@ const FolderRow FolderRows[] = {
    "A .bps or .ips named after the game is applied as it loads.",
    &Settings::patchesDir, nullptr, &App::patchesDirPick, &App::pushPatchesDir},
   {"States folder", nullptr, "Nine quick slots, undo, redo and auto-resume, per game.",
-   &Settings::statesDir, &App::statesDirCache, &App::statesDirPick, &App::refreshStatesDir},
+   &Settings::statesDir, &App::statesDir, &App::statesDirPick, nullptr},
   {"Games database folder", nullptr,
    "A game found here is verified and uses its board layout.",
-   &Settings::databaseDir, &App::databaseDirCache, &App::databaseDirPick,
+   &Settings::databaseDir, &App::databaseDirShown, &App::databaseDirPick,
    &App::refreshDatabaseDir},
 };
 }  // namespace
@@ -37,7 +37,6 @@ void App::restorePathDefaults() {
   settings.patchesDir = defaults.patchesDir;
   settings.databaseDir = defaults.databaseDir;
   settings.statesDir = defaults.statesDir;
-  refreshStatesDir();
   for(int i = 0; i < EmuCore::MediumCount; i++) settings.recentDir[i].clear();
   core.setPatchesDirectory(settings.patchesDir);
   refreshDatabaseDir();
@@ -68,9 +67,9 @@ void App::drawPathsTab() {
     ImGui::Separator();
     ImGui::TextDisabled("%s", row.label);
     std::string& dir = settings.*row.path;
-    const char* shown = !dir.empty() ? dir.c_str()
-                      : row.resolved ? (this->*row.resolved).c_str() : row.unset;
-    ImGui::TextWrapped("%s", shown);
+    const std::string resolved = row.resolved ? (this->*row.resolved)() : std::string();
+    ImGui::TextWrapped("%s", !dir.empty() ? dir.c_str()
+                           : row.resolved ? resolved.c_str() : row.unset);
     if(row.help) ImGui::TextWrapped("%s", row.help);
 
     ImGui::PushID(row.label);
@@ -79,7 +78,7 @@ void App::drawPathsTab() {
       ImGui::SameLine();
       if(ImGui::Button("Reset")) {
         dir.clear();
-        (this->*row.push)();
+        if(row.push) (this->*row.push)();
         settings.save(settingsCfg);
       }
     }

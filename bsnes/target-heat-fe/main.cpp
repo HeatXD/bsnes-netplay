@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "tests.hpp"
 
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_opengl3.h"
@@ -9,7 +10,11 @@ namespace {
 
 constexpr int IdleDelayMs = 32;
 
+// what this invocation is for; the harnesses are mutually exclusive
+enum class Mode { Run, UiShot, StateTest, DeterminismTest, HotkeyTest };
+
 struct Options {
+  Mode mode = Mode::Run;
   std::string romPath;
   std::string uiShot;
   std::string uiScreen = "game";
@@ -19,9 +24,12 @@ struct Options {
   int shotW = 0, shotH = 0;
   bool fast = false;
   bool uiFullscreen = false;
-  bool stateTest = false;
-  bool determinismTest = false;
-  bool hotkeyTest = false;
+
+  // the modes that drive the emulator itself; the hotkey matcher needs no game
+  bool needsRom() const {
+    return mode == Mode::StateTest || mode == Mode::DeterminismTest
+        || (mode == Mode::Run && frameLimit);
+  }
 };
 
 Options parseArgs(int argc, char** argv) {
@@ -31,12 +39,15 @@ Options parseArgs(int argc, char** argv) {
     const bool hasValue = i + 1 < argc;
 
     if(SDL_strcmp(arg, "--fast") == 0) opt.fast = true;
-    else if(SDL_strcmp(arg, "--state-test") == 0) opt.stateTest = true;
-    else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.determinismTest = true;
-    else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.hotkeyTest = true;
+    else if(SDL_strcmp(arg, "--state-test") == 0) opt.mode = Mode::StateTest;
+    else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.mode = Mode::DeterminismTest;
+    else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.mode = Mode::HotkeyTest;
     else if(SDL_strcmp(arg, "--ui-fullscreen") == 0) opt.uiFullscreen = true;
     else if(SDL_strcmp(arg, "--frames") == 0 && hasValue) opt.frameLimit = SDL_atoi(argv[++i]);
-    else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) opt.uiShot = argv[++i];
+    else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) {
+      opt.uiShot = argv[++i];
+      opt.mode = Mode::UiShot;
+    }
     else if(SDL_strcmp(arg, "--ui-screen") == 0 && hasValue) opt.uiScreen = argv[++i];
     else if(SDL_strcmp(arg, "--ui-tab") == 0 && hasValue) opt.shotTab = SDL_atoi(argv[++i]);
     else if(SDL_strcmp(arg, "--ui-warm") == 0 && hasValue) opt.warmFrames = SDL_atoi(argv[++i]);
@@ -106,20 +117,6 @@ void openGamepads(App& app) {
   if(ids) SDL_free(ids);
 }
 
-// FNV-1a over the frame the core last handed the shell
-uint64_t frameHash(const App& app) {
-  uint64_t hash = 1469598103934665603ull;
-  const int pixels = app.shell.frameWidth * app.shell.frameHeight;
-  for(int i = 0; i < pixels; i++) hash = (hash ^ app.shell.lastPixels[i]) * 1099511628211ull;
-  return hash;
-}
-
-uint64_t blobHash(const std::vector<uint8_t>& blob) {
-  uint64_t hash = 1469598103934665603ull;
-  for(uint8_t byte : blob) hash = (hash ^ byte) * 1099511628211ull;
-  return hash;
-}
-
 // Drives the frame loop. Lives as a struct so the event watch can call back
 // into it through a plain pointer.
 struct Frontend {
@@ -143,9 +140,6 @@ struct Frontend {
   void drainPicks();
   int runLoop();
   int runUiShot();
-  int runStateTest();
-  int runDeterminismTest();
-  int runHotkeyTest();
 };
 
 void Frontend::renderUi() {
@@ -354,7 +348,6 @@ void Frontend::drainPicks() {
   }
   if(takePick(app.statesDirPick, picked) && !picked.empty()) {
     app.settings.statesDir = normalPath(picked);
-    app.refreshStatesDir();
     app.settings.save(app.settingsCfg);
   }
   if(takePick(app.firmwareDirPick, picked) && !picked.empty()) {
@@ -440,211 +433,6 @@ int Frontend::runUiShot() {
   return ok ? 0 : 1;
 }
 
-// save, diverge, restore: the same frames must come back, blob and file alike
-int Frontend::runStateTest() {
-  auto hashFrame = [&] { return frameHash(app); };
-  // a restored machine has not drawn yet, so only what it renders next says anything
-  auto replay = [&](int count) {
-    for(int i = 0; i < count; i++) app.core.runFrame();
-    return hashFrame();
-  };
-
-  const int settle = opt.frameLimit > 0 ? opt.frameLimit : 60;
-  const uint64_t at = replay(opt.warmFrames);
-
-  const std::vector<uint8_t> state = app.core.serialize();
-  if(state.empty()) { SDL_Log("state test: FAIL, the core refused to serialize"); return 1; }
-  SDL_Log("state size %d bytes, frame %016llx", (int)state.size(), (unsigned long long)at);
-
-  const uint64_t ahead = replay(settle);
-  if(ahead == at) { SDL_Log("state test: FAIL, %d frames changed nothing", settle); return 1; }
-
-  const bool restored = app.core.unserialize(state);
-  const bool blob = restored && replay(settle) == ahead;
-  SDL_Log("blob restore %s: %d frames replay to %016llx",
-          blob ? "ok" : "FAILED", settle, (unsigned long long)ahead);
-
-  // and again through the file layer, header, folders and all
-  const bool wrote = app.saveState("statetest", true);
-  const uint64_t further = replay(settle);
-  const bool read = app.loadState("statetest");
-  const bool filed = wrote && read && replay(settle) == further;
-  SDL_Log("file round trip %s: %s", filed ? "ok" : "FAILED",
-          app.statePath("statetest").c_str());
-  app.removeState("statetest");
-
-  // a state from another game must be refused rather than half-applied
-  std::vector<uint8_t> damaged = state;
-  damaged.resize(damaged.size() / 2);
-  const bool refused = !app.core.unserialize(damaged);
-  SDL_Log("truncated state refused: %s", refused ? "ok" : "FAILED");
-
-  const bool pass = blob && filed && refused;
-  SDL_Log("state test: %s", pass ? "PASS" : "FAIL");
-  return pass ? 0 : 1;
-}
-
-// same inputs, same result: what netplay's rollback rests on
-int Frontend::runDeterminismTest() {
-  const int frames = opt.frameLimit > 0 ? opt.frameLimit : 600;
-
-  // a fixed button stream, held eight frames at a time so the game reacts to it
-  auto press = [&](int frame) {
-    uint32_t bits = 2166136261u + (uint32_t)(frame / 8) * 16777619u;
-    bits ^= bits >> 13; bits *= 1274126177u; bits ^= bits >> 16;
-    for(int b = 0; b < EmuCore::ButtonCount; b++) app.core.setInput(0, b, (bits >> b) & 1);
-  };
-  // every frame folded in, not just the last: a divergence that heals still fails
-  auto run = [&](int first, int count) {
-    uint64_t rolling = 1469598103934665603ull;
-    for(int frame = first; frame < first + count; frame++) {
-      press(frame);
-      app.core.runFrame();
-      rolling = (rolling ^ frameHash(app)) * 1099511628211ull;
-    }
-    return rolling;
-  };
-  // the cothread stacks are host memory; everything else must be identical
-  auto guestHash = [&](const std::vector<uint8_t>& blob) {
-    uint64_t hash = 1469598103934665603ull;
-    for(const auto& part : app.core.stateMap(false)) {
-      if(part.hostState) continue;
-      for(int i = part.offset; i < part.offset + part.size && i < (int)blob.size(); i++) {
-        hash = (hash ^ blob[i]) * 1099511628211ull;
-      }
-    }
-    return hash;
-  };
-  auto reportDiff = [&](const std::vector<uint8_t>& a, const std::vector<uint8_t>& b) {
-    if(a.size() != b.size()) { SDL_Log("  sizes differ: %d vs %d", (int)a.size(), (int)b.size()); return; }
-    for(const auto& part : app.core.stateMap(false)) {
-      const int end = SDL_min(part.offset + part.size, (int)a.size());
-      for(int i = part.offset; i < end; i++) {
-        if(a[i] == b[i]) continue;
-        SDL_Log("  %-12s differs at +%d%s", part.name.c_str(), i - part.offset,
-                part.hostState ? "  (host state, expected)" : "  <-- machine state");
-        break;
-      }
-    }
-  };
-  // both captures, so the rollback answer is not confused with the quick-state one
-  auto rollbackReplay = [&](bool synchronize) {
-    app.core.setOption("Hacks/Entropy", "None");
-    app.core.power();
-    run(0, frames / 2);
-    const std::vector<uint8_t> save = app.core.serialize(synchronize);
-    const uint64_t ahead = run(frames / 2, frames - frames / 2);
-    const std::vector<uint8_t> aheadState = app.core.serialize(synchronize);
-
-    if(!app.core.unserialize(save)) { SDL_Log("  restore refused"); return false; }
-    const uint64_t again = run(frames / 2, frames - frames / 2);
-    const std::vector<uint8_t> againState = app.core.serialize(synchronize);
-    const bool sameFrames = again == ahead;
-    const bool sameGuest = guestHash(againState) == guestHash(aheadState);
-    SDL_Log("replay across a %s restore: frames %s, machine state %s (%016llx)",
-            synchronize ? "synchronized" : "deterministic",
-            sameFrames ? "match" : "DIFFER", sameGuest ? "matches" : "DIFFERS",
-            (unsigned long long)ahead);
-    if(againState != aheadState) reportDiff(aheadState, againState);
-    return sameFrames && sameGuest;
-  };
-
-  bool pass = true;
-  for(const char* entropy : {"None", "Low", "High"}) {
-    app.core.setOption("Hacks/Entropy", entropy);
-    app.core.power();
-    const uint64_t first = run(0, frames);
-    const uint64_t firstState = guestHash(app.core.serialize(false));
-    app.core.power();
-    const uint64_t second = run(0, frames);
-    // randomised RAM the game never draws still lands in the state
-    const bool sameFrames = first == second;
-    const bool sameState = firstState == guestHash(app.core.serialize(false));
-
-    // only None promises anything; the others are there to randomise
-    SDL_Log("entropy %-4s: %d frames %016llx %s, machine state %s%s", entropy, frames,
-            (unsigned long long)first, sameFrames ? "repeat" : "DIFFER",
-            sameState ? "repeats" : "differs",
-            SDL_strcmp(entropy, "None") == 0 ? "" : " (expected, it randomises)");
-    if(SDL_strcmp(entropy, "None") == 0) pass = pass && sameFrames && sameState;
-  }
-
-  // the rollback shape: restore, feed the same inputs, land in the same place
-  SDL_Log("libco deterministic states: %s", EmuCore::deterministicStates() ? "yes" : "no");
-  const bool synced = rollbackReplay(true);
-  const bool unsynced = rollbackReplay(false);
-  // only the deterministic capture promises this
-  pass = pass && unsynced;
-  (void)synced;
-
-  // for diffing two runs of the exe; the machine hash is what a peer checksums
-  app.core.setOption("Hacks/Entropy", "None");
-  app.core.power();
-  const uint64_t signature = run(0, frames);
-  SDL_Log("signature frames %016llx machine %016llx", (unsigned long long)signature,
-          (unsigned long long)guestHash(app.core.serialize(false)));
-  SDL_Log("determinism test: %s", pass ? "PASS" : "FAIL");
-  return pass ? 0 : 1;
-}
-
-// hotkeyHeld against a fabricated keyboard, since SDL's own state cannot be driven
-int Frontend::runHotkeyTest() {
-  bool keys[SDL_SCANCODE_COUNT] = {};
-  InputSample sample;
-  sample.keys = keys;
-  bool pass = true;
-
-  auto set = [&](SDL_Scancode a, SDL_Scancode b, int mods) {
-    for(bool& key : keys) key = false;
-    if(a != SDL_SCANCODE_UNKNOWN) keys[a] = true;
-    if(b != SDL_SCANCODE_UNKNOWN) keys[b] = true;
-    sample.mods = mods;
-  };
-  auto expect = [&](const char* what, int index, bool want) {
-    const bool got = app.input.hotkeyHeld(index, sample, app.pads);
-    SDL_Log("%-30s %d (want %d)%s", what, got, want, got == want ? "" : "  <-- WRONG");
-    pass = pass && got == want;
-  };
-
-  // two mappings on one action: either one fires it
-  app.input.hotkey(HkPause, 0) = {Binding::Key, SDL_SCANCODE_G, 0, 0};
-  app.input.hotkey(HkPause, 1) = {Binding::Key, SDL_SCANCODE_F, 0, 0};
-
-  set(SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN, 0);
-  expect("two mappings, neither held", HkPause, false);
-  set(SDL_SCANCODE_G, SDL_SCANCODE_UNKNOWN, 0);
-  expect("two mappings, first held", HkPause, true);
-  set(SDL_SCANCODE_F, SDL_SCANCODE_UNKNOWN, 0);
-  expect("two mappings, second held", HkPause, true);
-
-  // one mapping holding a chord, which is what the rebinder records
-  app.input.hotkey(HkReset, 0) = {Binding::Key, SDL_SCANCODE_2, 0, normalizeMods(SDL_KMOD_LSHIFT)};
-  app.input.hotkey(HkReset, 1) = {};
-
-  set(SDL_SCANCODE_2, SDL_SCANCODE_UNKNOWN, 0);
-  expect("shift+2 bound, 2 alone", HkReset, false);
-  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods(SDL_KMOD_LSHIFT));
-  expect("shift+2 bound, shift+2", HkReset, true);
-  set(SDL_SCANCODE_2, SDL_SCANCODE_RSHIFT, normalizeMods(SDL_KMOD_RSHIFT));
-  expect("shift+2 bound, right shift", HkReset, true);
-  set(SDL_SCANCODE_2, SDL_SCANCODE_LCTRL, normalizeMods(SDL_KMOD_LCTRL));
-  expect("shift+2 bound, ctrl+2", HkReset, false);
-  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods((SDL_Keymod)(SDL_KMOD_LSHIFT | SDL_KMOD_LCTRL)));
-  expect("shift+2 bound, ctrl+shift+2", HkReset, false);
-
-  // a plain key must not fire while a modifier is down, or the chord is ambiguous
-  app.input.hotkey(HkQuit, 0) = {Binding::Key, SDL_SCANCODE_2, 0, 0};
-  app.input.hotkey(HkQuit, 1) = {};
-  set(SDL_SCANCODE_2, SDL_SCANCODE_UNKNOWN, 0);
-  expect("2 bound, 2 alone", HkQuit, true);
-  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods(SDL_KMOD_LSHIFT));
-  expect("2 bound, shift+2", HkQuit, false);
-
-  SDL_Log("pads connected during this test: %d", (int)app.pads.size());
-  SDL_Log("hotkey logic test: %s", pass ? "PASS" : "FAIL");
-  return pass ? 0 : 1;
-}
-
 // The core caches these rather than reading Settings per frame, so a loaded
 // config has to be pushed in explicitly; without this it keeps its own
 // defaults until the matching tab happens to be opened.
@@ -656,7 +444,6 @@ void applySettingsToCore(App& app) {
   app.refreshDatabaseDir();
   app.core.setPatchesDirectory(s.patchesDir);
   app.core.setIpsHeadered(s.ipsHeadered);
-  app.refreshStatesDir();
   app.pushSerialization();
   app.core.setOverscanCrop(s.overscanCrop);
   app.core.setPaletteAdjust(s.videoGamma, s.videoLuminance, s.videoSaturation);
@@ -729,26 +516,28 @@ int main(int argc, char** argv) {
   }
 
   app.scanGames();
-  initImGui(app, opt.uiShot.empty());
+  initImGui(app, opt.mode != Mode::UiShot);
   loadGamepadMappings();
   openGamepads(app);
   wireCore(app);
   openRequestedPanel(app, opt);
 
   if(!opt.romPath.empty()) app.loadRom(opt.romPath);
-  if((opt.frameLimit || opt.stateTest || opt.determinismTest)
-  && opt.uiShot.empty() && !app.core.loaded()) {
+  if(opt.needsRom() && !app.core.loaded()) {
     SDL_Log("no rom loaded");
     shutdownApp(app);
     return 1;
   }
 
   Frontend frontend{app, opt};
-  const int code = opt.hotkeyTest ? frontend.runHotkeyTest()
-                 : opt.determinismTest ? frontend.runDeterminismTest()
-                 : opt.stateTest  ? frontend.runStateTest()
-                 : opt.uiShot.empty() ? frontend.runLoop()
-                 : frontend.runUiShot();
+  int code = 0;
+  switch(opt.mode) {
+    case Mode::UiShot:          code = frontend.runUiShot(); break;
+    case Mode::StateTest:       code = runStateTest(app, opt.warmFrames, opt.frameLimit); break;
+    case Mode::DeterminismTest: code = runDeterminismTest(app, opt.frameLimit); break;
+    case Mode::HotkeyTest:      code = runHotkeyTest(app); break;
+    case Mode::Run:             code = frontend.runLoop(); break;
+  }
 
   shutdownApp(app);
   return code;

@@ -154,12 +154,14 @@ struct App {
     databaseDirCache = databaseDir();
     core.setDatabaseDirectory(databaseDirCache);
   }
-  // resolving this stats nothing, but the Paths row shows the resolved value
-  std::string statesDirCache;
-  void refreshStatesDir() { statesDirCache = statesDir(); }
   // each folder row re-pushes its path to the core after a change
   void pushSavesDir() { core.setSavesDirectory(settings.savesDir); }
   void pushPatchesDir() { core.setPatchesDirectory(settings.patchesDir); }
+  void pushSerialization() {
+    core.setOption("System/Serialization/Method", SerializationNames[settings.serialization]);
+  }
+  // the Paths row shows this resolved, the way databaseDirCache is shown
+  std::string databaseDirShown() const { return databaseDirCache; }
   // the folder a picker for this medium should reopen in
   void rememberDir(const std::string& path);
   void openRomDialog();
@@ -187,8 +189,6 @@ struct App {
   bool removeState(const std::string& name);
   void removeAllStates();
   void setStateSlot(int slot);
-  // the core reads this when a state is taken, not when it is set
-  void pushSerialization();
   void pollHotkeys();
   void triggerHotkey(int index);
 

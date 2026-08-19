@@ -65,7 +65,6 @@ void App::drawEmulatorTab() {
   dirty |= ImGui::Checkbox("Save an auto-resume state when a game is closed",
                            &settings.autoStateOnUnload);
   ImGui::BeginDisabled(!settings.autoStateOnUnload);
-  if(!settings.autoStateOnUnload) settings.autoStateOnLoad = false;
   dirty |= ImGui::Checkbox("Resume from it when the game is loaded again",
                            &settings.autoStateOnLoad);
   ImGui::EndDisabled();
