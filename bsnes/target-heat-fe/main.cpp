@@ -600,46 +600,45 @@ int Frontend::runHotkeyTest() {
     if(b != SDL_SCANCODE_UNKNOWN) keys[b] = true;
     sample.mods = mods;
   };
-  auto expect = [&](const char* what, int index, int logic, bool want) {
-    const bool got = app.input.hotkeyHeld(index, sample, app.pads, logic);
+  auto expect = [&](const char* what, int index, bool want) {
+    const bool got = app.input.hotkeyHeld(index, sample, app.pads);
     SDL_Log("%-30s %d (want %d)%s", what, got, want, got == want ? "" : "  <-- WRONG");
     pass = pass && got == want;
   };
 
-  // two slots, the old way of building a chord: both keys held under And logic
-  app.input.hotkey(HkPause, 0) = {Binding::Key, SDL_SCANCODE_LCTRL, 0, 0};
+  // two mappings on one action: either one fires it
+  app.input.hotkey(HkPause, 0) = {Binding::Key, SDL_SCANCODE_G, 0, 0};
   app.input.hotkey(HkPause, 1) = {Binding::Key, SDL_SCANCODE_F, 0, 0};
 
   set(SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN, 0);
-  expect("or, neither held", HkPause, LogicOr, false);
-  set(SDL_SCANCODE_LCTRL, SDL_SCANCODE_UNKNOWN, 0);
-  expect("or, one held", HkPause, LogicOr, true);
-  expect("and, one held", HkPause, LogicAnd, false);
-  set(SDL_SCANCODE_LCTRL, SDL_SCANCODE_F, 0);
-  expect("and, both held", HkPause, LogicAnd, true);
+  expect("two mappings, neither held", HkPause, false);
+  set(SDL_SCANCODE_G, SDL_SCANCODE_UNKNOWN, 0);
+  expect("two mappings, first held", HkPause, true);
+  set(SDL_SCANCODE_F, SDL_SCANCODE_UNKNOWN, 0);
+  expect("two mappings, second held", HkPause, true);
 
-  // one slot holding a real chord, which is what the rebinder now records
+  // one mapping holding a chord, which is what the rebinder records
   app.input.hotkey(HkReset, 0) = {Binding::Key, SDL_SCANCODE_2, 0, normalizeMods(SDL_KMOD_LSHIFT)};
   app.input.hotkey(HkReset, 1) = {};
 
   set(SDL_SCANCODE_2, SDL_SCANCODE_UNKNOWN, 0);
-  expect("shift+2 bound, 2 alone", HkReset, LogicOr, false);
+  expect("shift+2 bound, 2 alone", HkReset, false);
   set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods(SDL_KMOD_LSHIFT));
-  expect("shift+2 bound, shift+2", HkReset, LogicOr, true);
+  expect("shift+2 bound, shift+2", HkReset, true);
   set(SDL_SCANCODE_2, SDL_SCANCODE_RSHIFT, normalizeMods(SDL_KMOD_RSHIFT));
-  expect("shift+2 bound, right shift", HkReset, LogicOr, true);
+  expect("shift+2 bound, right shift", HkReset, true);
   set(SDL_SCANCODE_2, SDL_SCANCODE_LCTRL, normalizeMods(SDL_KMOD_LCTRL));
-  expect("shift+2 bound, ctrl+2", HkReset, LogicOr, false);
+  expect("shift+2 bound, ctrl+2", HkReset, false);
   set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods((SDL_Keymod)(SDL_KMOD_LSHIFT | SDL_KMOD_LCTRL)));
-  expect("shift+2 bound, ctrl+shift+2", HkReset, LogicOr, false);
+  expect("shift+2 bound, ctrl+shift+2", HkReset, false);
 
   // a plain key must not fire while a modifier is down, or the chord is ambiguous
   app.input.hotkey(HkQuit, 0) = {Binding::Key, SDL_SCANCODE_2, 0, 0};
   app.input.hotkey(HkQuit, 1) = {};
   set(SDL_SCANCODE_2, SDL_SCANCODE_UNKNOWN, 0);
-  expect("2 bound, 2 alone", HkQuit, LogicOr, true);
+  expect("2 bound, 2 alone", HkQuit, true);
   set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods(SDL_KMOD_LSHIFT));
-  expect("2 bound, shift+2", HkQuit, LogicOr, false);
+  expect("2 bound, shift+2", HkQuit, false);
 
   SDL_Log("pads connected during this test: %d", (int)app.pads.size());
   SDL_Log("hotkey logic test: %s", pass ? "PASS" : "FAIL");

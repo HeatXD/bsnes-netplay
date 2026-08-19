@@ -344,7 +344,7 @@ void App::pollHotkeys() {
 
   for(int i = 0; i < HotkeyCount; i++) {
     const bool held = !typing && !rebinding
-                   && input.hotkeyHeld(i, sample, pads, settings.hotkeyLogic);
+                   && input.hotkeyHeld(i, sample, pads);
     if(held && !hotkeyWasHeld[i]) triggerHotkey(i);
     hotkeyWasHeld[i] = held;
   }

@@ -1,9 +1,7 @@
 #include "ui.hpp"
 
 void App::restoreHotkeyDefaults() {
-  const Settings defaults;
   input.loadHotkeyDefaults();
-  settings.hotkeyLogic = defaults.hotkeyLogic;
   capturingHotkey = -1;
 }
 
@@ -42,15 +40,8 @@ void App::drawHotkeysTab() {
   }
 
   ImGui::Separator();
-  if(ImGui::Combo("Combinational logic", &settings.hotkeyLogic, LogicNames, LogicCount)) {
-    settings.save(settingsCfg);
-  }
-  tip("And needs every mapping held at once; Or lets any one of them fire it.");
-
-  ImGui::Separator();
   if(ImGui::Button("Restore defaults##hotkeys")) {
     restoreHotkeyDefaults();
     input.save(inputCfg);
-    settings.save(settingsCfg);
   }
 }

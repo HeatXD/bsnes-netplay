@@ -34,11 +34,6 @@ enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot,
              HkSaveState, HkLoadState, HkUndoState, HkRedoState,
              HkSlotDown, HkSlotUp, HotkeyCount };
 
-// how a hotkey's several mappings combine: any one, or all of them at once
-enum Logic { LogicOr, LogicAnd, LogicCount };
-
-extern const char* const LogicNames[LogicCount];
-
 const char* HotkeyName(int index);
 // SDL_SCANCODE_UNKNOWN where bsnes ships the action unbound too
 SDL_Scancode HotkeyDefault(int index);
@@ -151,8 +146,6 @@ struct Settings {
   std::vector<std::string> recent;
   // per medium, so a Game Boy ROM cannot send the Sufami Turbo dialog astray
   std::string recentDir[EmuCore::MediumCount];
-  // the bindings live in InputMap; only the combining rule is a setting
-  int hotkeyLogic = LogicOr;
   // a pre-binding config's scancodes; the count marks which ones it carried
   int legacyHotkeys[HotkeyCount] = {};
   int legacyHotkeyCount = 0;

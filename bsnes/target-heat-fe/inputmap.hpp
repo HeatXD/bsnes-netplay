@@ -89,9 +89,9 @@ public:
   bool hasHotkeys() const { return hotkeysLoaded; }
   void migrateHotkeys(const int* scancodes, int count);
 
-  // any pad may press a hotkey; AND wants every bound slot held at once
+  // any mapping fires it, and any pad may be the one pressing it
   bool hotkeyHeld(int index, const InputSample& sample,
-                  const std::vector<SDL_Gamepad*>& pads, int logic) const;
+                  const std::vector<SDL_Gamepad*>& pads) const;
 
   // frame is the emulated frame count, so turbo timing tracks the emulator's
   // own clock and stays correct under fast forward

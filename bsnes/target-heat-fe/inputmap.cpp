@@ -273,26 +273,21 @@ void InputMap::loadPointerDefaults(const EmuCore& core) {
 }
 
 bool InputMap::hotkeyHeld(int index, const InputSample& sample,
-                          const std::vector<SDL_Gamepad*>& pads, int logic) const {
+                          const std::vector<SDL_Gamepad*>& pads) const {
   if(index < 0 || index >= HotkeyCount) return false;
 
-  int bound = 0;
   for(int slot = 0; slot < HotkeySlots; slot++) {
     const Binding& binding = hotkeys[index][slot];
     if(binding.type == Binding::None) continue;
-    bound++;
 
     // a hotkey belongs to the app, so any pad may press it
     bool held = bindingActive(binding, sample, nullptr);
     for(SDL_Gamepad* pad : pads) held = held || bindingActive(binding, sample, pad);
     // a chord is exact, so a bare key does not fire while a modifier is down
     if(binding.type == Binding::Key && sample.mods != binding.mods) held = false;
-
-    if(logic == LogicAnd && !held) return false;
-    if(logic != LogicAnd && held) return true;
+    if(held) return true;
   }
-  // AND with nothing bound would otherwise fire every frame
-  return logic == LogicAnd && bound > 0;
+  return false;
 }
 
 // hotkeys added since that config was written keep their defaults

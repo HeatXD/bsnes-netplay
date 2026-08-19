@@ -37,10 +37,6 @@ constexpr struct { const char* name; SDL_Scancode key; } Hotkeys[HotkeyCount] = 
 const char* HotkeyName(int index) { return Hotkeys[index].name; }
 SDL_Scancode HotkeyDefault(int index) { return Hotkeys[index].key; }
 
-const char* const LogicNames[LogicCount] = {
-  "Or (any mapping triggers it)", "And (every mapping must be held)"
-};
-
 const char* const DefocusNames[DefocusCount] = {
   "Pause emulation", "Block input", "Allow input"
 };
@@ -89,7 +85,6 @@ const IntField IntFields[] = {
   {"audioskew",   &Settings::audioSkew,        -MaxAudioSkew,  MaxAudioSkew},
   {"audiobalance", &Settings::audioBalance,    0,              100},
   {"autosaveinterval", &Settings::autoSaveInterval, 5,         600},
-  {"hotkeylogic", &Settings::hotkeyLogic,      0,              LogicCount - 1},
   {"serialization", &Settings::serialization,  0,              SerialCount - 1},
 };
 
