@@ -354,8 +354,11 @@ bool EmuCore::load(const GameSpec& spec) {
   }
 
   auto addSlot = [&](const char* label, const Media& slot) {
-    if(slot) core.slotCache.push_back({label, (const char*)slot.name()});
+    if(!slot) return;
+    core.slotCache.push_back({label, (const char*)slot.name()});
+    core.manifestCache.push_back({label, (const char*)slot.manifest});
   };
+  core.manifestCache.push_back({"Super Famicom", (const char*)core.superFamicom.manifest});
   addSlot("Game Boy", core.gameBoy);
   addSlot("BS Memory", core.bsMemory);
   addSlot("Sufami Turbo A", core.sufamiTurboA);
@@ -374,4 +377,5 @@ void EmuCore::unload() {
   impl->sfcDocument = {};
   impl->info = {};
   impl->slotCache.clear();
+  impl->manifestCache.clear();
 }

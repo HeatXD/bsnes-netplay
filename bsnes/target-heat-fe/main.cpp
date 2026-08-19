@@ -466,7 +466,8 @@ void openRequestedPanel(App& app, const Options& opt) {
   app.showTools = opt.uiScreen == "tools";
   app.showGames = opt.uiScreen == "games";
   app.showAbout = opt.uiScreen == "about";
-  app.showCartridge = opt.uiScreen == "cartridge";
+  // cartridge is the old name for the same window
+  app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
   app.settingsTab = opt.shotTab;
 }
 

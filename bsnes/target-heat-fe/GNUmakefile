@@ -43,7 +43,7 @@ flags += $(sdl3.flags) $(imgui.flags)
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap
 objects += core-main core-media core-vfs core-video core-info
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
-objects += ui-custom ui-paths ui-windows ui-cartridge ui-compat
+objects += ui-custom ui-paths ui-windows ui-manifest ui-compat
 objects += imgui imgui-draw imgui-tables imgui-widgets imgui-sdl3 imgui-opengl3
 ifeq ($(platform),windows)
   objects += ui-resource
@@ -73,7 +73,7 @@ obj/ui-enhance.o: $(ui)/ui/enhance.cpp
 obj/ui-custom.o: $(ui)/ui/custom.cpp
 obj/ui-paths.o: $(ui)/ui/paths.cpp
 obj/ui-windows.o: $(ui)/ui/windows.cpp
-obj/ui-cartridge.o: $(ui)/ui/cartridge.cpp
+obj/ui-manifest.o: $(ui)/ui/manifest.cpp
 obj/ui-compat.o: $(ui)/ui/compat.cpp
 
 obj/imgui.o: $(imgui.path)/imgui.cpp

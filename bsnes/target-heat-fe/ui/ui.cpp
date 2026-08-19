@@ -131,8 +131,8 @@ void App::drawMenuBar() {
 
   if(ImGui::BeginMenu("Tools")) {
     if(ImGui::MenuItem("Diagnostics", nullptr, showTools)) showTools = !showTools;
-    if(ImGui::MenuItem("Cartridge", nullptr, showCartridge, core.loaded())) {
-      showCartridge = !showCartridge;
+    if(ImGui::MenuItem("Manifest", nullptr, showManifest, core.loaded())) {
+      showManifest = !showManifest;
     }
     if(ImGui::MenuItem("Save Screenshot", hotkeyShortcut(HkScreenshot).c_str(),
                        false, core.loaded())) takeScreenshot();
@@ -236,7 +236,7 @@ void App::drawUi() {
   }
   drawSettingsWindow();
   drawToolsWindow();
-  drawCartridgeWindow();
+  drawManifestWindow();
   drawAboutWindow();
   drawUnverifiedPrompt();
 }

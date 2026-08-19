@@ -52,3 +52,7 @@ std::string EmuCore::expansionChip() const {
 std::string EmuCore::checksum() const { return (const char*)impl->info.checksum; }
 
 const std::vector<EmuCore::SlotInfo>& EmuCore::slots() const { return impl->slotCache; }
+
+const std::vector<EmuCore::ManifestInfo>& EmuCore::manifestList() const {
+  return impl->manifestCache;
+}

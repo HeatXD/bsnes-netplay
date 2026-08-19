@@ -48,6 +48,7 @@ public:
   };
 
   struct SlotInfo { std::string label; std::string game; };
+  struct ManifestInfo { std::string label; std::string text; };
 
   // only this layer can see inside an archive, so it picks the slot
   enum class Medium { SuperFamicom, GameBoy, BSMemory, SufamiTurbo };
@@ -83,7 +84,7 @@ public:
   // the cartridge header's own title, which hotfixes match on
   std::string headerTitle() const;
 
-  // heuristics summary for the Cartridge window; empty when nothing is loaded
+  // heuristics summary for the Manifest window; empty when nothing is loaded
   std::string manifest() const;
   std::string region() const;
   std::string board() const;
@@ -93,6 +94,8 @@ public:
   std::string checksum() const;
   // the media sitting in the base cartridge's slots
   const std::vector<SlotInfo>& slots() const;
+  // every loaded medium's manifest, for the manifest viewer
+  const std::vector<ManifestInfo>& manifestList() const;
   // the game plus its slot media were all found in the games database
   bool verified() const;
   // a soft patch was applied to at least one medium on load

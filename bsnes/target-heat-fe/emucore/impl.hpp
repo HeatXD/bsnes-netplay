@@ -45,7 +45,7 @@ struct EmuCore::Impl : Emulator::Platform {
   }
   Markup::Node sfcDocument;  // the base cart's manifest, parsed for firmware ids
 
-  // heuristics summary of the base cartridge, for the Cartridge window
+  // heuristics summary of the base cartridge, for the Manifest window
   struct {
     string title;        // the file or folder name, used for the window title
     string headerTitle;  // the cartridge header's own title, which hotfixes match
@@ -61,6 +61,7 @@ struct EmuCore::Impl : Emulator::Platform {
   string patchError;   // a patch was found but could not be applied
   // rebuilt on load, not per call: the windows reading these ask every frame
   std::vector<EmuCore::SlotInfo> slotCache;
+  std::vector<EmuCore::ManifestInfo> manifestCache;
 
   // cached hack settings, applied on load/power/reset since several only
   // take effect then; PPU/DSP fast mode may be overridden by a hotfix

@@ -63,7 +63,7 @@ struct App {
   bool showTools = false;
   bool showGames = false;
   bool showAbout = false;
-  bool showCartridge = false;
+  bool showManifest = false;
   int settingsTab = -1;
   int mapPort = 0;
   int mapPlayer = 0;  // which of a multitap's controllers is being mapped
@@ -212,7 +212,14 @@ struct App {
   void drawEnhancementsTab();
   void restoreCompatibilityDefaults();
   void drawCompatibilityTab();
-  void drawCartridgeWindow();
+  // cartridge summary plus every loaded medium's manifest
+  void drawManifestWindow();
+  void drawUnverifiedPrompt();
+  // one definition of "not emulating", for the frame loop and the dimming alike
+  bool emulationIdle() const {
+    return !core.loaded() || (paused && !frameAdvance) || unverifiedPrompt
+        || (settings.defocusPolicy == DefocusPause && !focused());
+  }
   bool drawColourSection();
   bool drawFontSection();
   void restoreAppearanceDefaults();
