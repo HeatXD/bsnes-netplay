@@ -21,6 +21,7 @@ struct Options {
   bool uiFullscreen = false;
   bool stateTest = false;
   bool determinismTest = false;
+  bool hotkeyTest = false;
 };
 
 Options parseArgs(int argc, char** argv) {
@@ -32,6 +33,7 @@ Options parseArgs(int argc, char** argv) {
     if(SDL_strcmp(arg, "--fast") == 0) opt.fast = true;
     else if(SDL_strcmp(arg, "--state-test") == 0) opt.stateTest = true;
     else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.determinismTest = true;
+    else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.hotkeyTest = true;
     else if(SDL_strcmp(arg, "--ui-fullscreen") == 0) opt.uiFullscreen = true;
     else if(SDL_strcmp(arg, "--frames") == 0 && hasValue) opt.frameLimit = SDL_atoi(argv[++i]);
     else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) opt.uiShot = argv[++i];
@@ -143,6 +145,7 @@ struct Frontend {
   int runUiShot();
   int runStateTest();
   int runDeterminismTest();
+  int runHotkeyTest();
 };
 
 void Frontend::renderUi() {
@@ -277,7 +280,7 @@ bool Frontend::handleRebind(const SDL_Event& event) {
   if(app.capturingHotkey >= 0) {
     Binding b;
     if(escape) app.capturingHotkey = -1;
-    else if(InputMap::capture(event, b)) {
+    else if(InputMap::capture(event, b, 0, true)) {
       app.input.hotkey(app.capturingHotkey / InputMap::HotkeySlots,
                        app.capturingHotkey % InputMap::HotkeySlots) = b;
       app.input.save(app.inputCfg);
@@ -584,6 +587,65 @@ int Frontend::runDeterminismTest() {
   return pass ? 0 : 1;
 }
 
+// hotkeyHeld against a fabricated keyboard, since SDL's own state cannot be driven
+int Frontend::runHotkeyTest() {
+  bool keys[SDL_SCANCODE_COUNT] = {};
+  InputSample sample;
+  sample.keys = keys;
+  bool pass = true;
+
+  auto set = [&](SDL_Scancode a, SDL_Scancode b, int mods) {
+    for(bool& key : keys) key = false;
+    if(a != SDL_SCANCODE_UNKNOWN) keys[a] = true;
+    if(b != SDL_SCANCODE_UNKNOWN) keys[b] = true;
+    sample.mods = mods;
+  };
+  auto expect = [&](const char* what, int index, int logic, bool want) {
+    const bool got = app.input.hotkeyHeld(index, sample, app.pads, logic);
+    SDL_Log("%-30s %d (want %d)%s", what, got, want, got == want ? "" : "  <-- WRONG");
+    pass = pass && got == want;
+  };
+
+  // two slots, the old way of building a chord: both keys held under And logic
+  app.input.hotkey(HkPause, 0) = {Binding::Key, SDL_SCANCODE_LCTRL, 0, 0};
+  app.input.hotkey(HkPause, 1) = {Binding::Key, SDL_SCANCODE_F, 0, 0};
+
+  set(SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN, 0);
+  expect("or, neither held", HkPause, LogicOr, false);
+  set(SDL_SCANCODE_LCTRL, SDL_SCANCODE_UNKNOWN, 0);
+  expect("or, one held", HkPause, LogicOr, true);
+  expect("and, one held", HkPause, LogicAnd, false);
+  set(SDL_SCANCODE_LCTRL, SDL_SCANCODE_F, 0);
+  expect("and, both held", HkPause, LogicAnd, true);
+
+  // one slot holding a real chord, which is what the rebinder now records
+  app.input.hotkey(HkReset, 0) = {Binding::Key, SDL_SCANCODE_2, 0, normalizeMods(SDL_KMOD_LSHIFT)};
+  app.input.hotkey(HkReset, 1) = {};
+
+  set(SDL_SCANCODE_2, SDL_SCANCODE_UNKNOWN, 0);
+  expect("shift+2 bound, 2 alone", HkReset, LogicOr, false);
+  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods(SDL_KMOD_LSHIFT));
+  expect("shift+2 bound, shift+2", HkReset, LogicOr, true);
+  set(SDL_SCANCODE_2, SDL_SCANCODE_RSHIFT, normalizeMods(SDL_KMOD_RSHIFT));
+  expect("shift+2 bound, right shift", HkReset, LogicOr, true);
+  set(SDL_SCANCODE_2, SDL_SCANCODE_LCTRL, normalizeMods(SDL_KMOD_LCTRL));
+  expect("shift+2 bound, ctrl+2", HkReset, LogicOr, false);
+  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods((SDL_Keymod)(SDL_KMOD_LSHIFT | SDL_KMOD_LCTRL)));
+  expect("shift+2 bound, ctrl+shift+2", HkReset, LogicOr, false);
+
+  // a plain key must not fire while a modifier is down, or the chord is ambiguous
+  app.input.hotkey(HkQuit, 0) = {Binding::Key, SDL_SCANCODE_2, 0, 0};
+  app.input.hotkey(HkQuit, 1) = {};
+  set(SDL_SCANCODE_2, SDL_SCANCODE_UNKNOWN, 0);
+  expect("2 bound, 2 alone", HkQuit, LogicOr, true);
+  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods(SDL_KMOD_LSHIFT));
+  expect("2 bound, shift+2", HkQuit, LogicOr, false);
+
+  SDL_Log("pads connected during this test: %d", (int)app.pads.size());
+  SDL_Log("hotkey logic test: %s", pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}
+
 // The core caches these rather than reading Settings per frame, so a loaded
 // config has to be pushed in explicitly; without this it keeps its own
 // defaults until the matching tab happens to be opened.
@@ -683,7 +745,8 @@ int main(int argc, char** argv) {
   }
 
   Frontend frontend{app, opt};
-  const int code = opt.determinismTest ? frontend.runDeterminismTest()
+  const int code = opt.hotkeyTest ? frontend.runHotkeyTest()
+                 : opt.determinismTest ? frontend.runDeterminismTest()
                  : opt.stateTest  ? frontend.runStateTest()
                  : opt.uiShot.empty() ? frontend.runLoop()
                  : frontend.runUiShot();

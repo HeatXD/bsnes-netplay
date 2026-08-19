@@ -10,7 +10,7 @@ void App::restoreHotkeyDefaults() {
 void App::drawHotkeysTab() {
   ImGui::TextUnformatted(capturingHotkey >= 0
       ? "press a key, mouse or pad button, delete to unbind, esc to cancel"
-      : "click a mapping to rebind it");
+      : "click a mapping to rebind it; hold ctrl, shift or alt for a chord");
   ImGui::Separator();
 
   if(ImGui::BeginTable("hotkeys", 1 + InputMap::HotkeySlots,
@@ -45,7 +45,7 @@ void App::drawHotkeysTab() {
   if(ImGui::Combo("Combinational logic", &settings.hotkeyLogic, LogicNames, LogicCount)) {
     settings.save(settingsCfg);
   }
-  tip("And builds a chord like Ctrl+F; Or lets a key or a pad button do it.");
+  tip("And needs every mapping held at once; Or lets any one of them fire it.");
 
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##hotkeys")) {

@@ -67,9 +67,19 @@ SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index) {
   return index >= 0 && (size_t)index < pads.size() ? pads[index] : nullptr;
 }
 
+int normalizeMods(SDL_Keymod mods) {
+  int out = 0;
+  if(mods & SDL_KMOD_CTRL) out |= SDL_KMOD_LCTRL;
+  if(mods & SDL_KMOD_SHIFT) out |= SDL_KMOD_LSHIFT;
+  if(mods & SDL_KMOD_ALT) out |= SDL_KMOD_LALT;
+  if(mods & SDL_KMOD_GUI) out |= SDL_KMOD_LGUI;
+  return out;
+}
+
 InputSample InputSample::poll(bool captured) {
   InputSample sample;
   sample.keys = SDL_GetKeyboardState(nullptr);
+  sample.mods = normalizeMods(SDL_GetModState());
   float dx = 0.0f, dy = 0.0f;
   // relative state is only meaningful while the pointer is locked to us
   sample.mouseButtons = captured ? SDL_GetRelativeMouseState(&dx, &dy)
@@ -78,6 +88,13 @@ InputSample InputSample::poll(bool captured) {
   sample.mouseDy = (int)dy;
   sample.mouseCaptured = captured;
   return sample;
+}
+
+bool isModifier(SDL_Scancode code) {
+  return code == SDL_SCANCODE_LCTRL || code == SDL_SCANCODE_RCTRL
+      || code == SDL_SCANCODE_LSHIFT || code == SDL_SCANCODE_RSHIFT
+      || code == SDL_SCANCODE_LALT || code == SDL_SCANCODE_RALT
+      || code == SDL_SCANCODE_LGUI || code == SDL_SCANCODE_RGUI;
 }
 
 bool bindingActive(const Binding& binding, const InputSample& sample, SDL_Gamepad* pad) {
@@ -105,7 +122,12 @@ std::string Binding::label(SDL_Gamepad* pad) const {
   switch(type) {
     case Key: {
       const char* name = SDL_GetScancodeName((SDL_Scancode)code);
-      return (name && *name) ? name : "Key";
+      std::string prefix;
+      if(mods & SDL_KMOD_LCTRL) prefix += "Ctrl+";
+      if(mods & SDL_KMOD_LSHIFT) prefix += "Shift+";
+      if(mods & SDL_KMOD_LALT) prefix += "Alt+";
+      if(mods & SDL_KMOD_LGUI) prefix += "Gui+";
+      return prefix + ((name && *name) ? name : "Key");
     }
     case MouseButton: {
       if(const char* name = lookup(MouseButtonNames, code)) return name;
@@ -263,6 +285,8 @@ bool InputMap::hotkeyHeld(int index, const InputSample& sample,
     // a hotkey belongs to the app, so any pad may press it
     bool held = bindingActive(binding, sample, nullptr);
     for(SDL_Gamepad* pad : pads) held = held || bindingActive(binding, sample, pad);
+    // a chord is exact, so a bare key does not fire while a modifier is down
+    if(binding.type == Binding::Key && sample.mods != binding.mods) held = false;
 
     if(logic == LogicAnd && !held) return false;
     if(logic != LogicAnd && held) return true;
@@ -280,7 +304,7 @@ void InputMap::migrateHotkeys(const int* scancodes, int count) {
   hotkeysLoaded = true;
 }
 
-bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad) {
+bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad, bool chords) {
   if(event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
     if(event.key.scancode == SDL_SCANCODE_ESCAPE) return false;
     // delete clears the binding rather than binding the delete key itself
@@ -289,7 +313,10 @@ bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad)
       out = {};
       return true;
     }
-    out = {Binding::Key, (int)event.key.scancode, 0};
+    // a bare modifier would end the capture before the key it belongs to arrives
+    if(chords && isModifier(event.key.scancode)) return false;
+    out = {Binding::Key, (int)event.key.scancode, 0,
+           chords ? normalizeMods(event.key.mod) : 0};
     return true;
   }
   if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -333,8 +360,8 @@ bool InputMap::save(const std::string& path) const {
       const Binding& b = hotkeys[index][slot];
       if(b.type == Binding::None) continue;
       char line[128];
-      int n = SDL_snprintf(line, sizeof(line), "h %d %d %d %d %d\n",
-                           index, slot, (int)b.type, b.code, b.direction);
+      int n = SDL_snprintf(line, sizeof(line), "h %d %d %d %d %d %d\n",
+                           index, slot, (int)b.type, b.code, b.direction, b.mods);
       text.append(line, n);
     }
   }
@@ -353,13 +380,15 @@ bool InputMap::load(const std::string& path) {
     pos = end + 1;
 
     if(line[0] == 'h') {
-      int index = 0, slot = 0, type = 0, code = 0, dir = 0;
-      if(SDL_sscanf(line.c_str() + 1, "%d %d %d %d %d", &index, &slot, &type, &code, &dir) != 5) continue;
+      int index = 0, slot = 0, type = 0, code = 0, dir = 0, mods = 0;
+      // a config written before chords carries five fields, not six
+      if(SDL_sscanf(line.c_str() + 1, "%d %d %d %d %d %d",
+                    &index, &slot, &type, &code, &dir, &mods) < 5) continue;
       if(index < 0 || index >= HotkeyCount) continue;
       if(slot < 0 || slot >= HotkeySlots) continue;
       // the first line clears the defaults, so an unbound hotkey stays unbound
       if(!hotkeysLoaded) { hotkeys = {}; hotkeysLoaded = true; }
-      hotkeys[index][slot] = {(Binding::Type)type, code, dir};
+      hotkeys[index][slot] = {(Binding::Type)type, code, dir, mods};
       continue;
     }
 
