@@ -20,6 +20,7 @@ struct Options {
   bool fast = false;
   bool uiFullscreen = false;
   bool stateTest = false;
+  bool determinismTest = false;
 };
 
 Options parseArgs(int argc, char** argv) {
@@ -30,6 +31,7 @@ Options parseArgs(int argc, char** argv) {
 
     if(SDL_strcmp(arg, "--fast") == 0) opt.fast = true;
     else if(SDL_strcmp(arg, "--state-test") == 0) opt.stateTest = true;
+    else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.determinismTest = true;
     else if(SDL_strcmp(arg, "--ui-fullscreen") == 0) opt.uiFullscreen = true;
     else if(SDL_strcmp(arg, "--frames") == 0 && hasValue) opt.frameLimit = SDL_atoi(argv[++i]);
     else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) opt.uiShot = argv[++i];
@@ -102,6 +104,20 @@ void openGamepads(App& app) {
   if(ids) SDL_free(ids);
 }
 
+// FNV-1a over the frame the core last handed the shell
+uint64_t frameHash(const App& app) {
+  uint64_t hash = 1469598103934665603ull;
+  const int pixels = app.shell.frameWidth * app.shell.frameHeight;
+  for(int i = 0; i < pixels; i++) hash = (hash ^ app.shell.lastPixels[i]) * 1099511628211ull;
+  return hash;
+}
+
+uint64_t blobHash(const std::vector<uint8_t>& blob) {
+  uint64_t hash = 1469598103934665603ull;
+  for(uint8_t byte : blob) hash = (hash ^ byte) * 1099511628211ull;
+  return hash;
+}
+
 // Drives the frame loop. Lives as a struct so the event watch can call back
 // into it through a plain pointer.
 struct Frontend {
@@ -126,6 +142,7 @@ struct Frontend {
   int runLoop();
   int runUiShot();
   int runStateTest();
+  int runDeterminismTest();
 };
 
 void Frontend::renderUi() {
@@ -422,15 +439,7 @@ int Frontend::runUiShot() {
 
 // save, diverge, restore: the same frames must come back, blob and file alike
 int Frontend::runStateTest() {
-  auto hashFrame = [&] {
-    // FNV-1a over the frame the core last handed the shell
-    uint64_t hash = 1469598103934665603ull;
-    const int pixels = app.shell.frameWidth * app.shell.frameHeight;
-    for(int i = 0; i < pixels; i++) {
-      hash = (hash ^ app.shell.lastPixels[i]) * 1099511628211ull;
-    }
-    return hash;
-  };
+  auto hashFrame = [&] { return frameHash(app); };
   // a restored machine has not drawn yet, so only what it renders next says anything
   auto replay = [&](int count) {
     for(int i = 0; i < count; i++) app.core.runFrame();
@@ -469,6 +478,109 @@ int Frontend::runStateTest() {
 
   const bool pass = blob && filed && refused;
   SDL_Log("state test: %s", pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}
+
+// same inputs, same result: what netplay's rollback rests on
+int Frontend::runDeterminismTest() {
+  const int frames = opt.frameLimit > 0 ? opt.frameLimit : 600;
+
+  // a fixed button stream, held eight frames at a time so the game reacts to it
+  auto press = [&](int frame) {
+    uint32_t bits = 2166136261u + (uint32_t)(frame / 8) * 16777619u;
+    bits ^= bits >> 13; bits *= 1274126177u; bits ^= bits >> 16;
+    for(int b = 0; b < EmuCore::ButtonCount; b++) app.core.setInput(0, b, (bits >> b) & 1);
+  };
+  // every frame folded in, not just the last: a divergence that heals still fails
+  auto run = [&](int first, int count) {
+    uint64_t rolling = 1469598103934665603ull;
+    for(int frame = first; frame < first + count; frame++) {
+      press(frame);
+      app.core.runFrame();
+      rolling = (rolling ^ frameHash(app)) * 1099511628211ull;
+    }
+    return rolling;
+  };
+  // the cothread stacks are host memory; everything else must be identical
+  auto guestHash = [&](const std::vector<uint8_t>& blob) {
+    uint64_t hash = 1469598103934665603ull;
+    for(const auto& part : app.core.stateMap(false)) {
+      if(part.hostState) continue;
+      for(int i = part.offset; i < part.offset + part.size && i < (int)blob.size(); i++) {
+        hash = (hash ^ blob[i]) * 1099511628211ull;
+      }
+    }
+    return hash;
+  };
+  auto reportDiff = [&](const std::vector<uint8_t>& a, const std::vector<uint8_t>& b) {
+    if(a.size() != b.size()) { SDL_Log("  sizes differ: %d vs %d", (int)a.size(), (int)b.size()); return; }
+    for(const auto& part : app.core.stateMap(false)) {
+      const int end = SDL_min(part.offset + part.size, (int)a.size());
+      for(int i = part.offset; i < end; i++) {
+        if(a[i] == b[i]) continue;
+        SDL_Log("  %-12s differs at +%d%s", part.name.c_str(), i - part.offset,
+                part.hostState ? "  (host state, expected)" : "  <-- machine state");
+        break;
+      }
+    }
+  };
+  // both captures, so the rollback answer is not confused with the quick-state one
+  auto rollbackReplay = [&](bool synchronize) {
+    app.core.setOption("Hacks/Entropy", "None");
+    app.core.power();
+    run(0, frames / 2);
+    const std::vector<uint8_t> save = app.core.serialize(synchronize);
+    const uint64_t ahead = run(frames / 2, frames - frames / 2);
+    const std::vector<uint8_t> aheadState = app.core.serialize(synchronize);
+
+    if(!app.core.unserialize(save)) { SDL_Log("  restore refused"); return false; }
+    const uint64_t again = run(frames / 2, frames - frames / 2);
+    const std::vector<uint8_t> againState = app.core.serialize(synchronize);
+    const bool sameFrames = again == ahead;
+    const bool sameGuest = guestHash(againState) == guestHash(aheadState);
+    SDL_Log("replay across a %s restore: frames %s, machine state %s (%016llx)",
+            synchronize ? "synchronized" : "deterministic",
+            sameFrames ? "match" : "DIFFER", sameGuest ? "matches" : "DIFFERS",
+            (unsigned long long)ahead);
+    if(againState != aheadState) reportDiff(aheadState, againState);
+    return sameFrames && sameGuest;
+  };
+
+  bool pass = true;
+  for(const char* entropy : {"None", "Low", "High"}) {
+    app.core.setOption("Hacks/Entropy", entropy);
+    app.core.power();
+    const uint64_t first = run(0, frames);
+    const uint64_t firstState = guestHash(app.core.serialize(false));
+    app.core.power();
+    const uint64_t second = run(0, frames);
+    // randomised RAM the game never draws still lands in the state
+    const bool sameFrames = first == second;
+    const bool sameState = firstState == guestHash(app.core.serialize(false));
+
+    // only None promises anything; the others are there to randomise
+    SDL_Log("entropy %-4s: %d frames %016llx %s, machine state %s%s", entropy, frames,
+            (unsigned long long)first, sameFrames ? "repeat" : "DIFFER",
+            sameState ? "repeats" : "differs",
+            SDL_strcmp(entropy, "None") == 0 ? "" : " (expected, it randomises)");
+    if(SDL_strcmp(entropy, "None") == 0) pass = pass && sameFrames && sameState;
+  }
+
+  // the rollback shape: restore, feed the same inputs, land in the same place
+  SDL_Log("libco deterministic states: %s", EmuCore::deterministicStates() ? "yes" : "no");
+  const bool synced = rollbackReplay(true);
+  const bool unsynced = rollbackReplay(false);
+  // only the deterministic capture promises this
+  pass = pass && unsynced;
+  (void)synced;
+
+  // for diffing two runs of the exe; the machine hash is what a peer checksums
+  app.core.setOption("Hacks/Entropy", "None");
+  app.core.power();
+  const uint64_t signature = run(0, frames);
+  SDL_Log("signature frames %016llx machine %016llx", (unsigned long long)signature,
+          (unsigned long long)guestHash(app.core.serialize(false)));
+  SDL_Log("determinism test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
 
@@ -563,14 +675,16 @@ int main(int argc, char** argv) {
   openRequestedPanel(app, opt);
 
   if(!opt.romPath.empty()) app.loadRom(opt.romPath);
-  if((opt.frameLimit || opt.stateTest) && opt.uiShot.empty() && !app.core.loaded()) {
+  if((opt.frameLimit || opt.stateTest || opt.determinismTest)
+  && opt.uiShot.empty() && !app.core.loaded()) {
     SDL_Log("no rom loaded");
     shutdownApp(app);
     return 1;
   }
 
   Frontend frontend{app, opt};
-  const int code = opt.stateTest  ? frontend.runStateTest()
+  const int code = opt.determinismTest ? frontend.runDeterminismTest()
+                 : opt.stateTest  ? frontend.runStateTest()
                  : opt.uiShot.empty() ? frontend.runLoop()
                  : frontend.runUiShot();
 

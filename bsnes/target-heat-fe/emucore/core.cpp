@@ -196,14 +196,25 @@ void EmuCore::reset() {
 }
 
 // the core downgrades Fast to Strict itself where it corrupts (sfc/system/system.cpp:24)
-std::vector<uint8_t> EmuCore::serialize() {
+bool EmuCore::deterministicStates() { return co_serializable(); }
+
+std::vector<uint8_t> EmuCore::serialize(bool synchronize) {
   if(!loaded()) return {};
-  serializer s = impl->emulator->serialize();
+  serializer s = impl->emulator->serialize(synchronize);
   if(!s.size()) return {};
   return std::vector<uint8_t>(s.data(), s.data() + s.size());
 }
 
 // the core checks its header but not the buffer length, so a short blob reads off the end
+std::vector<EmuCore::StateComponent> EmuCore::stateMap(bool synchronize) {
+  std::vector<StateComponent> map;
+  if(!loaded()) return map;
+  for(auto& part : impl->emulator->serializeMap(synchronize)) {
+    map.push_back({(const char*)part.name, (int)part.offset, (int)part.size, part.hostState});
+  }
+  return map;
+}
+
 bool EmuCore::unserialize(const std::vector<uint8_t>& state) {
   if(!loaded() || state.size() < 8) return false;
 

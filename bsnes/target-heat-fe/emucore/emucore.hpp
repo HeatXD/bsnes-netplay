@@ -79,9 +79,14 @@ public:
   void reset();
   void runFrame();
 
-  // a save state blob, empty when the core refused to make one. The whole
-  // machine, so a state only reloads into the same game.
-  std::vector<uint8_t> serialize();
+  // the whole machine; false is the deterministic capture rollback needs
+  std::vector<uint8_t> serialize(bool synchronize = true);
+  // false when this libco backend forces every state to be synchronized
+  static bool deterministicStates();
+
+  // hostState marks the cothread stacks: restorable, never comparable
+  struct StateComponent { std::string name; int offset; int size; bool hostState; };
+  std::vector<StateComponent> stateMap(bool synchronize = true);
   bool unserialize(const std::vector<uint8_t>& state);
 
   // the file name, which the window title uses
