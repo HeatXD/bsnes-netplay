@@ -98,6 +98,7 @@ bool App::loadRom(const std::string& entry) {
   paused = false;
   speedIndex = SpeedNormal;
   applySpeed();
+  autoSaveMark = SDL_GetTicks();
 
   // held before the first frame, so cancelling means nothing ever ran
   unverifiedPrompt = settings.warnUnverified && !core.verified();

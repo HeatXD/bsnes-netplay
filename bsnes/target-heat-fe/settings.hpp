@@ -92,6 +92,8 @@ struct Settings {
   int hackSa1Overclock = 100;
   int hackSuperFxOverclock = 100;
   bool warnUnverified = false;
+  bool autoSaveMemory = true;
+  int autoSaveInterval = 30;  // seconds
   // IPS says nothing about copier headers, so the user tells us once
   bool ipsHeadered = false;
   bool showStatus = true;

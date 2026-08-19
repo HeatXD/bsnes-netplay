@@ -42,6 +42,25 @@ void App::drawEmulatorTab() {
   dirty |= ImGui::Checkbox("Mute while fast forwarding", &settings.fastForwardMute);
 
   ImGui::Spacing();
+  ImGui::TextDisabled("Memory");
+  dirty |= ImGui::Checkbox("Auto-save memory periodically", &settings.autoSaveMemory);
+  tip("Writes save RAM on a timer, so a crash costs one interval at most.");
+  ImGui::BeginDisabled(!settings.autoSaveMemory);
+  ImGui::SliderInt("Interval", &settings.autoSaveInterval, 5, 600, "%d s");
+  dirty |= ImGui::IsItemDeactivatedAfterEdit();
+  ImGui::EndDisabled();
+
+  ImGui::Spacing();
+  ImGui::TextDisabled("Games");
+  dirty |= ImGui::Checkbox("Warn on unverified games", &settings.warnUnverified);
+  tip("An unverified image has its board layout guessed from the ROM.");
+  if(ImGui::Checkbox("IPS patches expect a headered ROM", &settings.ipsHeadered)) {
+    core.setIpsHeadered(settings.ipsHeadered);
+    dirty = true;
+  }
+  tip("Flip this and reload if an IPS patch misbehaves; BPS ignores it.");
+
+  ImGui::Spacing();
   ImGui::TextDisabled("Interface");
   dirty |= ImGui::Checkbox("Show status bar", &settings.showStatus);
   dirty |= ImGui::Checkbox("Show tool tips", &settings.showToolTips);

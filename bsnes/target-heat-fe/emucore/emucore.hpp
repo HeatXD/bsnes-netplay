@@ -120,6 +120,8 @@ public:
   // slowdown factor: pass 1/N for Nx speed, so output stays at one rate
   void setSpeedScale(double scale);
   // -1 is hard left, 0 centred, +1 hard right
+  // flush save RAM without unloading, for the auto-save timer
+  void saveMemory();
   // frames to drop between rendered ones; only the fast PPU honours it
   void setFrameSkip(int frames);
   void setInput(int port, int index, int16_t value);
@@ -132,8 +134,9 @@ public:
   void setFilter(const std::string& name);
   std::vector<std::string> filterNames() const;
 
-  // controllers a device carries; only the multitap holds more than one
+  // controllers a device carries; only the multitap and chained guns hold more
   int playersFor(int deviceId) const;
+  // inputs each of those controllers gets; never assume ButtonCount
 
   // what the core actually supports, rather than a hardcoded list
   const std::vector<DeviceInfo>& devices(int port) const;

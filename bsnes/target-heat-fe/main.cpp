@@ -171,6 +171,7 @@ bool Frontend::stepFrame() {
 
   if(!stopped) advance();
   app.frameAdvance = false;
+  app.saveMemoryTick();
 
   // screensaver comes back the instant emulation isn't actually running
   const bool running = app.core.loaded() && !stopped;

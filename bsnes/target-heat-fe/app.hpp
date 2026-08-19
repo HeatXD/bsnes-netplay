@@ -149,6 +149,7 @@ struct App {
   const char* startDirFor(EmuCore::Medium medium);
   void openSufamiPairDialog();
   void takeScreenshot();
+  void saveMemoryTick();
 
   ImVec4 accentColor() const { return unpackColor(settings.accent); }
   void applyPreset();
