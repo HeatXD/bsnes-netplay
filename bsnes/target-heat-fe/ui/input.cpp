@@ -146,7 +146,8 @@ void App::restoreInputDefaults() {
 }
 
 void App::drawInputTab() {
-  ImGui::Combo("Port", &mapPort, "Port 1\0Port 2\0");
+  ImGui::Combo("Port", &mapPort, "Port 1\0Port 2\0Expansion\0");
+
   drawDevicePicker();
 
   // the core names a multitap's four controllers Port 2..Port 5
@@ -172,11 +173,17 @@ void App::drawInputTab() {
     drawControllerPicker();
   }
 
-  ImGui::TextUnformatted(capturing >= 0
-      ? "press a key or pad button, delete to unbind, esc to cancel"
-      : "click a binding to rebind it");
-  ImGui::Separator();
-  drawBindingTable(device);
+  // an expansion device is cartridge-side hardware with nothing to press
+  if(core.inputs(device).empty()) {
+    ImGui::Separator();
+    ImGui::TextDisabled("This device has no inputs to map.");
+  } else {
+    ImGui::TextUnformatted(capturing >= 0
+        ? "press a key, mouse or pad button, delete to unbind, esc to cancel"
+        : "click a binding to rebind it");
+    ImGui::Separator();
+    drawBindingTable(device);
+  }
 
   ImGui::Separator();
   ImGui::SliderInt("Turbo rate (Hz)", &settings.turboRate, 1, 30);

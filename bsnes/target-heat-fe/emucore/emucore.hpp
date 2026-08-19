@@ -16,8 +16,8 @@ public:
   static constexpr int MaxWidth = 640;
   static constexpr int MaxHeight = 480;
 
-  // controller ports 1 and 2; the expansion port is not mapped
-  static constexpr int PortCount = 2;
+  // controller ports 1 and 2, then the expansion port
+  static constexpr int PortCount = 3;
   // super multitap is the widest device, at 4 pads
   static constexpr int MaxInputs = 64;
   // per device, not per console: five players is a multitap plus the other port

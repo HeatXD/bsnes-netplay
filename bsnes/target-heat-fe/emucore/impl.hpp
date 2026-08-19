@@ -94,7 +94,8 @@ struct EmuCore::Impl : Emulator::Platform {
   int videoGamma = 150, videoLuminance = 100, videoSaturation = 100;
   int filterIndex = 0;  // index into video.cpp's Filters[]
   std::array<std::array<int16_t, EmuCore::MaxInputs>, EmuCore::PortCount> state{};
-  std::array<int, EmuCore::PortCount> connected{EmuCore::Gamepad, EmuCore::Gamepad};
+  std::array<int, EmuCore::PortCount> connected{EmuCore::Gamepad, EmuCore::Gamepad,
+                                                EmuCore::None};
 
   // the core rebuilds these as fresh nall vectors on every call
   std::array<std::vector<EmuCore::DeviceInfo>, EmuCore::PortCount> deviceCache;
