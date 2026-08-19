@@ -115,7 +115,9 @@ bool Shell::init(const Settings& settings) {
     SDL_Log("SDL_Init failed: %s", SDL_GetError());
     return false;
   }
-  return initVideo() && initAudio(settings);
+  if(!initVideo()) return false;
+  moveToDisplay(settings);  // SDL places a new window on the primary display
+  return initAudio(settings);
 }
 
 void Shell::shutdown() {
@@ -244,12 +246,61 @@ void Shell::shrinkToFit(const Settings& settings) {
   SDL_SetWindowSize(window, (int)(videoW * scale + 0.5f), (int)(videoH * scale + chrome + 0.5f));
 }
 
+namespace {
+// resolves a remembered display name back to an id, as findPlaybackDevice does
+// for audio; 0 when the name is empty or that monitor has been unplugged
+SDL_DisplayID findDisplay(const std::string& name) {
+  if(name.empty()) return 0;
+
+  int count = 0;
+  SDL_DisplayID* ids = SDL_GetDisplays(&count);
+  SDL_DisplayID found = 0;
+  for(int i = 0; i < count; i++) {
+    const char* displayName = SDL_GetDisplayName(ids[i]);
+    if(displayName && name == displayName) { found = ids[i]; break; }
+  }
+  if(ids) SDL_free(ids);
+  return found;
+}
+}  // namespace
+
+std::vector<std::string> Shell::listDisplays() {
+  std::vector<std::string> names;
+  int count = 0;
+  SDL_DisplayID* ids = SDL_GetDisplays(&count);
+  for(int i = 0; i < count; i++) {
+    if(const char* name = SDL_GetDisplayName(ids[i])) names.emplace_back(name);
+  }
+  if(ids) SDL_free(ids);
+  return names;
+}
+
+// an unplugged monitor falls back to the window's own, rather than parking the
+// window off the desktop
+SDL_DisplayID Shell::chosenDisplay(const Settings& settings) const {
+  const SDL_DisplayID display = findDisplay(settings.displayName);
+  return display ? display : SDL_GetDisplayForWindow(window);
+}
+
+void Shell::centerOn(SDL_DisplayID display) {
+  SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
+                                SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+}
+
+void Shell::moveToDisplay(const Settings& settings) {
+  if(settings.displayName.empty()) return;
+  if(fullscreen()) return;
+  const SDL_DisplayID display = chosenDisplay(settings);
+  if(display == SDL_GetDisplayForWindow(window)) return;
+  centerOn(display);
+}
+
 // the window shrinkToFit would build, measured against the display it sits on
 int Shell::maxScale(const Settings& settings) const {
   const ImGuiViewport* view = ImGui::GetMainViewport();
   const float chrome = view->Size.y - view->WorkSize.y;
   SDL_Rect usable{};
-  SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(window), &usable);
+  SDL_GetDisplayUsableBounds(chosenDisplay(settings), &usable);
 
   return SDL_clamp((int)fitScale(settings, (float)usable.w, usable.h - chrome), 1, MaxWindowScale);
 }

@@ -83,6 +83,8 @@ struct Settings {
   int videoLuminance = 100;   // percent, 0-100
   int videoSaturation = 100;  // percent, 0-200
   std::string videoFilter = "None";
+  // display to put the window on by name; empty follows wherever it was dragged
+  std::string displayName;
   int defocusPolicy = DefocusPause;
   int fastForwardSpeed = 4;
   bool fastForwardUnlimited = true;

@@ -128,6 +128,7 @@ const StrField StrFields[] = {
   {"stbios",      &Settings::stBios,      true},
   {"patchesdir",  &Settings::patchesDir,  true},
   {"databasedir", &Settings::databaseDir, true},
+  {"display",     &Settings::displayName, false},
 };
 }  // namespace
 

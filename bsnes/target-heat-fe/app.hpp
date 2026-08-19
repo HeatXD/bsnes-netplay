@@ -125,7 +125,12 @@ struct App {
   // focus away from it while staying part of this app
   bool focused() const { return SDL_GetKeyboardFocus() != nullptr; }
   bool fullscreen() const { return shell.fullscreen(); }
-  void toggleFullscreen() { SDL_SetWindowFullscreen(shell.window, !fullscreen()); }
+  void toggleFullscreen() {
+    const bool enter = !fullscreen();
+    // fullscreen claims whichever display the window sits on, so move it first
+    if(enter) shell.moveToDisplay(settings);
+    SDL_SetWindowFullscreen(shell.window, enter);
+  }
   void toggleMouseCapture();
   // hover help, suppressed by the tool tips setting
   void tip(const char* text) const {

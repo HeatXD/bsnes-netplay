@@ -13,6 +13,7 @@ void App::restoreVideoDefaults() {
   settings.videoSaturation = defaults.videoSaturation;
   settings.videoFilter = defaults.videoFilter;
   settings.videoDimming = defaults.videoDimming;
+  settings.displayName = defaults.displayName;
   core.setOverscanCrop(settings.overscanCrop);
   core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
   core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
@@ -27,12 +28,35 @@ void App::drawVideoTab() {
 
   if(ImGui::BeginCombo("Window scale",
                        windowScaleLabel(settings.windowScale, settings).c_str())) {
-    for(int scale = 0; scale <= shell.maxScale(settings); scale++) {
+    const int maxScale = shell.maxScale(settings);
+    for(int scale = 0; scale <= maxScale; scale++) {
       const std::string label = windowScaleLabel(scale, settings);
       if(ImGui::Selectable(label.c_str(), settings.windowScale == scale)) setWindowScale(scale);
     }
     ImGui::EndCombo();
   }
+  const char* displayLabel = settings.displayName.empty() ? "Follow the window"
+                                                          : settings.displayName.c_str();
+  if(ImGui::BeginCombo("Display", displayLabel)) {
+    if(ImGui::Selectable("Follow the window", settings.displayName.empty())) {
+      settings.displayName.clear();
+      dirty = true;
+    }
+    // two identical monitors report the same name, so the row index owns the id
+    const std::vector<std::string> displays = Shell::listDisplays();
+    for(int i = 0; i < (int)displays.size(); i++) {
+      ImGui::PushID(i);
+      if(ImGui::Selectable(displays[i].c_str(), settings.displayName == displays[i])) {
+        settings.displayName = displays[i];
+        shell.moveToDisplay(settings);
+        dirty = true;
+      }
+      ImGui::PopID();
+    }
+    ImGui::EndCombo();
+  }
+  tip("Which monitor the window and fullscreen use.");
+
   if(ImGui::Button("Shrink window to size")) shell.shrinkToFit(settings);
 
   ImGui::Separator();

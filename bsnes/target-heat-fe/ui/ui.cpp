@@ -69,7 +69,8 @@ std::string windowScaleLabel(int scale, const Settings& settings) {
 }
 
 void App::drawWindowSizeMenu() {
-  for(int scale = 0; scale <= shell.maxScale(settings); scale++) {
+  const int maxScale = shell.maxScale(settings);
+  for(int scale = 0; scale <= maxScale; scale++) {
     const std::string label = windowScaleLabel(scale, settings);
     if(ImGui::MenuItem(label.c_str(), nullptr, settings.windowScale == scale)) {
       setWindowScale(scale);

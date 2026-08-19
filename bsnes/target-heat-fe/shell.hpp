@@ -64,6 +64,8 @@ struct Shell {
                  float gain, bool unpaced);
   // playback device names, for the settings picker
   static std::vector<std::string> listPlaybackDevices();
+  // display names, likewise
+  static std::vector<std::string> listDisplays();
   bool fullscreen() const {
     return (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
   }
@@ -75,8 +77,15 @@ struct Shell {
   // tint multiplies the frame, which is how the idle dimming is applied
   void drawGame(const Settings& settings, unsigned tint = 0xffffffffu);
   void shrinkToFit(const Settings& settings);
+  // moves the window to the configured display, leaving its size alone
+  void moveToDisplay(const Settings& settings);
   // largest whole multiple whose window still fits the display, chrome included
   int maxScale(const Settings& settings) const;
   bool saveFrame(const std::string& path) const;
   bool saveWindow(const std::string& path) const;
+
+private:
+  // the configured display while it is still attached, else the window's own
+  SDL_DisplayID chosenDisplay(const Settings& settings) const;
+  void centerOn(SDL_DisplayID display);
 };
