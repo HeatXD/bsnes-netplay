@@ -69,7 +69,8 @@ struct Shell {
     frameWidth = frameHeight = 0;
     drawWidth = drawHeight = 0;
   }
-  void drawGame(const Settings& settings);
+  // tint multiplies the frame, which is how the idle dimming is applied
+  void drawGame(const Settings& settings, unsigned tint = 0xffffffffu);
   void shrinkToFit(const Settings& settings);
   // largest whole multiple whose window still fits the display, chrome included
   int maxScale(const Settings& settings) const;

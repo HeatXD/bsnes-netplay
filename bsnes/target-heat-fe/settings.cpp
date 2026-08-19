@@ -109,6 +109,10 @@ const BoolField BoolFields[] = {
   {"ffunlimited",    &Settings::fastForwardUnlimited},
   {"ffmute",         &Settings::fastForwardMute},
   {"tooltips",       &Settings::showToolTips},
+  {"dimming",        &Settings::videoDimming},
+  {"warnunverified", &Settings::warnUnverified},
+  {"autosavememory", &Settings::autoSaveMemory},
+  {"ipsheadered",    &Settings::ipsHeadered},
 };
 
 const StrField StrFields[] = {

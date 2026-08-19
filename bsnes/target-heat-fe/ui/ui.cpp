@@ -227,12 +227,13 @@ void App::drawUi() {
   }
 
   if(core.loaded()) {
-    shell.drawGame(settings);
+    // frame advance is a paused game being looked at, so it stays undimmed
+    const bool dim = settings.videoDimming && emulationIdle() && !frameAdvance;
+    shell.drawGame(settings, dim ? 0xff808080u : 0xffffffffu);
     drawGamesWindow();
   } else {
     drawGamesHome();
   }
-
   drawSettingsWindow();
   drawToolsWindow();
   drawCartridgeWindow();

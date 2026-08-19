@@ -12,6 +12,7 @@ void App::restoreVideoDefaults() {
   settings.videoLuminance = defaults.videoLuminance;
   settings.videoSaturation = defaults.videoSaturation;
   settings.videoFilter = defaults.videoFilter;
+  settings.videoDimming = defaults.videoDimming;
   core.setOverscanCrop(settings.overscanCrop);
   core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
   core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
@@ -43,6 +44,10 @@ void App::drawVideoTab() {
     core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
     dirty = true;
   }
+
+  ImGui::Separator();
+  dirty |= ImGui::Checkbox("Dim video when idle", &settings.videoDimming);
+  tip("Halves the brightness while emulation is paused or stopped.");
 
   ImGui::Separator();
   ImGui::TextDisabled("Color Adjustment");

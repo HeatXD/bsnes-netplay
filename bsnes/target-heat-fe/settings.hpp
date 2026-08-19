@@ -78,6 +78,7 @@ struct Settings {
   int windowScale = 0;  // 0 = fit to window
   bool overscanCrop = true;
   bool hiresBlur = false;
+  bool videoDimming = true;  // half brightness while emulation is not running
   int videoGamma = 150;       // percent, 100-200
   int videoLuminance = 100;   // percent, 0-100
   int videoSaturation = 100;  // percent, 0-200
