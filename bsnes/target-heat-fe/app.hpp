@@ -74,6 +74,13 @@ struct App {
   int speedIndex = SpeedNormal;
   double fps = 0.0;
   long long totalSamples = 0;
+  // sampled once a frame, or the relative mouse delta gets split in two
+  InputSample sample;
+  bool mouseCaptured = false;
+  bool hotkeyWasHeld[HotkeyCount] = {};
+  uint64_t autoSaveMark = 0;
+  // a load that still has to be confirmed; the game is in the core but held
+  bool unverifiedPrompt = false;
   long long emulatedFrames = 0;  // turbo's clock; must not depend on wall time
 
   void scanGames();
@@ -116,6 +123,7 @@ struct App {
     return (SDL_GetWindowFlags(shell.window) & SDL_WINDOW_FULLSCREEN) != 0;
   }
   void toggleFullscreen() { SDL_SetWindowFullscreen(shell.window, !fullscreen()); }
+  void toggleMouseCapture();
   // hover help, suppressed by the tool tips setting
   void tip(const char* text) const {
     if(settings.showToolTips) ImGui::SetItemTooltip("%s", text);

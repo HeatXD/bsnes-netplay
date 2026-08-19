@@ -144,7 +144,17 @@ void EmuCore::setInput(int port, int index, int16_t value) {
 }
 
 int EmuCore::playersFor(int deviceId) const {
-  return deviceId == SuperMultitap ? MaxPlayers : 1;
+  if(deviceId == SuperMultitap) return MaxPlayers;
+  return deviceId == Justifiers ? 2 : 1;  // chained guns, one cursor each
+}
+
+int EmuCore::inputStride(int deviceId) const {
+  return (int)inputs(deviceId).size() / playersFor(deviceId);
+}
+
+bool EmuCore::isPointer(int deviceId) const {
+  const auto& list = inputs(deviceId);
+  return !list.empty() && list[0].type == Axis;
 }
 
 const std::vector<EmuCore::DeviceInfo>& EmuCore::devices(int port) const {

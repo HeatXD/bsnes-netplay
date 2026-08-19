@@ -150,7 +150,7 @@ void Frontend::advance() {
       for(int b = 0; b < EmuCore::MaxInputs; b++) app.core.setInput(port, b, 0);
     }
   } else {
-    app.input.apply(app.core, app.pads, app.settings, app.emulatedFrames);
+    app.input.apply(app.core, app.pads, app.settings, app.sample, app.emulatedFrames);
   }
 
   app.core.runFrame();
@@ -165,9 +165,13 @@ bool Frontend::stepFrame() {
   if(inFrame) return false;  // the watch can fire while we are already drawing
   inFrame = true;
 
-  const bool unfocusedPause = app.settings.defocusPolicy == DefocusPause
-                           && !app.focused() && !opt.frameLimit;
-  const bool stopped = !app.core.loaded() || (app.paused && !app.frameAdvance) || unfocusedPause;
+  // one read a frame: the relative delta is consumed by whoever asks first
+  app.sample = InputSample::poll(app.mouseCaptured);
+  app.pollHotkeys();
+
+  // --frames has to keep running while unfocused, or a headless run stalls
+  const bool stopped = app.emulationIdle()
+                    && !(opt.frameLimit && !app.paused && app.core.loaded());
 
   if(!stopped) advance();
   app.frameAdvance = false;
@@ -429,6 +433,8 @@ void applySettingsToCore(App& app) {
 void loadConfigs(App& app) {
   app.inputCfg = prefFile("input.cfg");
   app.settingsCfg = prefFile("settings.cfg");
+  // the aiming devices are laid out by the core, so their defaults wait for it
+  app.input.loadPointerDefaults(app.core);
   app.input.load(app.inputCfg);
   app.settings.load(app.settingsCfg);
   // a config written before hotkeys became bindings carries bare scancodes

@@ -3,7 +3,7 @@
 
 // the core names a multitap's inputs "Port 3 - Up": controller, then button
 std::string App::playerLabel(int device, int player) const {
-  const std::string& name = core.inputs(device)[player * EmuCore::ButtonCount].name;
+  const std::string& name = core.inputs(device)[player * core.inputStride(device)].name;
   const size_t dash = name.rfind(" - ");
   return dash == std::string::npos ? name : name.substr(0, dash);
 }
@@ -11,7 +11,6 @@ std::string App::playerLabel(int device, int player) const {
 // one row of bind buttons: the plain set, or the turbo set that auto-fires
 void App::drawBindingRow(int device, int b, bool turbo) {
   SDL_Gamepad* pad = portPad(mapPort, mapPlayer);
-  const bool* keys = SDL_GetKeyboardState(nullptr);
 
   ImGui::TableNextRow();
   ImGui::TableNextColumn();
@@ -28,7 +27,7 @@ void App::drawBindingRow(int device, int b, bool turbo) {
     ImGui::PushID(id);
 
     // held bindings light up, so a press shows even on the wrong pad
-    const bool held = capturing != id && bindingActive(binding, keys, pad);
+    const bool held = capturing != id && bindingActive(binding, sample, pad);
     if(held) ImGui::PushStyleColor(ImGuiCol_Button, accentColor());
 
     const std::string text = capturing == id ? "..." : binding.label(pad);
@@ -44,8 +43,9 @@ void App::drawBindingTable(int device) {
 
   // a multitap's inputs are four controllers in a row; show one at a time
   const int players = core.playersFor(device);
-  const int first = mapPlayer * EmuCore::ButtonCount;
-  const int last = players > 1 ? first + EmuCore::ButtonCount : (int)deviceInputs.size();
+  const int stride = core.inputStride(device);
+  const int first = mapPlayer * stride;
+  const int last = players > 1 ? first + stride : (int)deviceInputs.size();
 
   // content sizing would let the long pad labels swallow the row
   if(!ImGui::BeginTable("bindings", 1 + InputMap::Slots,
@@ -63,17 +63,18 @@ void App::drawBindingTable(int device) {
   auto bindable = [&](int b) {
     return deviceInputs[b].type != EmuCore::Axis && deviceInputs[b].type != EmuCore::Rumble;
   };
+  const bool pointer = core.isPointer(device);
 
   for(int b = first; b < last; b++) {
     if(bindable(b)) { drawBindingRow(device, b, false); continue; }
 
-    // pointer and analog inputs have no key or button to bind
+    // an aiming device's axes follow the captured pointer; nothing else can
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
     ImGui::TextUnformatted(deviceInputs[b].name.c_str());
     for(int slot = 0; slot < InputMap::Slots; slot++) {
       ImGui::TableNextColumn();
-      ImGui::TextDisabled("n/a");
+      ImGui::TextDisabled(pointer ? (slot == 0 ? "mouse" : "") : "n/a");
     }
   }
 
@@ -153,7 +154,8 @@ void App::drawInputTab() {
   const int players = core.playersFor(device);
   if(mapPlayer >= players) mapPlayer = 0;
   if(players > 1) {
-    if(ImGui::BeginCombo("Multitap slot", playerLabel(device, mapPlayer).c_str())) {
+    const char* label = device == EmuCore::SuperMultitap ? "Multitap slot" : "Controller slot";
+    if(ImGui::BeginCombo(label, playerLabel(device, mapPlayer).c_str())) {
       for(int player = 0; player < players; player++) {
         if(ImGui::Selectable(playerLabel(device, player).c_str(), player == mapPlayer)) {
           mapPlayer = player;
@@ -162,7 +164,13 @@ void App::drawInputTab() {
       ImGui::EndCombo();
     }
   }
-  drawControllerPicker();
+  if(core.isPointer(device)) {
+    ImGui::TextWrapped("Aiming follows the mouse while it is captured (%s).",
+                       input.hotkey(HkMouseCapture, 0).label().c_str());
+    if(ImGui::Button(mouseCaptured ? "Release mouse" : "Capture mouse")) toggleMouseCapture();
+  } else {
+    drawControllerPicker();
+  }
 
   ImGui::TextUnformatted(capturing >= 0
       ? "press a key or pad button, delete to unbind, esc to cancel"

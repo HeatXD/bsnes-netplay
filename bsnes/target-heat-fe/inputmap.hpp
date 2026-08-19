@@ -10,7 +10,7 @@
 #include <vector>
 
 struct Binding {
-  enum Type : int { None = 0, Key, PadButton, PadAxis };
+  enum Type : int { None = 0, Key, PadButton, PadAxis, MouseButton };
 
   Type type = None;
   int code = 0;
@@ -22,8 +22,18 @@ struct Binding {
 
 SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index);
 
-// whether a binding is held right now; keys comes from SDL_GetKeyboardState
-bool bindingActive(const Binding& binding, const bool* keys, SDL_Gamepad* pad);
+// everything a binding can be tested against, gathered once a frame
+struct InputSample {
+  const bool* keys = nullptr;         // SDL_GetKeyboardState
+  uint32_t mouseButtons = 0;          // SDL_GetMouseState mask
+  int mouseDx = 0, mouseDy = 0;  // relative motion, for the aiming devices
+  bool mouseCaptured = false;
+
+  static InputSample poll(bool captured);
+};
+
+// whether a binding is held right now
+bool bindingActive(const Binding& binding, const InputSample& sample, SDL_Gamepad* pad);
 
 inline int padSlot(int port, int player) { return port * EmuCore::MaxPlayers + player; }
 
@@ -54,6 +64,8 @@ public:
   // the two tabs reset independently, so neither wipes the other's page
   void loadButtonDefaults();
   void loadHotkeyDefaults();
+  // an aiming device's buttons sit past its axes, so the core has to place them
+  void loadPointerDefaults(const EmuCore& core);
   bool load(const std::string& path);
   bool save(const std::string& path) const;
 
@@ -77,7 +89,7 @@ public:
   // frame is the emulated frame count, so turbo timing tracks the emulator's
   // own clock and stays correct under fast forward
   void apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
-            const Settings& settings, long long frame) const;
+            const Settings& settings, const InputSample& sample, long long frame) const;
 
   // pad events from another controller are ignored, so pad 1 cannot bind port 2
   static bool capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad = 0);

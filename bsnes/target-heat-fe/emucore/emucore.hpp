@@ -28,7 +28,9 @@ public:
   enum Button { Up, Down, Left, Right, B, A, Y, X, L, R, Select, Start, ButtonCount };
 
   // matches SuperFamicom::ID::Device
-  enum Device { None, Gamepad, Mouse, SuperMultitap, SuperScope, Justifier, Justifiers };
+  enum Device { None, Gamepad, Mouse, SuperMultitap, SuperScope, Justifier, Justifiers,
+                Satellaview, S21FX };
+
 
   // matches Emulator::Interface::Input::Type
   enum InputType { Hat, ButtonInput, Trigger, Control, Axis, Rumble };
@@ -137,6 +139,9 @@ public:
   // controllers a device carries; only the multitap and chained guns hold more
   int playersFor(int deviceId) const;
   // inputs each of those controllers gets; never assume ButtonCount
+  int inputStride(int deviceId) const;
+  // an aiming device leads with its axes; everything else with a hat or button
+  bool isPointer(int deviceId) const;
 
   // what the core actually supports, rather than a hardcoded list
   const std::vector<DeviceInfo>& devices(int port) const;

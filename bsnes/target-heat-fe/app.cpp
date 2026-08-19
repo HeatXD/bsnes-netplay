@@ -116,6 +116,26 @@ bool App::loadRom(const std::string& entry) {
   return true;
 }
 
+// relative mode frees the pointer from the screen edges, which aiming needs
+void App::toggleMouseCapture() {
+  mouseCaptured = !mouseCaptured;
+  SDL_SetWindowRelativeMouseMode(shell.window, mouseCaptured);
+  // the accumulated delta from before the grab would arrive as one jump
+  if(mouseCaptured) SDL_GetRelativeMouseState(nullptr, nullptr);
+  showMessage(mouseCaptured ? "mouse captured, press the capture hotkey to release"
+                            : "mouse released");
+}
+
+// a crash between here and unload costs one interval, not the session
+void App::saveMemoryTick() {
+  if(!settings.autoSaveMemory || !core.loaded()) return;
+
+  const uint64_t now = SDL_GetTicks();
+  if(now - autoSaveMark < (uint64_t)settings.autoSaveInterval * 1000) return;
+  autoSaveMark = now;
+  core.saveMemory();
+}
+
 void App::pushEnhancements() {
   core.setOption("Frontend/Hotfixes", flag(settings.hackHotfixes));
   core.setOption("Hacks/Entropy", EntropyNames[settings.hackEntropy]);

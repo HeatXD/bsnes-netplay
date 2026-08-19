@@ -43,6 +43,10 @@ constexpr const char* FaceLabels[] = {
 };
 static_assert(SDL_GAMEPAD_BUTTON_LABEL_TRIANGLE == 8, "SDL face labels reordered");
 
+constexpr const char* MouseButtonNames[] = {
+  nullptr, "Mouse Left", "Mouse Middle", "Mouse Right", "Mouse X1", "Mouse X2",
+};
+
 constexpr const char* PadAxisNames[] = {
   "Left Stick X", "Left Stick Y", "Right Stick X", "Right Stick Y", "LT", "RT",
 };
@@ -63,10 +67,28 @@ SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index) {
   return index >= 0 && (size_t)index < pads.size() ? pads[index] : nullptr;
 }
 
-bool bindingActive(const Binding& binding, const bool* keys, SDL_Gamepad* pad) {
+InputSample InputSample::poll(bool captured) {
+  InputSample sample;
+  sample.keys = SDL_GetKeyboardState(nullptr);
+  float dx = 0.0f, dy = 0.0f;
+  // relative state is only meaningful while the pointer is locked to us
+  sample.mouseButtons = captured ? SDL_GetRelativeMouseState(&dx, &dy)
+                                 : SDL_GetMouseState(nullptr, nullptr);
+  sample.mouseDx = (int)dx;
+  sample.mouseDy = (int)dy;
+  sample.mouseCaptured = captured;
+  return sample;
+}
+
+bool bindingActive(const Binding& binding, const InputSample& sample, SDL_Gamepad* pad) {
+  const bool* keys = sample.keys;
   switch(binding.type) {
     case Binding::Key:
       return keys && keys[binding.code];
+    case Binding::MouseButton:
+      // uncaptured, a click on a menu would reach the game as well
+      return sample.mouseCaptured
+          && (sample.mouseButtons & SDL_BUTTON_MASK(binding.code)) != 0;
     case Binding::PadButton:
       return pad && SDL_GetGamepadButton(pad, (SDL_GamepadButton)binding.code);
     case Binding::PadAxis: {
@@ -84,6 +106,10 @@ std::string Binding::label(SDL_Gamepad* pad) const {
     case Key: {
       const char* name = SDL_GetScancodeName((SDL_Scancode)code);
       return (name && *name) ? name : "Key";
+    }
+    case MouseButton: {
+      if(const char* name = lookup(MouseButtonNames, code)) return name;
+      return "Mouse " + std::to_string(code);
     }
     case PadButton: {
       const auto button = (SDL_GamepadButton)code;
@@ -153,9 +179,8 @@ void InputMap::loadButtonDefaults() {
 }
 
 void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
-                     const Settings& settings, long long frame) const {
-  const bool* keys = SDL_GetKeyboardState(nullptr);
-
+                     const Settings& settings, const InputSample& sample,
+                     long long frame) const {
   // half-period on, half-period off; at least 2 frames so it never latches on
   const long long period = SDL_max(2, (long long)(core.refreshRate() / SDL_max(1, settings.turboRate) + 0.5));
   const bool turboPhaseOff = (frame % period) >= period / 2;
@@ -163,25 +188,38 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
   for(int port = 0; port < Ports; port++) {
     const int device = core.connectedDevice(port);
     if(device < 0 || device >= EmuCore::DeviceCount) continue;
-    const int count = (int)core.inputs(device).size();
-    const int players = core.playersFor(device);
+    const auto& deviceInputs = core.inputs(device);
+    const int count = (int)deviceInputs.size();
+    const int players = SDL_max(1, core.playersFor(device));
+    // a multitap is four controllers in a row, chained justifiers two guns
+    const int stride = count / players;
+    const bool pointer = core.isPointer(device);
 
     // once per player, not per input: a multitap would repeat this twelve times
     SDL_Gamepad* playerPads[EmuCore::MaxPlayers] = {};
-    for(int player = 0; player < players; player++) {
+    for(int player = 0; player < players && player < EmuCore::MaxPlayers; player++) {
       playerPads[player] = resolvePad(pads, settings.padIndex[padSlot(port, player)]);
     }
 
     for(int button = 0; button < count; button++) {
-      // a multitap's inputs are four consecutive controllers of twelve
-      const int player = players > 1 ? button / EmuCore::ButtonCount : 0;
-      SDL_Gamepad* pad = playerPads[player < players ? player : players - 1];
-      bool pressed = false, turbo = false;
+      const int player = stride > 0 ? SDL_min(button / stride, players - 1) : 0;
+      SDL_Gamepad* pad = playerPads[SDL_min(player, EmuCore::MaxPlayers - 1)];
 
+      // uncaptured, the cursor would drift with every stray desktop movement
+      if(deviceInputs[button].type == EmuCore::Axis) {
+        int16_t motion = 0;
+        if(pointer && sample.mouseCaptured && player == 0) {
+          motion = (int16_t)(button % stride == 0 ? sample.mouseDx : sample.mouseDy);
+        }
+        core.setInput(port, button, motion);
+        continue;
+      }
+
+      bool pressed = false, turbo = false;
       for(int slot = 0; slot < Slots; slot++) {
         const Slotted& slots = bindings[port][device][button];
-        pressed = pressed || bindingActive(slots[slot], keys, pad);
-        turbo = turbo || bindingActive(slots[TurboSlot + slot], keys, pad);
+        pressed = pressed || bindingActive(slots[slot], sample, pad);
+        turbo = turbo || bindingActive(slots[TurboSlot + slot], sample, pad);
       }
 
       // a held turbo bind replaces the plain one rather than adding to it
@@ -189,6 +227,57 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
       core.setInput(port, button, pressed ? 1 : 0);
     }
   }
+}
+
+// the buttons sit past the axes, in the core's order: trigger first
+void InputMap::loadPointerDefaults(const EmuCore& core) {
+  constexpr int Buttons[] = {SDL_BUTTON_LEFT, SDL_BUTTON_RIGHT, SDL_BUTTON_MIDDLE};
+
+  for(int device = 0; device < EmuCore::DeviceCount; device++) {
+    if(!core.isPointer(device)) continue;
+    const auto& inputs = core.inputs(device);
+    const int stride = core.inputStride(device);
+
+    // there is one mouse, so a chained second gun is left for the user to bind
+    int taken = 0;
+    for(int index = 0; index < stride && taken < 3; index++) {
+      if(inputs[index].type == EmuCore::Axis) continue;  // the pointer drives these
+      for(int port = 0; port < Ports; port++) {
+        bindings[port][device][index][0] = {Binding::MouseButton, Buttons[taken], 0};
+      }
+      taken++;
+    }
+  }
+}
+
+bool InputMap::hotkeyHeld(int index, const InputSample& sample,
+                          const std::vector<SDL_Gamepad*>& pads, int logic) const {
+  if(index < 0 || index >= HotkeyCount) return false;
+
+  int bound = 0;
+  for(int slot = 0; slot < HotkeySlots; slot++) {
+    const Binding& binding = hotkeys[index][slot];
+    if(binding.type == Binding::None) continue;
+    bound++;
+
+    // a hotkey belongs to the app, so any pad may press it
+    bool held = bindingActive(binding, sample, nullptr);
+    for(SDL_Gamepad* pad : pads) held = held || bindingActive(binding, sample, pad);
+
+    if(logic == LogicAnd && !held) return false;
+    if(logic != LogicAnd && held) return true;
+  }
+  // AND with nothing bound would otherwise fire every frame
+  return logic == LogicAnd && bound > 0;
+}
+
+// hotkeys added since that config was written keep their defaults
+void InputMap::migrateHotkeys(const int* scancodes, int count) {
+  for(int i = 0; i < count && i < HotkeyCount; i++) {
+    hotkeys[i] = {};
+    if(scancodes[i] > 0) hotkeys[i][0] = {Binding::Key, scancodes[i], 0};
+  }
+  hotkeysLoaded = true;
 }
 
 bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad) {
@@ -201,6 +290,10 @@ bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad)
       return true;
     }
     out = {Binding::Key, (int)event.key.scancode, 0};
+    return true;
+  }
+  if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+    out = {Binding::MouseButton, (int)event.button.button, 0};
     return true;
   }
   if(event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
