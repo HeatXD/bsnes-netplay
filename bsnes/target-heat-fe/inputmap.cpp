@@ -63,8 +63,12 @@ const char* faceLabel(SDL_Gamepad* pad, SDL_GamepadButton button) {
 }
 }  // namespace
 
-SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index) {
-  return index >= 0 && (size_t)index < pads.size() ? pads[index] : nullptr;
+Controller* resolvePad(std::vector<Controller>& pads, int index) {
+  return index >= 0 && (size_t)index < pads.size() && pads[index] ? &pads[index] : nullptr;
+}
+
+const Controller* resolvePad(const std::vector<Controller>& pads, int index) {
+  return index >= 0 && (size_t)index < pads.size() && pads[index] ? &pads[index] : nullptr;
 }
 
 int normalizeMods(SDL_Keymod mods) {
@@ -97,7 +101,7 @@ bool isModifier(SDL_Scancode code) {
       || code == SDL_SCANCODE_LGUI || code == SDL_SCANCODE_RGUI;
 }
 
-bool bindingActive(const Binding& binding, const InputSample& sample, SDL_Gamepad* pad) {
+bool bindingActive(const Binding& binding, const InputSample& sample, const Controller* pad) {
   const bool* keys = sample.keys;
   switch(binding.type) {
     case Binding::Key:
@@ -107,18 +111,29 @@ bool bindingActive(const Binding& binding, const InputSample& sample, SDL_Gamepa
       return sample.mouseCaptured
           && (sample.mouseButtons & SDL_BUTTON_MASK(binding.code)) != 0;
     case Binding::PadButton:
-      return pad && SDL_GetGamepadButton(pad, (SDL_GamepadButton)binding.code);
+      return pad && pad->gamepad
+          && SDL_GetGamepadButton(pad->gamepad, (SDL_GamepadButton)binding.code);
     case Binding::PadAxis: {
-      if(!pad) return false;
-      const int value = SDL_GetGamepadAxis(pad, (SDL_GamepadAxis)binding.code);
+      if(!pad || !pad->gamepad) return false;
+      const int value = SDL_GetGamepadAxis(pad->gamepad, (SDL_GamepadAxis)binding.code);
       return binding.direction > 0 ? value > AxisThreshold : value < -AxisThreshold;
     }
+    case Binding::JoyButton:
+      return pad && pad->joystick && SDL_GetJoystickButton(pad->joystick, binding.code);
+    case Binding::JoyAxis: {
+      if(!pad || !pad->joystick) return false;
+      const int value = SDL_GetJoystickAxis(pad->joystick, binding.code);
+      return binding.direction > 0 ? value > AxisThreshold : value < -AxisThreshold;
+    }
+    case Binding::JoyHat:
+      return pad && pad->joystick
+          && (SDL_GetJoystickHat(pad->joystick, binding.code) & binding.direction) != 0;
     default:
       return false;
   }
 }
 
-std::string Binding::label(SDL_Gamepad* pad) const {
+std::string Binding::label(const Controller* pad) const {
   switch(type) {
     case Key: {
       const char* name = SDL_GetScancodeName((SDL_Scancode)code);
@@ -135,7 +150,7 @@ std::string Binding::label(SDL_Gamepad* pad) const {
     }
     case PadButton: {
       const auto button = (SDL_GamepadButton)code;
-      if(const char* face = faceLabel(pad, button)) return face;
+      if(const char* face = faceLabel(pad ? pad->gamepad : nullptr, button)) return face;
       if(const char* name = lookup(PadButtonNames, code)) return name;
       const char* raw = SDL_GetGamepadStringForButton(button);
       return raw ? raw : "Pad";
@@ -148,6 +163,16 @@ std::string Binding::label(SDL_Gamepad* pad) const {
       const bool trigger = axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER
                         || axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
       return std::string(name ? name : "axis") + (trigger ? "" : direction > 0 ? " +" : " -");
+    }
+    case JoyButton: return "Button " + std::to_string(code + 1);
+    case JoyAxis:
+      return "Axis " + std::to_string(code + 1) + (direction > 0 ? " +" : " -");
+    case JoyHat: {
+      const char* directionName = direction == SDL_HAT_UP ? "Up"
+                                : direction == SDL_HAT_DOWN ? "Down"
+                                : direction == SDL_HAT_LEFT ? "Left"
+                                : direction == SDL_HAT_RIGHT ? "Right" : "Direction";
+      return "Hat " + std::to_string(code + 1) + " " + directionName;
     }
     default: return "unbound";
   }
@@ -200,7 +225,7 @@ void InputMap::loadButtonDefaults() {
   }
 }
 
-void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
+void InputMap::apply(EmuCore& core, const std::vector<Controller>& pads,
                      const Settings& settings, const InputSample& sample,
                      long long frame) const {
   // half-period on, half-period off; at least 2 frames so it never latches on
@@ -218,14 +243,14 @@ void InputMap::apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
     const bool pointer = core.isPointer(device);
 
     // once per player, not per input: a multitap would repeat this twelve times
-    SDL_Gamepad* playerPads[EmuCore::MaxPlayers] = {};
+    const Controller* playerPads[EmuCore::MaxPlayers] = {};
     for(int player = 0; player < players && player < EmuCore::MaxPlayers; player++) {
       playerPads[player] = resolvePad(pads, settings.padIndex[padSlot(port, player)]);
     }
 
     for(int button = 0; button < count; button++) {
       const int player = stride > 0 ? SDL_min(button / stride, players - 1) : 0;
-      SDL_Gamepad* pad = playerPads[SDL_min(player, EmuCore::MaxPlayers - 1)];
+      const Controller* pad = playerPads[SDL_min(player, EmuCore::MaxPlayers - 1)];
 
       // uncaptured, the cursor would drift with every stray desktop movement
       if(deviceInputs[button].type == EmuCore::Axis) {
@@ -273,7 +298,7 @@ void InputMap::loadPointerDefaults(const EmuCore& core) {
 }
 
 bool InputMap::hotkeyHeld(int index, const InputSample& sample,
-                          const std::vector<SDL_Gamepad*>& pads) const {
+                          const std::vector<Controller>& pads) const {
   if(index < 0 || index >= HotkeyCount) return false;
 
   for(int slot = 0; slot < HotkeySlots; slot++) {
@@ -282,7 +307,7 @@ bool InputMap::hotkeyHeld(int index, const InputSample& sample,
 
     // a hotkey belongs to the app, so any pad may press it
     bool held = bindingActive(binding, sample, nullptr);
-    for(SDL_Gamepad* pad : pads) held = held || bindingActive(binding, sample, pad);
+    for(const Controller& pad : pads) held = held || bindingActive(binding, sample, &pad);
     // a chord is exact, so a bare key does not fire while a modifier is down
     if(binding.type == Binding::Key && sample.mods != binding.mods) held = false;
     if(held) return true;
@@ -299,7 +324,7 @@ void InputMap::migrateHotkeys(const int* scancodes, int count) {
   hotkeysLoaded = true;
 }
 
-bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad, bool chords) {
+bool InputMap::capture(const SDL_Event& event, Binding& out, const Controller* pad, bool chords) {
   if(event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
     if(event.key.scancode == SDL_SCANCODE_ESCAPE) return false;
     // delete clears the binding rather than binding the delete key itself
@@ -319,14 +344,42 @@ bool InputMap::capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad,
     return true;
   }
   if(event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
-    if(pad && event.gbutton.which != pad) return false;
+    if(pad && event.gbutton.which != pad->id()) return false;
     out = {Binding::PadButton, (int)event.gbutton.button, 0};
     return true;
   }
   if(event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION) {
-    if(pad && event.gaxis.which != pad) return false;
+    if(pad && event.gaxis.which != pad->id()) return false;
     if(SDL_abs(event.gaxis.value) < AxisThreshold) return false;
     out = {Binding::PadAxis, (int)event.gaxis.axis, event.gaxis.value > 0 ? 1 : -1};
+    return true;
+  }
+  // A mapped gamepad also produces raw joystick events. Ignore those duplicates
+  // so its portable standardized binding wins; unknown devices use them.
+  if(event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN) {
+    if((pad && (pad->mapped() || event.jbutton.which != pad->id()))
+    || (!pad && SDL_IsGamepad(event.jbutton.which))) return false;
+    out = {Binding::JoyButton, (int)event.jbutton.button, 0};
+    return true;
+  }
+  if(event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION) {
+    if((pad && (pad->mapped() || event.jaxis.which != pad->id()))
+    || (!pad && SDL_IsGamepad(event.jaxis.which))) return false;
+    if(SDL_abs(event.jaxis.value) < AxisThreshold) return false;
+    out = {Binding::JoyAxis, (int)event.jaxis.axis, event.jaxis.value > 0 ? 1 : -1};
+    return true;
+  }
+  if(event.type == SDL_EVENT_JOYSTICK_HAT_MOTION) {
+    if((pad && (pad->mapped() || event.jhat.which != pad->id()))
+    || (!pad && SDL_IsGamepad(event.jhat.which)) || event.jhat.value == SDL_HAT_CENTERED) {
+      return false;
+    }
+    // Diagonals contain two bits. Capturing either cardinal component makes the
+    // resulting binding useful when the hat later reports that diagonal too.
+    const int direction = event.jhat.value & SDL_HAT_UP ? SDL_HAT_UP
+                        : event.jhat.value & SDL_HAT_DOWN ? SDL_HAT_DOWN
+                        : event.jhat.value & SDL_HAT_LEFT ? SDL_HAT_LEFT : SDL_HAT_RIGHT;
+    out = {Binding::JoyHat, (int)event.jhat.hat, direction};
     return true;
   }
   return false;

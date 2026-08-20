@@ -47,7 +47,7 @@ struct App {
   LuaEngine scripting;
 
   std::string inputCfg, settingsCfg;
-  std::vector<SDL_Gamepad*> pads;
+  std::vector<Controller> pads;
   std::vector<std::pair<std::string, std::string>> games;  // label, path
   std::string status;
   uint64_t messageTime = 0;
@@ -149,7 +149,7 @@ struct App {
   }
   void openPick(FilePick& pick, const SDL_DialogFileFilter* filters, const char* dir);
   const char* gamesDirOrNull() const;
-  SDL_Gamepad* portPad(int port, int player) const {
+  const Controller* portPad(int port, int player) const {
     return resolvePad(pads, settings.padIndex[padSlot(port, player)]);
   }
   // unset means a Firmware folder beside the config

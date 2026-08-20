@@ -243,6 +243,37 @@ int runHotkeyTest(App& app) {
   set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods(SDL_KMOD_LSHIFT));
   expect("2 bound, shift+2", HkQuit, false);
 
+  // Unmapped HID devices arrive through SDL's raw joystick events. Ensure all
+  // three bindable control shapes survive capture without real test hardware.
+  auto expectRaw = [&](const char* what, SDL_Event event, Binding::Type type,
+                       int code, int direction) {
+    Binding binding;
+    const bool captured = InputMap::capture(event, binding);
+    const bool right = captured && binding.type == type && binding.code == code
+                    && binding.direction == direction;
+    SDL_Log("%-30s %d%s", what, right, right ? "" : "  <-- WRONG");
+    pass = pass && right;
+  };
+  SDL_Event button{};
+  button.type = SDL_EVENT_JOYSTICK_BUTTON_DOWN;
+  button.jbutton.which = 0;
+  button.jbutton.button = 4;
+  expectRaw("raw joystick button", button, Binding::JoyButton, 4, 0);
+
+  SDL_Event axis{};
+  axis.type = SDL_EVENT_JOYSTICK_AXIS_MOTION;
+  axis.jaxis.which = 0;
+  axis.jaxis.axis = 2;
+  axis.jaxis.value = -20000;
+  expectRaw("raw joystick axis", axis, Binding::JoyAxis, 2, -1);
+
+  SDL_Event hat{};
+  hat.type = SDL_EVENT_JOYSTICK_HAT_MOTION;
+  hat.jhat.which = 0;
+  hat.jhat.hat = 1;
+  hat.jhat.value = SDL_HAT_RIGHT;
+  expectRaw("raw joystick hat", hat, Binding::JoyHat, 1, SDL_HAT_RIGHT);
+
   SDL_Log("pads connected during this test: %d", (int)app.pads.size());
   SDL_Log("hotkey logic test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;

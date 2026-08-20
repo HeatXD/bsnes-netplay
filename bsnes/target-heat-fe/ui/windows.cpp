@@ -41,35 +41,48 @@ void App::drawScriptingWindow() {
   ImGui::End();
 }
 
-// a device SDL cannot map never becomes a gamepad, so it is listed but unread
 void App::drawGamepadDiagnostics() {
   int count = 0;
   SDL_JoystickID* ids = SDL_GetJoysticks(&count);
-  ImGui::Text("Joysticks: %d, opened as gamepads: %d", count, livePadCount(pads));
+  ImGui::Text("Joysticks: %d, opened controllers: %d", count, livePadCount(pads));
 
   for(int i = 0; ids && i < count; i++) {
     const char* name = SDL_GetJoystickNameForID(ids[i]);
     if(SDL_IsGamepad(ids[i])) {
       ImGui::Text("  %s", name ? name : "?");
     } else {
-      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.4f, 1.0f), "  %s - no gamepad mapping",
-                         name ? name : "?");
+      ImGui::Text("  %s - raw HID", name ? name : "?");
     }
   }
   if(ids) SDL_free(ids);
 
   for(size_t i = 0; i < pads.size(); i++) {
-    SDL_Gamepad* pad = pads[i];
+    const Controller& pad = pads[i];
     if(!pad) { ImGui::Text("pad %d: empty", (int)i + 1); continue; }
-    ImGui::Text("pad %d: %04x:%04x", (int)i + 1,
-                SDL_GetGamepadVendor(pad), SDL_GetGamepadProduct(pad));
+    ImGui::Text("pad %d: %04x:%04x%s", (int)i + 1,
+                SDL_GetJoystickVendor(pad.joystick), SDL_GetJoystickProduct(pad.joystick),
+                pad.mapped() ? "" : " (raw HID)");
 
     std::string held;
-    for(int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; b++) {
-      if(!SDL_GetGamepadButton(pad, (SDL_GamepadButton)b)) continue;
-      const char* label = SDL_GetGamepadStringForButton((SDL_GamepadButton)b);
-      if(!held.empty()) held += " ";
-      held += label ? label : "?";
+    if(pad.gamepad) {
+      for(int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; b++) {
+        if(!SDL_GetGamepadButton(pad.gamepad, (SDL_GamepadButton)b)) continue;
+        const char* label = SDL_GetGamepadStringForButton((SDL_GamepadButton)b);
+        if(!held.empty()) held += " ";
+        held += label ? label : "?";
+      }
+    } else {
+      for(int b = 0; b < SDL_GetNumJoystickButtons(pad.joystick); b++) {
+        if(!SDL_GetJoystickButton(pad.joystick, b)) continue;
+        if(!held.empty()) held += " ";
+        held += "button" + std::to_string(b + 1);
+      }
+      for(int h = 0; h < SDL_GetNumJoystickHats(pad.joystick); h++) {
+        const int value = SDL_GetJoystickHat(pad.joystick, h);
+        if(value == SDL_HAT_CENTERED) continue;
+        if(!held.empty()) held += " ";
+        held += "hat" + std::to_string(h + 1) + "=" + std::to_string(value);
+      }
     }
     ImGui::SameLine();
     ImGui::TextUnformatted(held.empty() ? "  (nothing held)" : ("  " + held).c_str());
@@ -77,9 +90,12 @@ void App::drawGamepadDiagnostics() {
     // whatever the mapping leaves out never reaches the frontend at all
     ImGui::PushID((int)i);
     if(ImGui::TreeNode("mapping")) {
-      if(char* mapping = SDL_GetGamepadMapping(pad)) {
-        ImGui::TextWrapped("%s", mapping);
-        SDL_free(mapping);
+      if(pad.gamepad) {
+        char* mapping = SDL_GetGamepadMapping(pad.gamepad);
+        if(mapping) {
+          ImGui::TextWrapped("%s", mapping);
+          SDL_free(mapping);
+        } else ImGui::TextUnformatted("none");
       } else {
         ImGui::TextUnformatted("none");
       }

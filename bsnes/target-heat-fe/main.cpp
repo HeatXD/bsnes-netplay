@@ -104,14 +104,20 @@ void loadGamepadMappings() {
 // SDL also queues an ADDED event for every pad already attached at startup, so
 // opening one twice would list the same stick under two slots
 void addPad(App& app, SDL_JoystickID id) {
-  for(SDL_Gamepad* pad : app.pads) {
-    if(pad && SDL_GetGamepadID(pad) == id) return;
+  for(const Controller& pad : app.pads) {
+    if(pad && pad.id() == id) return;
   }
-  SDL_Gamepad* opened = SDL_OpenGamepad(id);
+  Controller opened;
+  if(SDL_IsGamepad(id)) {
+    opened.gamepad = SDL_OpenGamepad(id);
+    if(opened.gamepad) opened.joystick = SDL_GetGamepadJoystick(opened.gamepad);
+  } else {
+    opened.joystick = SDL_OpenJoystick(id);
+  }
   if(!opened) return;
 
   // reuse a slot left by an unplugged pad before growing the list
-  for(SDL_Gamepad*& slot : app.pads) {
+  for(Controller& slot : app.pads) {
     if(!slot) { slot = opened; return; }
   }
   app.pads.push_back(opened);
@@ -119,7 +125,7 @@ void addPad(App& app, SDL_JoystickID id) {
 
 void openGamepads(App& app) {
   int count = 0;
-  SDL_JoystickID* ids = SDL_GetGamepads(&count);
+  SDL_JoystickID* ids = SDL_GetJoysticks(&count);
   for(int i = 0; ids && i < count; i++) addPad(app, ids[i]);
   if(ids) SDL_free(ids);
 }
@@ -244,18 +250,22 @@ void Frontend::handleWindowEvent(const SDL_Event& event) {
 }
 
 void Frontend::handleGamepadEvent(const SDL_Event& event) {
-  if(event.type == SDL_EVENT_GAMEPAD_ADDED) {
-    addPad(app, event.gdevice.which);
+  if(event.type == SDL_EVENT_GAMEPAD_ADDED || event.type == SDL_EVENT_JOYSTICK_ADDED) {
+    addPad(app, event.type == SDL_EVENT_GAMEPAD_ADDED ? event.gdevice.which
+                                                      : event.jdevice.which);
     return;
   }
-  if(event.type != SDL_EVENT_GAMEPAD_REMOVED) return;
+  if(event.type != SDL_EVENT_GAMEPAD_REMOVED && event.type != SDL_EVENT_JOYSTICK_REMOVED) return;
+  const SDL_JoystickID id = event.type == SDL_EVENT_GAMEPAD_REMOVED ? event.gdevice.which
+                                                                    : event.jdevice.which;
 
   // the slot is emptied rather than erased, so unplugging one pad never
   // renumbers the others out from under whoever picked them
-  for(SDL_Gamepad*& pad : app.pads) {
-    if(!pad || SDL_GetGamepadID(pad) != event.gdevice.which) continue;
-    SDL_CloseGamepad(pad);
-    pad = nullptr;
+  for(Controller& pad : app.pads) {
+    if(!pad || pad.id() != id) continue;
+    if(pad.gamepad) SDL_CloseGamepad(pad.gamepad);
+    else SDL_CloseJoystick(pad.joystick);
+    pad = {};
     break;
   }
 }
@@ -267,10 +277,10 @@ bool Frontend::handleRebind(const SDL_Event& event) {
 
   if(app.capturing >= 0) {
     // only the pad this port reads may bind it, so two sticks stay distinct
-    SDL_Gamepad* owner = app.portPad(app.mapPort, app.mapPlayer);
+    const Controller* owner = app.portPad(app.mapPort, app.mapPlayer);
     Binding b;
     if(escape) app.capturing = -1;
-    else if(InputMap::capture(event, b, owner ? SDL_GetGamepadID(owner) : 0)) {
+    else if(InputMap::capture(event, b, owner)) {
       app.input.binding(app.mapPort, app.core.connectedDevice(app.mapPort),
                         app.capturing / InputMap::SlotCount,
                         app.capturing % InputMap::SlotCount) = b;
@@ -283,7 +293,7 @@ bool Frontend::handleRebind(const SDL_Event& event) {
   if(app.capturingHotkey >= 0) {
     Binding b;
     if(escape) app.capturingHotkey = -1;
-    else if(InputMap::capture(event, b, 0, true)) {
+    else if(InputMap::capture(event, b, nullptr, true)) {
       app.input.hotkey(app.capturingHotkey / InputMap::HotkeySlots,
                        app.capturingHotkey % InputMap::HotkeySlots) = b;
       app.input.save(app.inputCfg);
@@ -518,7 +528,10 @@ void openRequestedPanel(App& app, const Options& opt) {
 
 void shutdownApp(App& app) {
   shutdownImGui();
-  for(SDL_Gamepad* pad : app.pads) if(pad) SDL_CloseGamepad(pad);
+  for(Controller& pad : app.pads) {
+    if(pad.gamepad) SDL_CloseGamepad(pad.gamepad);
+    else if(pad.joystick) SDL_CloseJoystick(pad.joystick);
+  }
   // quitting with a game up otherwise skips the auto-resume state
   if(app.core.loaded()) app.unloadRom();
   app.shell.shutdown();

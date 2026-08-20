@@ -10,7 +10,9 @@
 #include <vector>
 
 struct Binding {
-  enum Type : int { None = 0, Key, PadButton, PadAxis, MouseButton };
+  // Keep the first five values stable: they are persisted in input.cfg.
+  enum Type : int { None = 0, Key, PadButton, PadAxis, MouseButton,
+                    JoyButton, JoyAxis, JoyHat };
 
   Type type = None;
   int code = 0;
@@ -19,10 +21,26 @@ struct Binding {
   int mods = 0;
 
   // the pad names its own face buttons, so nintendo layouts read B/A/Y/X
-  std::string label(SDL_Gamepad* pad = nullptr) const;
+  std::string label(const struct Controller* pad = nullptr) const;
 };
 
-SDL_Gamepad* resolvePad(const std::vector<SDL_Gamepad*>& pads, int index);
+// SDL_Gamepad is the standardized mapping layer. Unknown HID controllers never
+// reach it, so keep their raw SDL_Joystick open as a bindable fallback.
+struct Controller {
+  SDL_Gamepad* gamepad = nullptr;
+  SDL_Joystick* joystick = nullptr;  // borrowed from gamepad, owned otherwise
+
+  explicit operator bool() const { return joystick != nullptr; }
+  bool mapped() const { return gamepad != nullptr; }
+  SDL_JoystickID id() const { return joystick ? SDL_GetJoystickID(joystick) : 0; }
+  const char* name() const {
+    return gamepad ? SDL_GetGamepadName(gamepad)
+                   : joystick ? SDL_GetJoystickName(joystick) : nullptr;
+  }
+};
+
+Controller* resolvePad(std::vector<Controller>& pads, int index);
+const Controller* resolvePad(const std::vector<Controller>& pads, int index);
 
 // everything a binding can be tested against, gathered once a frame
 struct InputSample {
@@ -40,14 +58,14 @@ int normalizeMods(SDL_Keymod mods);
 bool isModifier(SDL_Scancode code);
 
 // whether a binding is held right now
-bool bindingActive(const Binding& binding, const InputSample& sample, SDL_Gamepad* pad);
+bool bindingActive(const Binding& binding, const InputSample& sample, const Controller* pad);
 
 inline int padSlot(int port, int player) { return port * EmuCore::MaxPlayers + player; }
 
 // pads with an unplugged controller are left empty rather than removed
-inline int livePadCount(const std::vector<SDL_Gamepad*>& pads) {
+inline int livePadCount(const std::vector<Controller>& pads) {
   int live = 0;
-  for(SDL_Gamepad* pad : pads) live += pad != nullptr;
+  for(const Controller& pad : pads) live += (bool)pad;
   return live;
 }
 
@@ -91,15 +109,15 @@ public:
 
   // any mapping fires it, and any pad may be the one pressing it
   bool hotkeyHeld(int index, const InputSample& sample,
-                  const std::vector<SDL_Gamepad*>& pads) const;
+                  const std::vector<Controller>& pads) const;
 
   // frame is the emulated frame count, so turbo timing tracks the emulator's
   // own clock and stays correct under fast forward
-  void apply(EmuCore& core, const std::vector<SDL_Gamepad*>& pads,
+  void apply(EmuCore& core, const std::vector<Controller>& pads,
             const Settings& settings, const InputSample& sample, long long frame) const;
 
   // pad events from another controller are ignored, so pad 1 cannot bind port 2
-  static bool capture(const SDL_Event& event, Binding& out, SDL_JoystickID pad = 0,
+  static bool capture(const SDL_Event& event, Binding& out, const Controller* pad = nullptr,
                       bool chords = false);
 
 private:

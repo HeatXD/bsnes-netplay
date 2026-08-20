@@ -10,7 +10,7 @@ std::string App::playerLabel(int device, int player) const {
 
 // one row of bind buttons: the plain set, or the turbo set that auto-fires
 void App::drawBindingRow(int device, int b, bool turbo) {
-  SDL_Gamepad* pad = portPad(mapPort, mapPlayer);
+  const Controller* pad = portPad(mapPort, mapPlayer);
 
   ImGui::TableNextRow();
   ImGui::TableNextColumn();
@@ -110,9 +110,9 @@ void App::drawControllerPicker() {
   // entry 0 is None, so the combo index is the pad index shifted by one
   auto padName = [](void* data, int index) -> const char* {
     if(index == 0) return "None";
-    const auto& pads = *(const std::vector<SDL_Gamepad*>*)data;
-    SDL_Gamepad* pad = pads[index - 1];
-    const char* name = pad ? SDL_GetGamepadName(pad) : nullptr;
+    const auto& pads = *(const std::vector<Controller>*)data;
+    const Controller& pad = pads[index - 1];
+    const char* name = pad.name();
     static char label[128];
     SDL_snprintf(label, sizeof(label), "%d: %s", index,
                  pad ? (name ? name : "unnamed") : "(disconnected)");
@@ -196,5 +196,5 @@ void App::drawInputTab() {
     settings.save(settingsCfg);
   }
   ImGui::SameLine();
-  ImGui::Text("%d gamepad(s)", livePadCount(pads));
+  ImGui::Text("%d controller(s)", livePadCount(pads));
 }
