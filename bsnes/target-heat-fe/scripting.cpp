@@ -44,11 +44,39 @@ bool LuaEngine::failFromStack(const char* prefix) {
   const char* detail = state ? lua_tostring(state, -1) : nullptr;
   lastError = std::string(prefix) + (detail ? detail : "unknown error");
   if(state) lua_pop(state, 1);
+  appendConsole(lastError);
   clearInputOverrides();
   active = false;
   commands.clear();
   app.showMessage(lastError);
   return false;
+}
+
+void LuaEngine::appendConsole(std::string text) {
+  constexpr size_t MaxConsoleBytes = 64 * 1024;
+  if(text.empty() || text.back() != '\n') text += '\n';
+  if(text.size() > MaxConsoleBytes) {
+    text.resize(MaxConsoleBytes - 20);
+    text += "\n[output truncated]\n";
+  }
+  if(consoleText.size() + text.size() > MaxConsoleBytes) {
+    const size_t excess = consoleText.size() + text.size() - MaxConsoleBytes;
+    const size_t line = consoleText.find('\n', excess);
+    consoleText.erase(0, line == std::string::npos ? consoleText.size() : line + 1);
+  }
+  consoleText += text;
+  consoleScroll = true;
+}
+
+void LuaEngine::clearConsole() {
+  consoleText.clear();
+  consoleScroll = false;
+}
+
+bool LuaEngine::takeConsoleScroll() {
+  const bool scroll = consoleScroll;
+  consoleScroll = false;
+  return scroll;
 }
 
 bool LuaEngine::load(const std::string& path) {
@@ -353,26 +381,153 @@ int LuaEngine::inputClearAll(lua_State* state) {
   return 0;
 }
 
+int LuaEngine::consoleLog(lua_State* state) {
+  LuaEngine& engine = from(state);
+  std::string line;
+  const int values = lua_gettop(state);
+  for(int index = 1; index <= values; index++) {
+    size_t length = 0;
+    const char* value = luaL_tolstring(state, index, &length);
+    if(index > 1) line += '\t';
+    line.append(value, length);
+    lua_pop(state, 1);
+  }
+  engine.appendConsole(std::move(line));
+  return 0;
+}
+
+int LuaEngine::consoleClear(lua_State* state) {
+  from(state).clearConsole();
+  return 0;
+}
+
+namespace {
+std::string checkedStateSlot(lua_State* state) {
+  const int slot = (int)luaL_checkinteger(state, 1);
+  luaL_argcheck(state, slot >= 1 && slot <= StateSlots, 1, "slot must be from 1 to 9");
+  return App::slotName(slot);
+}
+}
+
+int LuaEngine::saveState(lua_State* state) {
+  LuaEngine& engine = from(state);
+  lua_pushboolean(state, engine.app.saveState(checkedStateSlot(state)));
+  return 1;
+}
+
+int LuaEngine::loadState(lua_State* state) {
+  LuaEngine& engine = from(state);
+  lua_pushboolean(state, engine.app.loadState(checkedStateSlot(state)));
+  return 1;
+}
+
+int LuaEngine::hasState(lua_State* state) {
+  LuaEngine& engine = from(state);
+  lua_pushboolean(state, engine.app.hasState(checkedStateSlot(state)));
+  return 1;
+}
+
+int LuaEngine::removeState(lua_State* state) {
+  LuaEngine& engine = from(state);
+  lua_pushboolean(state, engine.app.removeState(checkedStateSlot(state)));
+  return 1;
+}
+
+int LuaEngine::emuLoaded(lua_State* state) {
+  lua_pushboolean(state, from(state).app.core.loaded());
+  return 1;
+}
+
+int LuaEngine::emuPaused(lua_State* state) {
+  lua_pushboolean(state, from(state).app.paused);
+  return 1;
+}
+
+int LuaEngine::emuPause(lua_State* state) {
+  App& app = from(state).app;
+  if(app.core.loaded()) app.paused = true;
+  lua_pushboolean(state, app.core.loaded());
+  return 1;
+}
+
+int LuaEngine::emuResume(lua_State* state) {
+  App& app = from(state).app;
+  if(app.core.loaded()) app.paused = false;
+  lua_pushboolean(state, app.core.loaded());
+  return 1;
+}
+
+int LuaEngine::emuReset(lua_State* state) {
+  App& app = from(state).app;
+  const bool loaded = app.core.loaded();
+  if(loaded) app.reset();
+  lua_pushboolean(state, loaded);
+  return 1;
+}
+
+int LuaEngine::emuPower(lua_State* state) {
+  App& app = from(state).app;
+  const bool loaded = app.core.loaded();
+  if(loaded) app.powerCycle();
+  lua_pushboolean(state, loaded);
+  return 1;
+}
+
+int LuaEngine::emuFrame(lua_State* state) {
+  lua_pushinteger(state, from(state).app.emulatedFrames);
+  return 1;
+}
+
+int LuaEngine::emuGame(lua_State* state) {
+  const std::string& game = from(state).app.gameTitle;
+  lua_pushlstring(state, game.data(), game.size());
+  return 1;
+}
+
 std::string LuaEngine::dataDirectory() const {
   return configDir() + "Scripts/" + fileStem(scriptPath);
 }
 
 namespace {
-std::string scriptFile(lua_State* state, LuaEngine& engine) {
+std::string checkedScriptPath(lua_State* state) {
   std::string path = normalPath(luaL_checkstring(state, 1));
   if(path.empty() || path[0] == '/' || path[0] == '\\' || path.find(':') != std::string::npos) {
-    luaL_argerror(state, 1, "path must be relative to the script data directory");
+    luaL_argerror(state, 1, "path must be relative");
   }
   size_t start = 0;
   while(start <= path.size()) {
     const size_t end = path.find('/', start);
     const std::string part = path.substr(start, end - start);
-    if(part == "..") luaL_argerror(state, 1, "path cannot leave the script data directory");
+    if(part == "..") luaL_argerror(state, 1, "path cannot leave the script directory");
     if(end == std::string::npos) break;
     start = end + 1;
   }
-  return engine.dataDirectory() + "/" + path;
+  return path;
 }
+
+std::string scriptFile(lua_State* state, LuaEngine& engine) {
+  return engine.dataDirectory() + "/" + checkedScriptPath(state);
+}
+
+std::string packagedScriptFile(lua_State* state, LuaEngine& engine) {
+  const std::string directory = parentDir(engine.path());
+  const std::string relative = checkedScriptPath(state);
+  return directory.empty() ? relative : directory + "/" + relative;
+}
+}
+
+int LuaEngine::saveStateFile(lua_State* state) {
+  LuaEngine& engine = from(state);
+  lua_pushboolean(state, engine.app.saveStateFile(scriptFile(state, engine)));
+  return 1;
+}
+
+int LuaEngine::loadStateFile(lua_State* state) {
+  LuaEngine& engine = from(state);
+  const std::string dataPath = scriptFile(state, engine);
+  const std::string path = pathExists(dataPath) ? dataPath : packagedScriptFile(state, engine);
+  lua_pushboolean(state, engine.app.loadStateFile(path));
+  return 1;
 }
 
 int LuaEngine::fileRead(lua_State* state) {
@@ -397,6 +552,51 @@ int LuaEngine::fileWrite(lua_State* state) {
   const bool closed = SDL_CloseIO(file);
   if(!wrote || !closed) return luaL_error(state, "could not write '%s'", path.c_str());
   lua_pushboolean(state, true);
+  return 1;
+}
+
+int LuaEngine::fileExists(lua_State* state) {
+  LuaEngine& engine = from(state);
+  const std::string path = scriptFile(state, engine);
+  lua_pushboolean(state, SDL_GetPathInfo(path.c_str(), nullptr));
+  return 1;
+}
+
+namespace {
+SDL_EnumerationResult SDLCALL collectScriptFile(void* userdata, const char*, const char* name) {
+  ((std::vector<std::string>*)userdata)->push_back(name);
+  return SDL_ENUM_CONTINUE;
+}
+}
+
+int LuaEngine::fileList(lua_State* state) {
+  LuaEngine& engine = from(state);
+  const bool root = lua_isnoneornil(state, 1);
+  const std::string path = root ? engine.dataDirectory() : scriptFile(state, engine);
+  if(root && !ensureDir(path)) return luaL_error(state, "could not create the data directory");
+  SDL_PathInfo info{};
+  if(!SDL_GetPathInfo(path.c_str(), &info) || info.type != SDL_PATHTYPE_DIRECTORY) {
+    return luaL_error(state, "path is not a directory");
+  }
+
+  std::vector<std::string> files;
+  if(!SDL_EnumerateDirectory(path.c_str(), collectScriptFile, &files)) {
+    return luaL_error(state, "could not list the directory");
+  }
+  std::sort(files.begin(), files.end());
+  lua_createtable(state, (int)files.size(), 0);
+  for(size_t index = 0; index < files.size(); index++) {
+    lua_pushlstring(state, files[index].data(), files[index].size());
+    lua_rawseti(state, -2, (lua_Integer)index + 1);
+  }
+  return 1;
+}
+
+int LuaEngine::fileRemove(lua_State* state) {
+  LuaEngine& engine = from(state);
+  const std::string path = scriptFile(state, engine);
+  const bool exists = SDL_GetPathInfo(path.c_str(), nullptr);
+  lua_pushboolean(state, exists && SDL_RemovePath(path.c_str()));
   return 1;
 }
 
@@ -469,6 +669,33 @@ void LuaEngine::registerApi() {
   luaL_setfuncs(state, input, 0);
   lua_setglobal(state, "input");
 
+  lua_pushcfunction(state, consoleLog);
+  lua_setglobal(state, "print");
+  lua_newtable(state);
+  const luaL_Reg console[] = {
+    {"log", consoleLog}, {"clear", consoleClear}, {nullptr, nullptr},
+  };
+  luaL_setfuncs(state, console, 0);
+  lua_setglobal(state, "console");
+
+  lua_newtable(state);
+  const luaL_Reg savestate[] = {
+    {"save", saveState}, {"load", loadState}, {"exists", hasState},
+    {"remove", removeState}, {"save_file", saveStateFile},
+    {"load_file", loadStateFile}, {nullptr, nullptr},
+  };
+  luaL_setfuncs(state, savestate, 0);
+  lua_setglobal(state, "savestate");
+
+  lua_newtable(state);
+  const luaL_Reg emu[] = {
+    {"loaded", emuLoaded}, {"paused", emuPaused}, {"pause", emuPause},
+    {"resume", emuResume}, {"reset", emuReset}, {"power", emuPower},
+    {"frame", emuFrame}, {"game", emuGame}, {nullptr, nullptr},
+  };
+  luaL_setfuncs(state, emu, 0);
+  lua_setglobal(state, "emu");
+
   lua_newtable(state);
   lua_pushcfunction(state, fileRead);
   lua_setfield(state, -2, "read");
@@ -480,6 +707,12 @@ void LuaEngine::registerApi() {
   lua_setfield(state, -2, "append");
   lua_pushcfunction(state, fileDirectory);
   lua_setfield(state, -2, "directory");
+  lua_pushcfunction(state, fileExists);
+  lua_setfield(state, -2, "exists");
+  lua_pushcfunction(state, fileList);
+  lua_setfield(state, -2, "list");
+  lua_pushcfunction(state, fileRemove);
+  lua_setfield(state, -2, "remove");
   lua_setglobal(state, "file");
 }
 

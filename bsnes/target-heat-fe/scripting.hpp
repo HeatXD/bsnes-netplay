@@ -28,6 +28,9 @@ public:
   int64_t globalInteger(const char* name) const;
   int commandCount() const { return (int)commands.size(); }
   std::string dataDirectory() const;
+  const std::string& console() const { return consoleText; }
+  void clearConsole();
+  bool takeConsoleScroll();
 
 private:
   App& app;
@@ -40,6 +43,8 @@ private:
   std::vector<int16_t> inputOverrides;
   std::vector<int16_t> physicalInput;
   std::vector<uint8_t> inputOverrideSet;
+  std::string consoleText;
+  bool consoleScroll = false;
 
   struct DrawCommand {
     enum Type { Box, Ellipse, Line, Pixel, Text } type;
@@ -52,6 +57,7 @@ private:
 
   void close();
   void clearInputOverrides();
+  void appendConsole(std::string text);
   bool failFromStack(const char* prefix);
   void registerApi();
 
@@ -71,7 +77,26 @@ private:
   static int inputSet(lua_State* state);
   static int inputClear(lua_State* state);
   static int inputClearAll(lua_State* state);
+  static int consoleLog(lua_State* state);
+  static int consoleClear(lua_State* state);
+  static int saveState(lua_State* state);
+  static int loadState(lua_State* state);
+  static int hasState(lua_State* state);
+  static int removeState(lua_State* state);
+  static int saveStateFile(lua_State* state);
+  static int loadStateFile(lua_State* state);
+  static int emuLoaded(lua_State* state);
+  static int emuPaused(lua_State* state);
+  static int emuPause(lua_State* state);
+  static int emuResume(lua_State* state);
+  static int emuReset(lua_State* state);
+  static int emuPower(lua_State* state);
+  static int emuFrame(lua_State* state);
+  static int emuGame(lua_State* state);
   static int fileRead(lua_State* state);
   static int fileWrite(lua_State* state);
+  static int fileExists(lua_State* state);
+  static int fileList(lua_State* state);
+  static int fileRemove(lua_State* state);
   static int fileDirectory(lua_State* state);
 };

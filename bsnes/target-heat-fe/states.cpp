@@ -27,6 +27,22 @@ void writeLE32(uint8_t* out, uint32_t value) {
 uint32_t readLE32(const uint8_t* in) {
   return (uint32_t)in[0] | (uint32_t)in[1] << 8 | (uint32_t)in[2] << 16 | (uint32_t)in[3] << 24;
 }
+
+bool writeStatePayload(const std::string& path, const std::vector<uint8_t>& payload) {
+  std::vector<uint8_t> file(HeaderSize + payload.size());
+  std::memcpy(file.data(), Magic, sizeof(Magic));
+  writeLE32(file.data() + 4, (uint32_t)payload.size());
+  std::memcpy(file.data() + HeaderSize, payload.data(), payload.size());
+  return ensureDir(parentDir(path)) && writeBytes(path, file.data(), file.size());
+}
+
+bool readStatePayload(const std::string& path, std::vector<uint8_t>& payload) {
+  payload = readBytes(path);
+  if(payload.size() <= HeaderSize || std::memcmp(payload.data(), Magic, sizeof(Magic)) != 0
+  || readLE32(payload.data() + 4) != payload.size() - HeaderSize) return false;
+  payload.erase(payload.begin(), payload.begin() + HeaderSize);
+  return true;
+}
 }  // namespace
 
 std::string App::statesDir() const {
@@ -89,19 +105,22 @@ bool App::saveState(const std::string& name, bool quiet) {
     return true;
   }
 
-  std::vector<uint8_t> file(HeaderSize + payload.size());
-  std::memcpy(file.data(), Magic, sizeof(Magic));
-  writeLE32(file.data() + 4, (uint32_t)payload.size());
-  std::memcpy(file.data() + HeaderSize, payload.data(), payload.size());
-
-  if(!ensureDir(statesDir()) || !ensureDir(stateFolder())
-  || !writeBytes(statePath(name), file.data(), file.size())) {
+  if(!writeStatePayload(statePath(name), payload)) {
     if(!quiet) showMessage("could not write " + stateLabel(name));
     return false;
   }
 
   if(!quiet) showMessage("saved " + stateLabel(name));
   return true;
+}
+
+bool App::saveStateFile(const std::string& path, bool quiet) {
+  if(!core.loaded()) return false;
+  const std::vector<uint8_t> payload = core.serialize();
+  const bool saved = !payload.empty() && writeStatePayload(path, payload);
+  if(!quiet) showMessage(saved ? "saved state file " + fileName(path)
+                               : "could not save state file " + fileName(path));
+  return saved;
 }
 
 bool App::loadState(const std::string& name) {
@@ -140,6 +159,25 @@ bool App::loadState(const std::string& name) {
 
   paused = false;
   showMessage("loaded " + stateLabel(name));
+  return true;
+}
+
+bool App::loadStateFile(const std::string& path) {
+  if(!core.loaded()) return false;
+  std::vector<uint8_t> payload;
+  if(!readStatePayload(path, payload)) {
+    showMessage("could not read state file " + fileName(path));
+    return false;
+  }
+
+  saveState("undo", true);
+  if(!core.unserialize(payload)) {
+    showMessage("state file " + fileName(path) + " does not match this game");
+    return false;
+  }
+
+  paused = false;
+  showMessage("loaded state file " + fileName(path));
   return true;
 }
 

@@ -2,7 +2,8 @@
 
 The heat frontend embeds Lua 5.4 for game overlays, memory tools, input displays,
 and frame-data collection. Open **Tools > Lua Scripting**, choose a `.lua` file,
-and use **Reload** after changing it on disk.
+and use **Reload** after changing it on disk. The same window contains the
+script's output console.
 
 Only one script runs at a time. A load or runtime error stops the script and is
 shown in the Lua Scripting window. Reloading creates a fresh Lua state.
@@ -26,6 +27,22 @@ before the emulator runs. Use it to decide the inputs for the upcoming frame.
 `on_frame()` runs after an emulated frame and before the frontend draws its UI.
 Drawing commands are cleared before every call, so an overlay must draw all of
 its current shapes each frame.
+
+## Console
+
+Lua's normal `print()` function writes to the output console in the Lua
+Scripting window. Multiple values are separated by tabs. The equivalent
+explicit API is:
+
+```lua
+console.log("player", player_number, "x", player_x)
+console.clear()
+```
+
+The window provides **Copy** and **Clear** buttons and automatically follows new
+output. It retains up to 64 KiB across reloads so the output immediately before
+an error is not lost. Errors are appended automatically. This is an output
+console, not an interactive Lua prompt.
 
 ## Drawing
 
@@ -174,10 +191,72 @@ file.write("frames.txt", "start\n")       -- replaces the file
 file.append("frames.txt", "1,12,44\n")   -- appends
 local contents = file.read("frames.txt")
 local directory = file.directory()
+local exists = file.exists("frames.txt")
+local entries = file.list()               -- sorted names in the data root
+local nested = file.list("trials")        -- sorted names in a subdirectory
+local removed = file.remove("old.txt")
 ```
 
 Paths must be relative and cannot contain `..`, a drive name, or an absolute
-root. Subdirectories inside the script data directory are allowed.
+root. Subdirectories inside the script data directory are allowed. Writing a
+file creates missing parent directories. `remove()` deletes one file or empty
+directory and never recursively removes a directory tree. It returns `false`
+when the path did not exist or could not be removed. Listing a path that is not
+a directory raises an error; use `exists()` first when that is expected. A
+missing file reads as an empty string, so `exists()` also distinguishes it from
+a real empty file.
+
+## Save states
+
+Scripts can use the same nine numbered state slots as the emulator UI:
+
+```lua
+savestate.save(slot)
+savestate.load(slot)
+savestate.exists(slot)
+savestate.remove(slot)
+savestate.save_file("trial-progress.bst")
+savestate.load_file("trial-start.bst")
+```
+
+Slots must be integers from 1 through 9. Every operation returns a boolean.
+These are normal persistent per-game states, so scripts should avoid silently
+overwriting a slot the player uses.
+
+`save_file()` writes beneath the script's confined data directory. `load_file()`
+first looks there and, if no such path exists, looks beside the `.lua` file.
+This lets a script keep writable progress separately while a modder distributes
+read-only starting states next to the script. Paths are relative, may use
+subdirectories, and cannot contain `..`, a drive name, or an absolute root.
+
+File states use heat-fe's `.bst` format and must match the currently loaded ROM
+and serialization settings. States from BizHawk, other emulators, and bsnes
+`.bsz` containers are not interchangeable. A numbered heat-fe `.bst` can be
+copied beside a script and loaded directly.
+
+A state contains the emulated machine only. Loading one does not rewind Lua
+variables, console output, drawing commands, or input overrides. A normal state
+load also creates the emulator's undo state and resumes emulation.
+
+## Emulator control
+
+The basic emulator-control API is:
+
+```lua
+emu.loaded()       -- boolean
+emu.paused()       -- boolean
+emu.pause()        -- returns false when no game is loaded
+emu.resume()
+emu.reset()
+emu.power()
+emu.frame()        -- number of completed frontend frames
+emu.game()         -- current game title, or an empty string
+```
+
+Pause, resume, reset, and power return whether a game was loaded. If pause is
+called from a frame callback, the frame already in progress completes before
+the frontend becomes idle. A paused script receives no callbacks until the
+game is resumed from the UI or another frontend control.
 
 ## Complete overlay example
 
@@ -218,4 +297,5 @@ For safety, `debug`, `io`, `os`, `package`, `require`, `dofile`, and `loadfile`
 are unavailable. Scripts cannot load native libraries or execute programs.
 
 Current limitations: one script at a time, one frontend font for all overlay
-text, no image drawing, and no built-in binary formatter.
+text, no image drawing, no interactive console, and no built-in binary
+formatter.

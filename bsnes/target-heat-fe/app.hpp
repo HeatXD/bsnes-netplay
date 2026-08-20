@@ -195,10 +195,12 @@ struct App {
   int64_t stateTime(const std::string& name) const;
   bool hasState(const std::string& name) const;
   bool saveState(const std::string& name, bool quiet = false);
+  bool saveStateFile(const std::string& path, bool quiet = false);
   // null unless the slot is one of the memory-resident ones
   std::vector<uint8_t>* memorySlot(const std::string& name);
   const std::vector<uint8_t>* memorySlot(const std::string& name) const;
   bool loadState(const std::string& name);
+  bool loadStateFile(const std::string& path);
   bool removeState(const std::string& name);
   void removeAllStates();
   void setStateSlot(int slot);

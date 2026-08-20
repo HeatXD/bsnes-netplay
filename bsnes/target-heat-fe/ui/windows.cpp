@@ -3,7 +3,7 @@
 void App::drawScriptingWindow() {
   if(!showScripting) return;
 
-  placeFloating(440.0f, 220.0f);
+  placeFloating(520.0f, 360.0f);
   if(!ImGui::Begin("Lua Scripting", &showScripting)) { ImGui::End(); return; }
 
   if(ImGui::Button("Open...")) openScriptDialog();
@@ -22,6 +22,21 @@ void App::drawScriptingWindow() {
     ImGui::Separator();
     ImGui::TextWrapped("%s", scripting.error().c_str());
   }
+
+  ImGui::SeparatorText("Console");
+  ImGui::BeginDisabled(scripting.console().empty());
+  if(ImGui::Button("Copy")) ImGui::SetClipboardText(scripting.console().c_str());
+  ImGui::SameLine();
+  if(ImGui::Button("Clear")) scripting.clearConsole();
+  ImGui::EndDisabled();
+  const bool scroll = scripting.takeConsoleScroll();
+  if(ImGui::BeginChild("##luaconsole", ImVec2(0, 0), ImGuiChildFlags_Borders,
+                       ImGuiWindowFlags_HorizontalScrollbar)) {
+    if(scripting.console().empty()) ImGui::TextDisabled("print output appears here");
+    else ImGui::TextUnformatted(scripting.console().c_str());
+    if(scroll) ImGui::SetScrollHereY(1.0f);
+  }
+  ImGui::EndChild();
 
   ImGui::End();
 }

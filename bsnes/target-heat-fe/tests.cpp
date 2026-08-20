@@ -258,12 +258,25 @@ int runLuaTest(App& app, const std::string& script) {
   setPhysicalInput();
   bool pass = app.scripting.load(script);
   pass = pass && app.scripting.running();
+  const bool controlsTest = app.scripting.globalInteger("expected_controls") > 0;
+  const std::string originalStatesDir = app.settings.statesDir;
+  const std::string controlsDataDir = controlsTest ? app.scripting.dataDirectory() : std::string();
+  const std::string controlsStateDir = controlsTest
+                                     ? controlsDataDir + "/_state_test" : std::string();
+  const std::string packagedState = controlsTest
+                                  ? parentDir(script) + "/_heat_fe_package_state.bst" : std::string();
+  if(controlsTest) {
+    app.settings.statesDir = controlsStateDir;
+    pass = app.saveStateFile(packagedState, true) && pass;
+  }
   if(pass && app.scripting.globalInteger("expected_frame_error") > 0) {
     setPhysicalInput();
     const bool cleared = app.scripting.runBeforeFrame() && !app.scripting.runFrame()
                       && !app.scripting.running()
                       && app.scripting.commandCount() == 0
                       && app.core.inputValue(0, EmuCore::A) == 0
+                      && app.scripting.console().find("intentional frame failure")
+                         != std::string::npos
                       && !app.scripting.error().empty();
     SDL_Log("Lua error clears drawing and input overrides: %s", cleared ? "ok" : "FAILED");
     SDL_Log("Lua lifecycle test: %s", cleared ? "PASS" : "FAIL");
@@ -301,6 +314,23 @@ int runLuaTest(App& app, const std::string& script) {
                        && app.scripting.globalInteger("second_right") == 1;
     SDL_Log("Lua input injection and clearing: %s", injected ? "ok" : "FAILED");
     pass = pass && injected;
+  }
+  if(app.scripting.globalInteger("expected_console") > 0) {
+    const bool console = app.scripting.console()
+                      == "start\t42\ttrue\tnil\nready\nframe\t1\nframe\t2\n";
+    SDL_Log("Lua captured console output: %s", console ? "ok" : "FAILED");
+    pass = pass && console;
+  }
+  if(controlsTest) {
+    const bool controls = app.scripting.globalInteger("before_frames") == 2
+                       && app.scripting.globalInteger("memory_changed") == 1
+                       && app.scripting.globalInteger("memory_restored") == 1
+                       && app.scripting.globalInteger("state_removed") == 1
+                       && app.scripting.globalInteger("packaged_state_loaded") == 1
+                       && app.scripting.globalInteger("data_state_loaded") == 1
+                       && app.scripting.globalInteger("emu_controls") == 1;
+    SDL_Log("Lua save-state and emulator controls: %s", controls ? "ok" : "FAILED");
+    pass = pass && controls;
   }
   if(app.scripting.globalInteger("expected_commands") > 0) {
     const bool drawing = app.scripting.commandCount()
@@ -355,6 +385,14 @@ int runLuaTest(App& app, const std::string& script) {
   if(fileTest) {
     SDL_RemovePath((testData + "/frames.txt").c_str());
     SDL_RemovePath(testData.c_str());
+  }
+  if(controlsTest) {
+    app.removeState("9");
+    SDL_RemovePath(app.stateFolder().c_str());
+    SDL_RemovePath(controlsStateDir.c_str());
+    SDL_RemovePath(controlsDataDir.c_str());
+    SDL_RemovePath(packagedState.c_str());
+    app.settings.statesDir = originalStatesDir;
   }
 
   SDL_Log("Lua lifecycle test: %s", pass ? "PASS" : "FAIL");
