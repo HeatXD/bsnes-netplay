@@ -22,7 +22,8 @@ void App::restoreVideoDefaults() {
 
 void App::drawVideoTab() {
   bool dirty = false;
-  dirty |= ImGui::Checkbox("Aspect correction (8:7)", &settings.aspectCorrect);
+  bool geometryDirty = ImGui::Checkbox("Aspect correction (8:7)", &settings.aspectCorrect);
+  dirty |= geometryDirty;
   dirty |= ImGui::Checkbox("Linear filtering (smooths fractional scales)", &settings.linearFilter);
   dirty |= ImGui::Combo("Output", &settings.outputMode, OutputNames, OutputCount);
 
@@ -64,6 +65,7 @@ void App::drawVideoTab() {
   ImGui::Separator();
   if(ImGui::Checkbox("Crop overscan (8 lines top/bottom)", &settings.overscanCrop)) {
     core.setOverscanCrop(settings.overscanCrop);
+    geometryDirty = true;
     dirty = true;
   }
   if(ImGui::Checkbox("Hires blur emulation (blends 512-wide modes)", &settings.hiresBlur)) {
@@ -109,5 +111,6 @@ void App::drawVideoTab() {
     restoreVideoDefaults();
     dirty = true;
   }
+  if(geometryDirty && settings.windowScale > 0) shell.shrinkToFit(settings);
   if(dirty) settings.save(settingsCfg);
 }

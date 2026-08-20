@@ -231,16 +231,47 @@ void App::drawStatusBar() {
                   : "Not a verified game image; PCB emulation relies on heuristics.");
         ImGui::SameLine();
       }
-      ImGui::TextUnformatted(!status.empty() ? status.c_str()
-                             : core.loaded() ? gameTitle.c_str() : "no game");
+      const char* leftText = !status.empty() ? status.c_str()
+                           : core.loaded() ? gameTitle.c_str() : "no game";
 
-      char text[96];
-      SDL_snprintf(text, sizeof(text), "%dx%d  %.1f fps%s",
-                   shell.frameWidth, shell.frameHeight, fps,
-                   fastForward ? "  [ff]" : paused ? "  [paused]" : "");
-      const float width = ImGui::CalcTextSize(text).x;
-      ImGui::SameLine(ImGui::GetWindowWidth() - width - 12.0f);
-      ImGui::TextUnformatted(text);
+      const char* state = fastForward ? "  [ff]" : paused ? "  [paused]" : "";
+      char full[96], compact[64];
+      SDL_snprintf(full, sizeof(full), "%dx%d  %.1f fps%s",
+                   shell.frameWidth, shell.frameHeight, fps, state);
+      SDL_snprintf(compact, sizeof(compact), "%.0f fps%s", fps, state);
+
+      const ImGuiStyle& style = ImGui::GetStyle();
+      const ImVec2 leftPos = ImGui::GetCursorScreenPos();
+      const float rightEdge = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 12.0f;
+      const float minimumLeft = ImGui::CalcTextSize("...").x;
+      const float rightBudget = rightEdge - leftPos.x - minimumLeft - style.ItemSpacing.x;
+      const char* rightText = full;
+      float rightWidth = ImGui::CalcTextSize(rightText).x;
+      if(rightWidth > rightBudget) {
+        rightText = compact;
+        rightWidth = ImGui::CalcTextSize(rightText).x;
+      }
+      if(rightWidth > rightBudget) {
+        rightText = *state ? state + 2 : nullptr;
+        rightWidth = rightText ? ImGui::CalcTextSize(rightText).x : 0.0f;
+      }
+      if(rightWidth > rightBudget) { rightText = nullptr; rightWidth = 0.0f; }
+
+      const float rightX = rightEdge - rightWidth;
+      const float leftWidth = SDL_max(0.0f, (rightText ? rightX - style.ItemSpacing.x
+                                                       : rightEdge) - leftPos.x);
+      if(leftWidth > 0.0f) {
+        const ImVec2 leftMax(leftPos.x + leftWidth, leftPos.y + ImGui::GetTextLineHeight());
+        const ImVec2 leftSize = ImGui::CalcTextSize(leftText);
+        ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), leftPos, leftMax,
+                                  leftMax.x, leftMax.x, leftText, nullptr, &leftSize);
+        ImGui::Dummy(ImVec2(leftWidth, ImGui::GetTextLineHeight()));
+        if(leftSize.x > leftWidth) tip(leftText);
+      }
+      if(rightText) {
+        ImGui::SetCursorScreenPos(ImVec2(rightX, leftPos.y));
+        ImGui::TextUnformatted(rightText);
+      }
       ImGui::EndMenuBar();
     }
   }

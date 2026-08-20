@@ -185,7 +185,7 @@ void Shell::pushAudio(const Settings& settings, const float* samples, int frames
 void Shell::drawGame(const Settings& settings, unsigned tint) {
   if(frameWidth <= 0 || frameHeight <= 0) return;
 
-  const ImGuiViewport* view = ImGui::GetMainViewport();
+  ImGuiViewport* view = ImGui::GetMainViewport();
   const float availW = view->WorkSize.x, availH = view->WorkSize.y;
   if(availW <= 0.0f || availH <= 0.0f) return;
 
@@ -226,8 +226,8 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
   // frameWidth would blend the last column with never-written texels.
   const ImVec2 uv0(0.5f / textureWidth, 0.5f / textureHeight);
   const ImVec2 uv1((frameWidth - 0.5f) / textureWidth, (frameHeight - 0.5f) / textureHeight);
-  ImGui::GetBackgroundDrawList()->AddImage((ImTextureID)(intptr_t)texture, p0, p1, uv0, uv1,
-                                          (ImU32)tint);
+  ImGui::GetBackgroundDrawList(view)->AddImage((ImTextureID)(intptr_t)texture, p0, p1, uv0, uv1,
+                                              (ImU32)tint);
 }
 
 void Shell::shrinkToFit(const Settings& settings) {
