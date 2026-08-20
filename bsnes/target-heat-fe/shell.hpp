@@ -42,6 +42,8 @@ struct Shell {
   // the on-screen rectangle, after scaling
   int drawWidth = 0;
   int drawHeight = 0;
+  float drawX = 0.0f;
+  float drawY = 0.0f;
   // grows to fit HD mode 7, whose frames outrun the filters' worst case
   int textureWidth = 0;
   int textureHeight = 0;
@@ -73,6 +75,7 @@ struct Shell {
     lastPixels = nullptr;
     frameWidth = frameHeight = 0;
     drawWidth = drawHeight = 0;
+    drawX = drawY = 0.0f;
   }
   // tint multiplies the frame, which is how the idle dimming is applied
   void drawGame(const Settings& settings, unsigned tint = 0xffffffffu);

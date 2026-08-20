@@ -88,6 +88,11 @@ auto EmuCore::Impl::inputPoll(uint port, uint device, uint input) -> int16 {
   return state[port][input];
 }
 
+int16_t EmuCore::inputValue(int port, int index) const {
+  if(port < 0 || port >= PortCount || index < 0 || index >= MaxInputs) return 0;
+  return impl->state[port][index];
+}
+
 EmuCore::EmuCore() : impl(std::make_unique<Impl>(*this)) {}
 EmuCore::~EmuCore() = default;
 

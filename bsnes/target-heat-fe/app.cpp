@@ -10,6 +10,9 @@ const BiosSlot BiosSlots[3] = {
   {"Sufami Turbo",   "##st",  &App::stBiosPick,  &Settings::stBios},
 };
 
+App::App() : scripting(*this) {}
+App::~App() = default;
+
 // beside the exe first, so a portable copy carries its own database
 std::string App::databaseDir() const {
   if(!settings.databaseDir.empty()) return settings.databaseDir;
@@ -218,6 +221,11 @@ void App::openFontDialog() {
   openPick(fontPick, filters, nullptr);
 }
 
+void App::openScriptDialog() {
+  const SDL_DialogFileFilter filters[] = {{"Lua scripts", "lua"}, {"All files", "*"}};
+  openPick(scriptPick, filters, nullptr);
+}
+
 void App::applyPreset() {
   switch(settings.theme) {
     case 1: ImGui::StyleColorsLight(); break;
@@ -366,4 +374,3 @@ void App::takeScreenshot() {
   const std::string name = dir + stamp;
   showMessage(shell.saveFrame(name) ? "saved " + name : "screenshot failed");
 }
-

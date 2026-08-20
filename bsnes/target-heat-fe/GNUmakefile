@@ -37,12 +37,16 @@ endif
 imgui.path := ../imgui
 imgui.flags := -I$(imgui.path) -I$(imgui.path)/backends
 
-flags += $(sdl3.flags) $(imgui.flags)
+lua.path := ../lua
+lua.flags := -I$(lua.path)
+
+flags += $(sdl3.flags) $(imgui.flags) $(lua.flags)
 
 # filter drives the CPU video filters; lzma unpacks .7z game archives
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
 objects += ui-tests
-objects += core-main core-media core-vfs core-video core-info
+objects += ui-scripting lua
+objects += core-main core-media core-vfs core-video core-info core-memory
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
 objects += ui-custom ui-paths ui-windows ui-manifest ui-compat
 objects += imgui imgui-draw imgui-tables imgui-widgets imgui-sdl3 imgui-opengl3
@@ -60,12 +64,21 @@ obj/ui-draw.o: $(ui)/ui/ui.cpp
 obj/ui-inputmap.o: $(ui)/inputmap.cpp
 obj/ui-states.o: $(ui)/states.cpp
 obj/ui-tests.o: $(ui)/tests.cpp
+obj/ui-scripting.o: $(ui)/scripting.cpp
+obj/lua.o: $(lua.path)/onelua.c
+obj/lua.o: flags += -DMAKE_LIB $(if $(findstring g++,$(compiler)),-Wno-stringop-overflow)
+
+$(lua.path)/onelua.c:
+	git -C .. submodule update --init lua
+
+obj/ui-scripting.o obj/lua.o: | $(lua.path)/onelua.c
 
 obj/core-main.o: $(ui)/emucore/core.cpp
 obj/core-media.o: $(ui)/emucore/media.cpp
 obj/core-vfs.o: $(ui)/emucore/vfs.cpp
 obj/core-video.o: $(ui)/emucore/video.cpp
 obj/core-info.o: $(ui)/emucore/info.cpp
+obj/core-memory.o: $(ui)/emucore/memory.cpp
 
 obj/ui-video.o: $(ui)/ui/video.cpp
 obj/ui-audio.o: $(ui)/ui/audio.cpp

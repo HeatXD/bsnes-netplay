@@ -247,3 +247,57 @@ int runHotkeyTest(App& app) {
   SDL_Log("hotkey logic test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
+
+int runLuaTest(App& app, const std::string& script) {
+  app.core.setInput(0, EmuCore::B, 1);
+  app.core.setInput(0, EmuCore::Right, 1);
+  bool pass = app.scripting.load(script);
+  pass = pass && app.scripting.running();
+  if(pass && app.scripting.globalInteger("expected_frame_error") > 0) {
+    const bool cleared = !app.scripting.runFrame() && !app.scripting.running()
+                      && app.scripting.commandCount() == 0
+                      && !app.scripting.error().empty();
+    SDL_Log("Lua error clears drawing commands: %s", cleared ? "ok" : "FAILED");
+    SDL_Log("Lua lifecycle test: %s", cleared ? "PASS" : "FAIL");
+    return cleared ? 0 : 1;
+  }
+  pass = pass && app.scripting.runFrame() && app.scripting.runFrame();
+  pass = pass && app.scripting.globalInteger("frames") == 2;
+  SDL_Log("Lua frame callback: %s", pass ? "ok" : "FAILED");
+  if(app.scripting.globalInteger("expected_commands") > 0) {
+    const bool drawing = app.scripting.commandCount()
+                      == app.scripting.globalInteger("expected_commands");
+    SDL_Log("Lua drawing commands: %s", drawing ? "ok" : "FAILED");
+    pass = pass && drawing;
+  }
+  const bool fileTest = app.scripting.globalInteger("expected_file") > 0;
+  const std::string testData = fileTest ? app.scripting.dataDirectory() : std::string();
+  if(fileTest) {
+    const bool files = readText(testData + "/frames.txt") == "start\n1\n2\n";
+    SDL_Log("Lua confined file output: %s", files ? "ok" : "FAILED");
+    pass = pass && files;
+  }
+
+  const bool reloaded = app.scripting.reload() && app.scripting.runFrame()
+                     && app.scripting.globalInteger("frames") == 1;
+  SDL_Log("Lua reload: %s", reloaded ? "ok" : "FAILED");
+  pass = pass && reloaded;
+
+  app.scripting.stop();
+  const bool stopped = !app.scripting.running() && !app.scripting.runFrame();
+  SDL_Log("Lua stop: %s", stopped ? "ok" : "FAILED");
+  pass = pass && stopped;
+
+  const bool reported = !app.scripting.load(script + ".missing")
+                     && !app.scripting.error().empty();
+  SDL_Log("Lua error reporting: %s", reported ? "ok" : "FAILED");
+  pass = pass && reported;
+
+  if(fileTest) {
+    SDL_RemovePath((testData + "/frames.txt").c_str());
+    SDL_RemovePath(testData.c_str());
+  }
+
+  SDL_Log("Lua lifecycle test: %s", pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}

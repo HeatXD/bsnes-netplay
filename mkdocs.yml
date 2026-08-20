@@ -16,3 +16,4 @@ nav:
     #- Concepts:
     - Reference:
          - Build configuration: reference/build-config.md
+         - Lua scripting: lua-scripting.md

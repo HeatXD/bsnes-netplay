@@ -4,6 +4,7 @@
 #include "inputmap.hpp"
 #include "settings.hpp"
 #include "shell.hpp"
+#include "scripting.hpp"
 #include "util.hpp"
 
 #include "imgui.h"
@@ -36,10 +37,14 @@ struct BiosSlot {
 extern const BiosSlot BiosSlots[3];
 
 struct App {
+  App();
+  ~App();
+
   Shell shell;
   Settings settings;
   InputMap input;
   EmuCore core;
+  LuaEngine scripting;
 
   std::string inputCfg, settingsCfg;
   std::vector<SDL_Gamepad*> pads;
@@ -49,6 +54,7 @@ struct App {
   std::string gameTitle;
 
   FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick, pakPick, firmwareDirPick;
+  FilePick scriptPick;
   FilePick patchesDirPick, databaseDirPick, statesDirPick;
   FilePick sgbBiosPick, bsxBiosPick, stBiosPick;
   FilePick sufamiAPick, sufamiBPick;
@@ -64,6 +70,7 @@ struct App {
   bool showGames = false;
   bool showAbout = false;
   bool showManifest = false;
+  bool showScripting = false;
   int settingsTab = -1;
   int mapPort = 0;
   int mapPlayer = 0;  // which of a multitap's controllers is being mapped
@@ -169,6 +176,7 @@ struct App {
   void openRomDialog();
   void openFolderDialog(FilePick& pick) { openPick(pick, nullptr, gamesDirOrNull()); }
   void openFontDialog();
+  void openScriptDialog();
   void openMediaDialog(FilePick& pick, const char* label, const char* extensions,
                        EmuCore::Medium medium = EmuCore::Medium::SuperFamicom);
   const char* startDirFor(EmuCore::Medium medium);
@@ -223,6 +231,7 @@ struct App {
   void drawSettingsWindow();
   void drawGamepadDiagnostics();
   void drawToolsWindow();
+  void drawScriptingWindow();
   void restoreVideoDefaults();
   void drawVideoTab();
   void restoreAudioDefaults();
@@ -265,4 +274,3 @@ struct App {
   void drawAboutWindow();
   void drawUi();
 };
-

@@ -8,3 +8,4 @@
 int runStateTest(App& app, int warmFrames, int frames);
 int runDeterminismTest(App& app, int frames);
 int runHotkeyTest(App& app);
+int runLuaTest(App& app, const std::string& script);

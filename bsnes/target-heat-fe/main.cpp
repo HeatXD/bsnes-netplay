@@ -11,13 +11,15 @@ namespace {
 constexpr int IdleDelayMs = 32;
 
 // what this invocation is for; the harnesses are mutually exclusive
-enum class Mode { Run, UiShot, StateTest, DeterminismTest, HotkeyTest };
+enum class Mode { Run, UiShot, StateTest, DeterminismTest, HotkeyTest, LuaTest };
 
 struct Options {
   Mode mode = Mode::Run;
   std::string romPath;
   std::string uiShot;
   std::string uiScreen = "game";
+  std::string luaTest;
+  std::string luaScript;
   int frameLimit = 0;
   int warmFrames = 180;  // emulated before a ui shot, so it lands on a real frame
   int shotTab = -1;
@@ -42,6 +44,11 @@ Options parseArgs(int argc, char** argv) {
     else if(SDL_strcmp(arg, "--state-test") == 0) opt.mode = Mode::StateTest;
     else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.mode = Mode::DeterminismTest;
     else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.mode = Mode::HotkeyTest;
+    else if(SDL_strcmp(arg, "--lua-test") == 0 && hasValue) {
+      opt.luaTest = argv[++i];
+      opt.mode = Mode::LuaTest;
+    }
+    else if(SDL_strcmp(arg, "--lua") == 0 && hasValue) opt.luaScript = argv[++i];
     else if(SDL_strcmp(arg, "--ui-fullscreen") == 0) opt.uiFullscreen = true;
     else if(SDL_strcmp(arg, "--frames") == 0 && hasValue) opt.frameLimit = SDL_atoi(argv[++i]);
     else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) {
@@ -172,6 +179,7 @@ void Frontend::advance() {
 
   app.core.runFrame();
   app.emulatedFrames++;
+  app.scripting.runFrame();
   frames++;
   fpsFrames++;
 }
@@ -360,6 +368,10 @@ void Frontend::drainPicks() {
     app.settings.save(app.settingsCfg);
     app.fontDirty = true;
   }
+  if(takePick(app.scriptPick, picked) && !picked.empty()) {
+    app.scripting.load(picked);
+    app.showScripting = true;
+  }
 
   for(const BiosSlot& slot : BiosSlots) {
     if(takePick(app.*slot.pick, picked) && !picked.empty()) {
@@ -417,7 +429,10 @@ int Frontend::runUiShot() {
   if(opt.uiFullscreen) app.toggleFullscreen();
 
   // warm the emulator so the shot shows the UI over a real frame
-  for(int i = 0; app.core.loaded() && i < opt.warmFrames; i++) app.core.runFrame();
+  for(int i = 0; app.core.loaded() && i < opt.warmFrames; i++) {
+    app.core.runFrame();
+    app.scripting.runFrame();
+  }
 
   // early passes settle window sizing; --frames asks for more to catch layout
   // that drifts per frame
@@ -490,6 +505,7 @@ void openRequestedPanel(App& app, const Options& opt) {
   app.showAbout = opt.uiScreen == "about";
   // cartridge is the old name for the same window
   app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
+  app.showScripting = opt.uiScreen == "scripting";
   app.settingsTab = opt.shotTab;
 }
 
@@ -523,6 +539,7 @@ int main(int argc, char** argv) {
   openRequestedPanel(app, opt);
 
   if(!opt.romPath.empty()) app.loadRom(opt.romPath);
+  if(!opt.luaScript.empty()) app.scripting.load(opt.luaScript);
   if(opt.needsRom() && !app.core.loaded()) {
     SDL_Log("no rom loaded");
     shutdownApp(app);
@@ -536,6 +553,7 @@ int main(int argc, char** argv) {
     case Mode::StateTest:       code = runStateTest(app, opt.warmFrames, opt.frameLimit); break;
     case Mode::DeterminismTest: code = runDeterminismTest(app, opt.frameLimit); break;
     case Mode::HotkeyTest:      code = runHotkeyTest(app); break;
+    case Mode::LuaTest:         code = runLuaTest(app, opt.luaTest); break;
     case Mode::Run:             code = frontend.runLoop(); break;
   }
 

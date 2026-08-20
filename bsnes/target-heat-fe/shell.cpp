@@ -219,6 +219,8 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
 
   const ImVec2 p0(view->WorkPos.x + (availW - w) / 2.0f, view->WorkPos.y + (availH - h) / 2.0f);
   const ImVec2 p1(p0.x + w, p0.y + h);
+  drawX = p0.x;
+  drawY = p0.y;
   // Half a texel in on every side: the texture is larger than the frame, so
   // CLAMP_TO_EDGE guards its edge, not the picture's, and sampling right at
   // frameWidth would blend the last column with never-written texels.

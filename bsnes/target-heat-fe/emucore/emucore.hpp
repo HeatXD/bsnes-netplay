@@ -141,6 +141,10 @@ public:
   // frames to drop between rendered ones; only the fast PPU honours it
   void setFrameSkip(int frames);
   void setInput(int port, int index, int16_t value);
+  int16_t inputValue(int port, int index) const;
+
+  uint8_t readBus(uint32_t address) const;
+  void writeBus(uint32_t address, uint8_t value);
 
   // video: overscan crop, palette adjustment (gamma 100-200, luminance 0-100,
   // saturation 0-200), and the CPU filter, selected by name so a settings file

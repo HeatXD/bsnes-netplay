@@ -1,5 +1,31 @@
 #include "ui.hpp"
 
+void App::drawScriptingWindow() {
+  if(!showScripting) return;
+
+  placeFloating(440.0f, 220.0f);
+  if(!ImGui::Begin("Lua Scripting", &showScripting)) { ImGui::End(); return; }
+
+  if(ImGui::Button("Open...")) openScriptDialog();
+  ImGui::SameLine();
+  ImGui::BeginDisabled(scripting.path().empty());
+  if(ImGui::Button("Reload")) scripting.reload();
+  ImGui::SameLine();
+  if(ImGui::Button("Stop")) scripting.stop();
+  ImGui::EndDisabled();
+
+  ImGui::Separator();
+  ImGui::Text("State: %s", scripting.running() ? "running" : "stopped");
+  ImGui::TextWrapped("Script: %s", scripting.path().empty() ? "none" : scripting.path().c_str());
+  if(!scripting.path().empty()) ImGui::TextWrapped("Data: %s", scripting.dataDirectory().c_str());
+  if(!scripting.error().empty()) {
+    ImGui::Separator();
+    ImGui::TextWrapped("%s", scripting.error().c_str());
+  }
+
+  ImGui::End();
+}
+
 // a device SDL cannot map never becomes a gamepad, so it is listed but unread
 void App::drawGamepadDiagnostics() {
   int count = 0;
