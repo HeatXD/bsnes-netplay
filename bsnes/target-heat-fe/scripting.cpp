@@ -185,6 +185,36 @@ int LuaEngine::drawBox(lua_State* state) {
   return 0;
 }
 
+int LuaEngine::drawCircle(lua_State* state) {
+  LuaEngine& engine = from(state);
+  DrawCommand command{DrawCommand::Ellipse};
+  command.x1 = (float)luaL_checknumber(state, 1);
+  command.y1 = (float)luaL_checknumber(state, 2);
+  command.x2 = command.y2 = (float)luaL_checknumber(state, 3);
+  luaL_argcheck(state, command.x2 >= 0.0f, 3, "radius cannot be negative");
+  command.color = tableColor(state, 4, "fill", 0);
+  command.outline = tableColor(state, 4, "outline", 0xffffffffu);
+  command.thickness = tableNumber(state, 4, "thickness", 1.0f);
+  engine.commands.push_back(std::move(command));
+  return 0;
+}
+
+int LuaEngine::drawEllipse(lua_State* state) {
+  LuaEngine& engine = from(state);
+  DrawCommand command{DrawCommand::Ellipse};
+  command.x1 = (float)luaL_checknumber(state, 1);
+  command.y1 = (float)luaL_checknumber(state, 2);
+  command.x2 = (float)luaL_checknumber(state, 3);
+  command.y2 = (float)luaL_checknumber(state, 4);
+  luaL_argcheck(state, command.x2 >= 0.0f, 3, "horizontal radius cannot be negative");
+  luaL_argcheck(state, command.y2 >= 0.0f, 4, "vertical radius cannot be negative");
+  command.color = tableColor(state, 5, "fill", 0);
+  command.outline = tableColor(state, 5, "outline", 0xffffffffu);
+  command.thickness = tableNumber(state, 5, "thickness", 1.0f);
+  engine.commands.push_back(std::move(command));
+  return 0;
+}
+
 int LuaEngine::drawLine(lua_State* state) {
   LuaEngine& engine = from(state);
   DrawCommand command{DrawCommand::Line};
@@ -360,7 +390,8 @@ void LuaEngine::registerApi() {
 
   lua_newtable(state);
   const luaL_Reg gui[] = {
-    {"box", drawBox}, {"line", drawLine}, {"pixel", drawPixel}, {"text", drawText},
+    {"box", drawBox}, {"circle", drawCircle}, {"ellipse", drawEllipse},
+    {"line", drawLine}, {"pixel", drawPixel}, {"text", drawText},
     {nullptr, nullptr},
   };
   luaL_setfuncs(state, gui, 0);
@@ -434,6 +465,13 @@ void LuaEngine::drawOverlay() {
       if(command.outline >> 24) {
         draw->AddRect(p1, p2, imguiColor(command.outline), 0.0f, 0,
                       SDL_max(1.0f, command.thickness * sy));
+      }
+    } else if(command.type == DrawCommand::Ellipse) {
+      const ImVec2 radius(command.x2 * sx, command.y2 * sy);
+      if(command.color >> 24) draw->AddEllipseFilled(p1, radius, imguiColor(command.color));
+      if(command.outline >> 24) {
+        draw->AddEllipse(p1, radius, imguiColor(command.outline), 0.0f, 0,
+                         SDL_max(1.0f, command.thickness * sy));
       }
     } else if(command.type == DrawCommand::Line) {
       draw->AddLine(p1, point(command.x2, command.y2), imguiColor(command.color),

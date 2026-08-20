@@ -36,7 +36,7 @@ private:
   bool active = false;
 
   struct DrawCommand {
-    enum Type { Box, Line, Pixel, Text } type;
+    enum Type { Box, Ellipse, Line, Pixel, Text } type;
     float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f;
     uint32_t color = 0xffffffffu, outline = 0;
     float thickness = 1.0f, size = 13.0f;
@@ -54,6 +54,8 @@ private:
   static int readBit(lua_State* state);
   static int writeBit(lua_State* state);
   static int drawBox(lua_State* state);
+  static int drawCircle(lua_State* state);
+  static int drawEllipse(lua_State* state);
   static int drawLine(lua_State* state);
   static int drawPixel(lua_State* state);
   static int drawText(lua_State* state);

@@ -5,6 +5,9 @@ bsnes-netplay
 A custom build of the bsnes emulator, integrated with GekkoNet, to provide
 robust and low-latency netplay capabilities.
 
+Lua modders using the heat frontend can find the scripting API, memory domains,
+and examples in the [Lua scripting reference](bsnes/target-heat-fe/LUA.md).
+
 Currently, it supports sessions up to 5 players. Port
 forwarding (or another solution, such as a VPN that simulates a Local-Area
 Network) might be required.
