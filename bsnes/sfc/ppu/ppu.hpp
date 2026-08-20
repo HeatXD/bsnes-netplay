@@ -29,6 +29,14 @@ struct PPU : Thread, PPUcounter {
   //serialization.cpp
   auto serialize(serializer&) -> void;
 
+  //direct memory access for debugger and scripting frontends
+  auto debuggerReadVRAM(uint address) const -> uint8;
+  auto debuggerWriteVRAM(uint address, uint8 data) -> void;
+  auto debuggerReadCGRAM(uint address) const -> uint8;
+  auto debuggerWriteCGRAM(uint address, uint8 data) -> void;
+  auto debuggerReadOAM(uint address) -> uint8;
+  auto debuggerWriteOAM(uint address, uint8 data) -> void;
+
 private:
   //ppu.cpp
   alwaysinline auto step() -> void;

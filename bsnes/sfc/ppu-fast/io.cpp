@@ -4,6 +4,36 @@ auto PPU::latchCounters(uint hcounter, uint vcounter) -> void {
   latch.counters = 1;
 }
 
+auto PPU::debuggerReadVRAM(uint address) const -> uint8 {
+  return vram[address >> 1] >> (address & 1) * 8;
+}
+
+auto PPU::debuggerWriteVRAM(uint address, uint8 data) -> void {
+  auto& word = vram[address >> 1];
+  const uint shift = (address & 1) * 8;
+  word = word & ~(0xff << shift) | data << shift;
+}
+
+auto PPU::debuggerReadCGRAM(uint address) const -> uint8 {
+  const uint shift = (address & 1) * 8;
+  return cgram[address >> 1] >> shift & (address & 1 ? 0x7f : 0xff);
+}
+
+auto PPU::debuggerWriteCGRAM(uint address, uint8 data) -> void {
+  if(address & 1) data &= 0x7f;
+  auto& word = cgram[address >> 1];
+  const uint shift = (address & 1) * 8;
+  word = word & ~(0xff << shift) | data << shift;
+}
+
+auto PPU::debuggerReadOAM(uint address) -> uint8 {
+  return readObject(address);
+}
+
+auto PPU::debuggerWriteOAM(uint address, uint8 data) -> void {
+  writeObject(address, data);
+}
+
 auto PPU::latchCounters() -> void {
   io.hcounter = cpu.hdot();
   io.vcounter = cpu.vcounter();

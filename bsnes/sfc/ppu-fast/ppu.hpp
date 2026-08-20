@@ -39,6 +39,14 @@ struct PPU : PPUcounter {
   //serialization.cpp
   auto serialize(serializer&) -> void;
 
+  //direct memory access for debugger and scripting frontends
+  auto debuggerReadVRAM(uint address) const -> uint8;
+  auto debuggerWriteVRAM(uint address, uint8 data) -> void;
+  auto debuggerReadCGRAM(uint address) const -> uint8;
+  auto debuggerWriteCGRAM(uint address, uint8 data) -> void;
+  auto debuggerReadOAM(uint address) -> uint8;
+  auto debuggerWriteOAM(uint address, uint8 data) -> void;
+
 public:
   struct Source { enum : uint8 { BG1, BG2, BG3, BG4, OBJ1, OBJ2, COL }; };
   struct TileMode { enum : uint8 { BPP2, BPP4, BPP8, Mode7, Inactive }; };

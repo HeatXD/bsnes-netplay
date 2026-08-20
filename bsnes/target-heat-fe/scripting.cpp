@@ -74,10 +74,18 @@ LuaEngine& LuaEngine::from(lua_State* state) {
 }
 
 namespace {
-uint32_t checkedAddress(lua_State* state, int bytes) {
+EmuCore::MemoryDomain memoryDomain(lua_State* state, int upvalue) {
+  return (EmuCore::MemoryDomain)lua_tointeger(state, lua_upvalueindex(upvalue));
+}
+
+uint32_t checkedAddress(lua_State* state, const EmuCore& core,
+                        EmuCore::MemoryDomain domain, int bytes) {
   const lua_Integer value = luaL_checkinteger(state, 1);
-  luaL_argcheck(state, value >= 0 && value <= 0xffffff, 1, "address must be a 24-bit value");
-  luaL_argcheck(state, value + bytes - 1 <= 0xffffff, 1, "access crosses the end of the system bus");
+  const uint32_t size = core.memorySize(domain);
+  luaL_argcheck(state, value >= 0 && (lua_Unsigned)value < size, 1,
+                "address is outside the memory domain");
+  luaL_argcheck(state, (uint32_t)value <= size - bytes, 1,
+                "access crosses the end of the memory domain");
   return (uint32_t)value;
 }
 }
@@ -87,12 +95,13 @@ int LuaEngine::readMemory(lua_State* state) {
   if(!engine.app.core.loaded()) return luaL_error(state, "no game is loaded");
 
   const int bytes = (int)lua_tointeger(state, lua_upvalueindex(1));
-  const uint32_t address = checkedAddress(state, bytes);
+  const auto domain = memoryDomain(state, 3);
+  const uint32_t address = checkedAddress(state, engine.app.core, domain, bytes);
   const bool little = lua_toboolean(state, lua_upvalueindex(2));
   lua_Unsigned value = 0;
   for(int i = 0; i < bytes; i++) {
     const int shift = little ? i * 8 : (bytes - i - 1) * 8;
-    value |= (lua_Unsigned)engine.app.core.readBus(address + i) << shift;
+    value |= (lua_Unsigned)engine.app.core.readMemory(domain, address + i) << shift;
   }
   lua_pushinteger(state, (lua_Integer)value);
   return 1;
@@ -104,11 +113,12 @@ int LuaEngine::writeMemory(lua_State* state) {
 
   const lua_Unsigned value = (lua_Unsigned)luaL_checkinteger(state, 2);
   const int bytes = (int)lua_tointeger(state, lua_upvalueindex(1));
-  const uint32_t address = checkedAddress(state, bytes);
+  const auto domain = memoryDomain(state, 3);
+  const uint32_t address = checkedAddress(state, engine.app.core, domain, bytes);
   const bool little = lua_toboolean(state, lua_upvalueindex(2));
   for(int i = 0; i < bytes; i++) {
     const int shift = little ? i * 8 : (bytes - i - 1) * 8;
-    engine.app.core.writeBus(address + i, (uint8_t)(value >> shift));
+    engine.app.core.writeMemory(domain, address + i, (uint8_t)(value >> shift));
   }
   return 0;
 }
@@ -116,23 +126,25 @@ int LuaEngine::writeMemory(lua_State* state) {
 int LuaEngine::readBit(lua_State* state) {
   LuaEngine& engine = from(state);
   if(!engine.app.core.loaded()) return luaL_error(state, "no game is loaded");
-  const uint32_t address = checkedAddress(state, 1);
+  const auto domain = memoryDomain(state, 1);
+  const uint32_t address = checkedAddress(state, engine.app.core, domain, 1);
   const int bit = (int)luaL_checkinteger(state, 2);
   luaL_argcheck(state, bit >= 0 && bit < 8, 2, "bit must be from 0 to 7");
-  lua_pushboolean(state, (engine.app.core.readBus(address) >> bit) & 1);
+  lua_pushboolean(state, (engine.app.core.readMemory(domain, address) >> bit) & 1);
   return 1;
 }
 
 int LuaEngine::writeBit(lua_State* state) {
   LuaEngine& engine = from(state);
   if(!engine.app.core.loaded()) return luaL_error(state, "no game is loaded");
-  const uint32_t address = checkedAddress(state, 1);
+  const auto domain = memoryDomain(state, 1);
+  const uint32_t address = checkedAddress(state, engine.app.core, domain, 1);
   const int bit = (int)luaL_checkinteger(state, 2);
   luaL_argcheck(state, bit >= 0 && bit < 8, 2, "bit must be from 0 to 7");
-  uint8_t value = engine.app.core.readBus(address);
+  uint8_t value = engine.app.core.readMemory(domain, address);
   if(lua_toboolean(state, 3)) value |= (uint8_t)(1u << bit);
   else value &= (uint8_t)~(1u << bit);
-  engine.app.core.writeBus(address, value);
+  engine.app.core.writeMemory(domain, address, value);
   return 0;
 }
 
@@ -303,8 +315,6 @@ int LuaEngine::fileDirectory(lua_State* state) {
 void LuaEngine::registerApi() {
   lua_pushlightuserdata(state, this);
   lua_setfield(state, LUA_REGISTRYINDEX, "heat-fe.lua");
-  lua_newtable(state);
-
   const struct { const char* name; int bytes; bool little; bool write; } functions[] = {
     {"read_u8", 1, true, false},
     {"read_u16_le", 2, true, false}, {"read_u16_be", 2, false, false},
@@ -315,16 +325,37 @@ void LuaEngine::registerApi() {
     {"write_u24_le", 3, true, true}, {"write_u24_be", 3, false, true},
     {"write_u32_le", 4, true, true}, {"write_u32_be", 4, false, true},
   };
-  for(const auto& function : functions) {
-    lua_pushinteger(state, function.bytes);
-    lua_pushboolean(state, function.little);
-    lua_pushcclosure(state, function.write ? writeMemory : readMemory, 2);
-    lua_setfield(state, -2, function.name);
+
+  auto addMemoryDomain = [&](EmuCore::MemoryDomain domain) {
+    for(const auto& function : functions) {
+      lua_pushinteger(state, function.bytes);
+      lua_pushboolean(state, function.little);
+      lua_pushinteger(state, (lua_Integer)domain);
+      lua_pushcclosure(state, function.write ? writeMemory : readMemory, 3);
+      lua_setfield(state, -2, function.name);
+    }
+    lua_pushinteger(state, (lua_Integer)domain);
+    lua_pushcclosure(state, readBit, 1);
+    lua_setfield(state, -2, "read_bit");
+    lua_pushinteger(state, (lua_Integer)domain);
+    lua_pushcclosure(state, writeBit, 1);
+    lua_setfield(state, -2, "write_bit");
+    lua_pushinteger(state, app.core.memorySize(domain));
+    lua_setfield(state, -2, "size");
+  };
+
+  lua_newtable(state);
+  addMemoryDomain(EmuCore::MemoryDomain::Bus);
+  const struct { const char* name; EmuCore::MemoryDomain domain; } domains[] = {
+    {"wram", EmuCore::MemoryDomain::WRAM}, {"vram", EmuCore::MemoryDomain::VRAM},
+    {"cgram", EmuCore::MemoryDomain::CGRAM}, {"oam", EmuCore::MemoryDomain::OAM},
+    {"apuram", EmuCore::MemoryDomain::APURAM},
+  };
+  for(const auto& domain : domains) {
+    lua_newtable(state);
+    addMemoryDomain(domain.domain);
+    lua_setfield(state, -2, domain.name);
   }
-  lua_pushcfunction(state, readBit);
-  lua_setfield(state, -2, "read_bit");
-  lua_pushcfunction(state, writeBit);
-  lua_setfield(state, -2, "write_bit");
   lua_setglobal(state, "memory");
 
   lua_newtable(state);

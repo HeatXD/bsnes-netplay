@@ -264,6 +264,11 @@ int runLuaTest(App& app, const std::string& script) {
   pass = pass && app.scripting.runFrame() && app.scripting.runFrame();
   pass = pass && app.scripting.globalInteger("frames") == 2;
   SDL_Log("Lua frame callback: %s", pass ? "ok" : "FAILED");
+  if(app.scripting.globalInteger("domains_verified") > 0) {
+    const bool domains = app.scripting.globalInteger("domains_verified") == 5;
+    SDL_Log("Lua WRAM/VRAM/CGRAM/OAM/APU RAM domains: %s", domains ? "ok" : "FAILED");
+    pass = pass && domains;
+  }
   if(app.scripting.globalInteger("expected_input") > 0) {
     const bool input = app.scripting.globalInteger("b_held") == 1
                     && app.scripting.globalInteger("right_value") == 1
@@ -290,6 +295,20 @@ int runLuaTest(App& app, const std::string& script) {
                      && app.scripting.globalInteger("frames") == 1;
   SDL_Log("Lua reload: %s", reloaded ? "ok" : "FAILED");
   pass = pass && reloaded;
+
+  if(app.scripting.globalInteger("domains_verified") > 0) {
+    const bool originalFastPpu = app.settings.hackPpuFast;
+    app.scripting.stop();
+    app.core.setOption("Hacks/PPU/Fast", originalFastPpu ? "false" : "true");
+    app.core.power();
+    const bool alternatePpu = app.scripting.load(script)
+                           && app.scripting.globalInteger("domains_verified") == 5;
+    SDL_Log("Lua memory domains with alternate PPU: %s", alternatePpu ? "ok" : "FAILED");
+    pass = pass && alternatePpu;
+    app.scripting.stop();
+    app.core.setOption("Hacks/PPU/Fast", originalFastPpu ? "true" : "false");
+    app.core.power();
+  }
 
   app.scripting.stop();
   const bool stopped = !app.scripting.running() && !app.scripting.runFrame();

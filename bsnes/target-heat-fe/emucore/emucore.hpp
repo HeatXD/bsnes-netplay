@@ -143,6 +143,10 @@ public:
   void setInput(int port, int index, int16_t value);
   int16_t inputValue(int port, int index) const;
 
+  enum class MemoryDomain { Bus, WRAM, VRAM, CGRAM, OAM, APURAM };
+  uint32_t memorySize(MemoryDomain domain) const;
+  uint8_t readMemory(MemoryDomain domain, uint32_t address) const;
+  void writeMemory(MemoryDomain domain, uint32_t address, uint8_t value);
   uint8_t readBus(uint32_t address) const;
   void writeBus(uint32_t address, uint8_t value);
 
