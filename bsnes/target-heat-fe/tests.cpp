@@ -264,6 +264,14 @@ int runLuaTest(App& app, const std::string& script) {
   pass = pass && app.scripting.runFrame() && app.scripting.runFrame();
   pass = pass && app.scripting.globalInteger("frames") == 2;
   SDL_Log("Lua frame callback: %s", pass ? "ok" : "FAILED");
+  if(app.scripting.globalInteger("expected_input") > 0) {
+    const bool input = app.scripting.globalInteger("b_held") == 1
+                    && app.scripting.globalInteger("right_value") == 1
+                    && app.scripting.globalInteger("right_index") == 1
+                    && app.scripting.globalInteger("a_held") == 0;
+    SDL_Log("Lua input inspection: %s", input ? "ok" : "FAILED");
+    pass = pass && input;
+  }
   if(app.scripting.globalInteger("expected_commands") > 0) {
     const bool drawing = app.scripting.commandCount()
                       == app.scripting.globalInteger("expected_commands");
