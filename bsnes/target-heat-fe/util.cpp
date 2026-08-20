@@ -1,6 +1,14 @@
 #include "util.hpp"
 
 namespace {
+// SDL owns what it loads, so both readers copy out of one buffer and free it
+struct Loaded {
+  void* data = nullptr;
+  size_t size = 0;
+  explicit Loaded(const std::string& path) { data = SDL_LoadFile(path.c_str(), &size); }
+  ~Loaded() { if(data) SDL_free(data); }
+};
+
 const char* const RomExts[] = {"sfc", "smc", "fig", "swc", "bs", "st", "gb", "gbc",
                                "zip", "7z"};
 }
@@ -107,8 +115,8 @@ bool portableMode() {
 std::string prefFile(const char* name) { return configDir() + name; }
 
 std::string readText(const std::string& path) {
-  const std::vector<uint8_t> bytes = readBytes(path);
-  return std::string(bytes.begin(), bytes.end());
+  const Loaded file(path);
+  return file.data ? std::string((const char*)file.data, file.size) : std::string();
 }
 
 bool writeText(const std::string& path, const std::string& text) {
@@ -116,12 +124,10 @@ bool writeText(const std::string& path, const std::string& text) {
 }
 
 std::vector<uint8_t> readBytes(const std::string& path) {
-  size_t size = 0;
-  void* data = SDL_LoadFile(path.c_str(), &size);
-  if(!data) return {};
-  std::vector<uint8_t> bytes((const uint8_t*)data, (const uint8_t*)data + size);
-  SDL_free(data);
-  return bytes;
+  const Loaded file(path);
+  if(!file.data) return {};
+  const uint8_t* bytes = (const uint8_t*)file.data;
+  return std::vector<uint8_t>(bytes, bytes + file.size);
 }
 
 bool writeBytes(const std::string& path, const void* data, size_t size) {

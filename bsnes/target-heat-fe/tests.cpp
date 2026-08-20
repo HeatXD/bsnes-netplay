@@ -13,6 +13,21 @@ uint64_t frameHash(const App& app) {
   for(int i = 0; i < pixels; i++) hash = fnv(hash, app.shell.lastPixels[i]);
   return hash;
 }
+// a scratch state folder for as long as it is alive, so a self test never
+// writes into the states the user owns, whatever path it returns by
+struct ScratchStates {
+  App& app;
+  const std::string previous;
+
+  explicit ScratchStates(App& app) : app(app), previous(app.settings.statesDir) {
+    app.settings.statesDir = configDir() + "States-selftest";
+  }
+  ~ScratchStates() {
+    app.removeAllStates();
+    SDL_RemovePath(app.statesDir().c_str());
+    app.settings.statesDir = previous;
+  }
+};
 }  // namespace
 
 // save, diverge, restore: the same frames must come back, blob and file alike
@@ -38,10 +53,8 @@ int runStateTest(App& app, int warmFrames, int frames) {
   SDL_Log("blob restore %s: %d frames replay to %016llx",
           blob ? "ok" : "FAILED", settle, (unsigned long long)ahead);
 
-  // and again through the file layer, header, folders and all, in a scratch
-  // folder so the round trip never touches the states the user owns
-  const std::string userStates = app.settings.statesDir;
-  app.settings.statesDir = configDir() + "States-selftest";
+  // and again through the file layer, header, folders and all
+  const ScratchStates scratch(app);
   const bool wrote = app.saveState("statetest", true);
   const uint64_t further = replay(settle);
   const bool read = app.loadState("statetest");
@@ -59,10 +72,8 @@ int runStateTest(App& app, int warmFrames, int frames) {
   const bool reversible = undone && redone && replay(settle) == loop;
   SDL_Log("undo and redo %s, held in memory (%d and %d bytes)",
           reversible ? "ok" : "FAILED", (int)app.undoState.size(), (int)app.redoState.size());
+  // the guard clears the slots it knows about; this one is the test's own
   app.removeState("statetest");
-  SDL_RemovePath(app.stateFolder().c_str());
-  SDL_RemovePath(app.statesDir().c_str());
-  app.settings.statesDir = userStates;
 
   // a state from another game must be refused rather than half-applied
   std::vector<uint8_t> damaged = state;

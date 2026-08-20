@@ -169,6 +169,9 @@ void App::unloadRom() {
   if(settings.autoStateOnUnload) saveState("auto", true);
   core.unload();
   gameTitle.clear();
+  // the memory slots belong to the machine that just went away
+  undoState.clear(); undoState.shrink_to_fit();
+  redoState.clear(); redoState.shrink_to_fit();
   shell.clearFrame();
   showGames = false;
   SDL_SetWindowTitle(shell.window, AppName);

@@ -9,9 +9,12 @@ namespace {
 constexpr uint8_t Magic[4] = {'H', 'F', 'S', '1'};
 constexpr size_t HeaderSize = 8;  // magic, then the payload length
 
-// the slots that are not numbered; anything walking every state walks these too
-constexpr struct { const char* name; const char* label; } SpecialSlots[] = {
-  {"undo", "undo state"}, {"redo", "redo state"}, {"auto", "auto-resume state"},
+// the slots that are not numbered, and where each lives; null means a file
+constexpr struct { const char* name; const char* label; std::vector<uint8_t> App::* held; }
+SpecialSlots[] = {
+  {"undo", "undo state",         &App::undoState},
+  {"redo", "redo state",         &App::redoState},
+  {"auto", "auto-resume state",  nullptr},
 };
 
 void writeLE32(uint8_t* out, uint32_t value) {
@@ -35,6 +38,7 @@ std::string App::stateFolder() const {
   return statesDir() + "/" + gameTitle;
 }
 
+// a memory slot has a path too, but only so the legacy file can be cleaned up
 std::string App::statePath(const std::string& name) const {
   return stateFolder() + "/" + name + ".bst";
 }
@@ -49,8 +53,9 @@ std::string App::stateLabel(const std::string& name) {
 }
 
 std::vector<uint8_t>* App::memorySlot(const std::string& name) {
-  if(name == "undo") return &undoState;
-  if(name == "redo") return &redoState;
+  for(const auto& special : SpecialSlots) {
+    if(name == special.name && special.held) return &(this->*special.held);
+  }
   return nullptr;
 }
 
@@ -102,39 +107,33 @@ bool App::saveState(const std::string& name, bool quiet) {
 bool App::loadState(const std::string& name) {
   if(!core.loaded()) return false;
 
-  // copied out first: taking the undo snapshot below overwrites the buffers
-  if(const std::vector<uint8_t>* held = memorySlot(name)) {
-    if(held->empty()) {
-      showMessage(stateLabel(name) + " is empty");
-      return false;
+  std::vector<uint8_t> file;  // only a disk slot fills this
+  const std::vector<uint8_t>* payload = memorySlot(name);
+
+  if(!payload) {
+    file = readBytes(statePath(name));
+    if(!file.empty()) {
+      if(file.size() <= HeaderSize || std::memcmp(file.data(), Magic, sizeof(Magic)) != 0
+      || readLE32(file.data() + 4) != file.size() - HeaderSize) {
+        showMessage(stateLabel(name) + " is not a state this build can read");
+        return false;
+      }
+      // the header is dropped in place rather than copied out
+      file.erase(file.begin(), file.begin() + HeaderSize);
     }
-    const std::vector<uint8_t> payload = *held;
-    saveState(name == "undo" ? "redo" : "undo", true);
-    if(!core.unserialize(payload)) {
-      showMessage(stateLabel(name) + " does not match this game");
-      return false;
-    }
-    paused = false;
-    showMessage("loaded " + stateLabel(name));
-    return true;
+    payload = &file;
   }
 
-  const std::vector<uint8_t> file = readBytes(statePath(name));
-  if(file.empty()) {
+  if(payload->empty()) {
     showMessage(stateLabel(name) + " is empty");
     return false;
   }
-  if(file.size() <= HeaderSize || std::memcmp(file.data(), Magic, sizeof(Magic)) != 0
-  || readLE32(file.data() + 4) != file.size() - HeaderSize) {
-    showMessage(stateLabel(name) + " is not a state this build can read");
-    return false;
-  }
 
-  // undo goes back to what is being replaced
-  saveState("undo", true);
+  // undo holds what is being replaced, redo what undoing replaced; either way
+  // the snapshot targets the other buffer, so it never disturbs payload
+  saveState(name == "undo" ? "redo" : "undo", true);
 
-  const std::vector<uint8_t> payload(file.begin() + HeaderSize, file.end());
-  if(!core.unserialize(payload)) {
+  if(!core.unserialize(*payload)) {
     showMessage(stateLabel(name) + " does not match this game");
     return false;
   }
@@ -157,11 +156,11 @@ bool App::removeState(const std::string& name) {
 
 void App::removeAllStates() {
   for(int slot = 1; slot <= StateSlots; slot++) removeState(slotName(slot));
-  for(const auto& special : SpecialSlots) {
-    removeState(special.name);
-    // a build before undo and redo moved into memory left files behind
-    SDL_RemovePath(statePath(special.name).c_str());
-  }
+  undoState.clear();
+  redoState.clear();
+  // the folder is removed by name, so every file any build ever wrote must be
+  // listed here -- including the undo.bst and redo.bst of older ones
+  for(const auto& special : SpecialSlots) SDL_RemovePath(statePath(special.name).c_str());
   // the folder goes too when nothing is left in it
   SDL_RemovePath(stateFolder().c_str());
   showMessage("removed every state for " + gameTitle);

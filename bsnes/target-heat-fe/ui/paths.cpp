@@ -18,7 +18,7 @@ const FolderRow FolderRows[] = {
   {"Patches folder", "(beside the ROM)",
    "A .bps or .ips named after the game is applied as it loads.",
    &Settings::patchesDir, nullptr, &App::patchesDirPick, &App::pushPatchesDir},
-  {"States folder", nullptr, "Nine quick slots, undo, redo and auto-resume, per game.",
+  {"States folder", nullptr, "Nine quick slots and the auto-resume state, per game.",
    &Settings::statesDir, &App::statesDir, &App::statesDirPick, nullptr},
   {"Games database folder", nullptr,
    "A game found here is verified and uses its board layout.",
@@ -67,9 +67,10 @@ void App::drawPathsTab() {
     ImGui::Separator();
     ImGui::TextDisabled("%s", row.label);
     std::string& dir = settings.*row.path;
-    const std::string resolved = row.resolved ? (this->*row.resolved)() : std::string();
-    ImGui::TextWrapped("%s", !dir.empty() ? dir.c_str()
-                           : row.resolved ? resolved.c_str() : row.unset);
+    const std::string shown = !dir.empty() ? dir
+                            : row.resolved ? (this->*row.resolved)()
+                            : row.unset ? row.unset : "";
+    ImGui::TextWrapped("%s", shown.c_str());
     if(row.help) ImGui::TextWrapped("%s", row.help);
 
     ImGui::PushID(row.label);

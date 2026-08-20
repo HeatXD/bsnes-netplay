@@ -71,6 +71,8 @@ struct App {
   int capturingHotkey = -1;  // hotkey index * HotkeySlots + slot
   int gameSelected = 0;
   int stateSlot = 1;  // 1..StateSlots; a session choice, not a setting
+  // undo and redo never outlive the session, so they are held rather than written
+  std::vector<uint8_t> undoState, redoState;
   bool confirmRemoveStates = false;
   // not persisted: every game starts at normal speed
   int speedIndex = SpeedNormal;
@@ -185,11 +187,9 @@ struct App {
   int64_t stateTime(const std::string& name) const;
   bool hasState(const std::string& name) const;
   bool saveState(const std::string& name, bool quiet = false);
-  // undo and redo never outlive the session, so they are kept in memory rather
-  // than written out; every other slot is a file
+  // null unless the slot is one of the memory-resident ones
   std::vector<uint8_t>* memorySlot(const std::string& name);
   const std::vector<uint8_t>* memorySlot(const std::string& name) const;
-  std::vector<uint8_t> undoState, redoState;
   bool loadState(const std::string& name);
   bool removeState(const std::string& name);
   void removeAllStates();
