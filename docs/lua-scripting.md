@@ -23,10 +23,20 @@ memory.read_u16_le(address)  memory.read_u16_be(address)
 memory.read_u24_le(address)  memory.read_u24_be(address)
 memory.read_u32_le(address)  memory.read_u32_be(address)
 
+memory.read_s8(address)
+memory.read_s16_le(address)  memory.read_s16_be(address)
+memory.read_s24_le(address)  memory.read_s24_be(address)
+memory.read_s32_le(address)  memory.read_s32_be(address)
+
 memory.write_u8(address, value)
 memory.write_u16_le(address, value)  memory.write_u16_be(address, value)
 memory.write_u24_le(address, value)  memory.write_u24_be(address, value)
 memory.write_u32_le(address, value)  memory.write_u32_be(address, value)
+
+memory.write_s8(address, value)
+memory.write_s16_le(address, value)  memory.write_s16_be(address, value)
+memory.write_s24_le(address, value)  memory.write_s24_be(address, value)
+memory.write_s32_le(address, value)  memory.write_s32_be(address, value)
 
 memory.read_bit(address, bit)
 memory.write_bit(address, bit, enabled)

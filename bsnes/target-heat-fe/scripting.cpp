@@ -154,6 +154,10 @@ int LuaEngine::readMemory(lua_State* state) {
     const int shift = little ? i * 8 : (bytes - i - 1) * 8;
     value |= (lua_Unsigned)engine.app.core.readMemory(domain, address + i) << shift;
   }
+  const bool signedValue = lua_toboolean(state, lua_upvalueindex(4));
+  if(signedValue && bytes < (int)sizeof(lua_Integer) && (value & ((lua_Unsigned)1 << (bytes * 8 - 1)))) {
+    value |= ~(((lua_Unsigned)1 << (bytes * 8)) - 1);
+  }
   lua_pushinteger(state, (lua_Integer)value);
   return 1;
 }
@@ -609,15 +613,23 @@ int LuaEngine::fileDirectory(lua_State* state) {
 void LuaEngine::registerApi() {
   lua_pushlightuserdata(state, this);
   lua_setfield(state, LUA_REGISTRYINDEX, "heat-fe.lua");
-  const struct { const char* name; int bytes; bool little; bool write; } functions[] = {
-    {"read_u8", 1, true, false},
-    {"read_u16_le", 2, true, false}, {"read_u16_be", 2, false, false},
-    {"read_u24_le", 3, true, false}, {"read_u24_be", 3, false, false},
-    {"read_u32_le", 4, true, false}, {"read_u32_be", 4, false, false},
-    {"write_u8", 1, true, true},
-    {"write_u16_le", 2, true, true}, {"write_u16_be", 2, false, true},
-    {"write_u24_le", 3, true, true}, {"write_u24_be", 3, false, true},
-    {"write_u32_le", 4, true, true}, {"write_u32_be", 4, false, true},
+  const struct { const char* name; int bytes; bool little; bool write; bool signedValue; } functions[] = {
+    {"read_u8", 1, true, false, false},
+    {"read_u16_le", 2, true, false, false}, {"read_u16_be", 2, false, false, false},
+    {"read_u24_le", 3, true, false, false}, {"read_u24_be", 3, false, false, false},
+    {"read_u32_le", 4, true, false, false}, {"read_u32_be", 4, false, false, false},
+    {"read_s8", 1, true, false, true},
+    {"read_s16_le", 2, true, false, true}, {"read_s16_be", 2, false, false, true},
+    {"read_s24_le", 3, true, false, true}, {"read_s24_be", 3, false, false, true},
+    {"read_s32_le", 4, true, false, true}, {"read_s32_be", 4, false, false, true},
+    {"write_u8", 1, true, true, false},
+    {"write_u16_le", 2, true, true, false}, {"write_u16_be", 2, false, true, false},
+    {"write_u24_le", 3, true, true, false}, {"write_u24_be", 3, false, true, false},
+    {"write_u32_le", 4, true, true, false}, {"write_u32_be", 4, false, true, false},
+    {"write_s8", 1, true, true, true},
+    {"write_s16_le", 2, true, true, true}, {"write_s16_be", 2, false, true, true},
+    {"write_s24_le", 3, true, true, true}, {"write_s24_be", 3, false, true, true},
+    {"write_s32_le", 4, true, true, true}, {"write_s32_be", 4, false, true, true},
   };
 
   auto addMemoryDomain = [&](EmuCore::MemoryDomain domain) {
@@ -625,7 +637,8 @@ void LuaEngine::registerApi() {
       lua_pushinteger(state, function.bytes);
       lua_pushboolean(state, function.little);
       lua_pushinteger(state, (lua_Integer)domain);
-      lua_pushcclosure(state, function.write ? writeMemory : readMemory, 3);
+      lua_pushboolean(state, function.signedValue);
+      lua_pushcclosure(state, function.write ? writeMemory : readMemory, 4);
       lua_setfield(state, -2, function.name);
     }
     lua_pushinteger(state, (lua_Integer)domain);

@@ -115,10 +115,20 @@ read_u16_le(address)       read_u16_be(address)
 read_u24_le(address)       read_u24_be(address)
 read_u32_le(address)       read_u32_be(address)
 
+read_s8(address)
+read_s16_le(address)       read_s16_be(address)
+read_s24_le(address)       read_s24_be(address)
+read_s32_le(address)       read_s32_be(address)
+
 write_u8(address, value)
 write_u16_le(address, value)  write_u16_be(address, value)
 write_u24_le(address, value)  write_u24_be(address, value)
 write_u32_le(address, value)  write_u32_be(address, value)
+
+write_s8(address, value)
+write_s16_le(address, value)  write_s16_be(address, value)
+write_s24_le(address, value)  write_s24_be(address, value)
+write_s32_le(address, value)  write_s32_be(address, value)
 
 read_bit(address, bit)                 -- bit is 0 through 7; returns boolean
 write_bit(address, bit, boolean)
