@@ -182,6 +182,8 @@ struct App {
   const char* startDirFor(EmuCore::Medium medium);
   void openSufamiPairDialog();
   void takeScreenshot();
+  std::string pendingScreenshot;
+  void finishScreenshot(bool saved);
   void saveMemoryTick();
 
   //states.cpp

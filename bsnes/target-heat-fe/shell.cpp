@@ -330,6 +330,34 @@ bool Shell::saveFrame(const std::string& path) const {
   return saveBmp(lastPixels, frameWidth, frameHeight, path, false);
 }
 
+// Reads the displayed game rectangle after the background draw list has been
+// rendered by itself. This keeps Lua drawings while excluding frontend chrome.
+bool Shell::saveGameView(const std::string& path) const {
+  if(drawWidth <= 0 || drawHeight <= 0) return false;
+
+  int windowW = 0, windowH = 0, pixelW = 0, pixelH = 0;
+  SDL_GetWindowSize(window, &windowW, &windowH);
+  SDL_GetWindowSizeInPixels(window, &pixelW, &pixelH);
+  if(windowW <= 0 || windowH <= 0 || pixelW <= 0 || pixelH <= 0) return false;
+
+  const ImVec2 viewportPos = ImGui::GetMainViewport()->Pos;
+  const float sx = (float)pixelW / windowW;
+  const float sy = (float)pixelH / windowH;
+  const float localX = drawX - viewportPos.x;
+  const float localY = drawY - viewportPos.y;
+  const int left = SDL_clamp((int)SDL_floorf(localX * sx), 0, pixelW);
+  const int top = SDL_clamp((int)SDL_floorf(localY * sy), 0, pixelH);
+  const int right = SDL_clamp((int)SDL_ceilf((localX + drawWidth) * sx), 0, pixelW);
+  const int bottom = SDL_clamp((int)SDL_ceilf((localY + drawHeight) * sy), 0, pixelH);
+  const int w = right - left, h = bottom - top;
+  if(w <= 0 || h <= 0) return false;
+
+  std::vector<uint32_t> pixels((size_t)w * h);
+  glPixelStorei(GL_PACK_ALIGNMENT, 4);
+  glReadPixels(left, pixelH - bottom, w, h, GL_BGRA, GL_UNSIGNED_BYTE, pixels.data());
+  return saveBmp(pixels.data(), w, h, path, true);
+}
+
 // GL's origin is bottom-left, so the rows come back upside down
 bool Shell::saveWindow(const std::string& path) const {
   int w = 0, h = 0;

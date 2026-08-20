@@ -13,6 +13,7 @@ void App::restoreVideoDefaults() {
   settings.videoSaturation = defaults.videoSaturation;
   settings.videoFilter = defaults.videoFilter;
   settings.videoDimming = defaults.videoDimming;
+  settings.screenshotLua = defaults.screenshotLua;
   settings.displayName = defaults.displayName;
   core.setOverscanCrop(settings.overscanCrop);
   core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
@@ -76,6 +77,8 @@ void App::drawVideoTab() {
   ImGui::Separator();
   dirty |= ImGui::Checkbox("Dim video when idle", &settings.videoDimming);
   tip("Halves the brightness while emulation is paused or stopped.");
+  dirty |= ImGui::Checkbox("Include Lua drawings in screenshots", &settings.screenshotLua);
+  tip("Captures the displayed game and Lua overlay without menus or tool windows.");
 
   ImGui::Separator();
   ImGui::TextDisabled("Color Adjustment");

@@ -372,5 +372,15 @@ void App::takeScreenshot() {
   char stamp[32];
   SDL_snprintf(stamp, sizeof(stamp), "shot-%" SDL_PRIu64 ".bmp", SDL_GetTicks());
   const std::string name = dir + stamp;
+  if(settings.screenshotLua) {
+    pendingScreenshot = name;
+    return;
+  }
   showMessage(shell.saveFrame(name) ? "saved " + name : "screenshot failed");
+}
+
+void App::finishScreenshot(bool saved) {
+  const std::string name = pendingScreenshot;
+  pendingScreenshot.clear();
+  showMessage(saved ? "saved " + name : "screenshot failed");
 }

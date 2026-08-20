@@ -87,6 +87,7 @@ struct Shell {
   // largest whole multiple whose window still fits the display, chrome included
   int maxScale(const Settings& settings) const;
   bool saveFrame(const std::string& path) const;
+  bool saveGameView(const std::string& path) const;
   bool saveWindow(const std::string& path) const;
 
 private:

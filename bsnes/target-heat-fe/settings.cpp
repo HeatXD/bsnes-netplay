@@ -114,6 +114,7 @@ const BoolField BoolFields[] = {
   {"ffmute",         &Settings::fastForwardMute},
   {"tooltips",       &Settings::showToolTips},
   {"dimming",        &Settings::videoDimming},
+  {"screenshotlua",  &Settings::screenshotLua},
   {"warnunverified", &Settings::warnUnverified},
   {"autosavememory", &Settings::autoSaveMemory},
   {"ipsheadered",    &Settings::ipsHeadered},

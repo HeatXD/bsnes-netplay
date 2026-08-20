@@ -50,6 +50,9 @@ Drawing coordinates are SNES game coordinates. `(0, 0)` is the top-left of the
 game image, normally sized 256x224 or 256x240. The frontend scales the overlay
 with the game and clips it to the game image.
 
+Enable **Include Lua drawings in screenshots** in Video settings to save the
+displayed game and overlay together. Frontend menus and tool windows are omitted.
+
 Colors are integers in `0xAARRGGBB` form: alpha, red, green, then blue. An alpha
 of `0x00` is transparent and `0xff` is opaque.
 

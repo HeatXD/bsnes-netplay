@@ -169,7 +169,25 @@ void Frontend::renderUi() {
   glViewport(0, 0, w, h);
   glClearColor(0.f, 0.f, 0.f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
-  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  ImDrawData* drawData = ImGui::GetDrawData();
+
+  if(!app.pendingScreenshot.empty()) {
+    // The background list contains the game texture and Lua overlay. Render it
+    // alone for a clean capture, then redraw the complete UI for presentation.
+    ImDrawList* background = ImGui::GetBackgroundDrawList(ImGui::GetMainViewport());
+    ImDrawData capture;
+    capture.Valid = true;
+    capture.DisplayPos = drawData->DisplayPos;
+    capture.DisplaySize = drawData->DisplaySize;
+    capture.FramebufferScale = drawData->FramebufferScale;
+    capture.OwnerViewport = drawData->OwnerViewport;
+    capture.AddDrawList(background);
+    ImGui_ImplOpenGL3_RenderDrawData(&capture);
+    app.finishScreenshot(app.shell.saveGameView(app.pendingScreenshot));
+    glClear(GL_COLOR_BUFFER_BIT);
+  }
+
+  ImGui_ImplOpenGL3_RenderDrawData(drawData);
 }
 
 void Frontend::advance() {

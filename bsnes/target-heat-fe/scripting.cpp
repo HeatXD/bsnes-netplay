@@ -796,7 +796,10 @@ void LuaEngine::drawOverlay() {
   const ImVec2 origin(app.shell.drawX, app.shell.drawY);
   auto point = [&](float x, float y) { return ImVec2(origin.x + x * sx, origin.y + y * sy); };
 
-  ImDrawList* draw = ImGui::GetBackgroundDrawList();
+  // The game is always drawn on the main viewport. Keep the overlay on that
+  // same draw list even if ImGui's current window belongs to another viewport,
+  // so clean screenshots can capture the game and overlay together.
+  ImDrawList* draw = ImGui::GetBackgroundDrawList(ImGui::GetMainViewport());
   draw->PushClipRect(origin, ImVec2(origin.x + app.shell.drawWidth,
                                     origin.y + app.shell.drawHeight), true);
   for(const DrawCommand& command : commands) {
