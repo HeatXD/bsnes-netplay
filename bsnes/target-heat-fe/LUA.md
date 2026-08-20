@@ -9,8 +9,8 @@ shown in the Lua Scripting window. Reloading creates a fresh Lua state.
 
 ## Frame callback
 
-A script may do setup work when it is loaded and define `on_frame()` for work
-that repeats:
+A script may do setup work when it is loaded and define callbacks for work that
+repeats:
 
 ```lua
 local frames = 0
@@ -21,6 +21,8 @@ function on_frame()
 end
 ```
 
+`on_before_frame()` runs after physical controllers are sampled but immediately
+before the emulator runs. Use it to decide the inputs for the upcoming frame.
 `on_frame()` runs after an emulated frame and before the frontend draws its UI.
 Drawing commands are cleared before every call, so an overlay must draw all of
 its current shapes each frame.
@@ -120,25 +122,46 @@ take effect immediately. An out-of-range access stops the script with an error.
 
 ## Input
 
-Scripts can inspect the values supplied to an emulated controller during the
-current frame:
+Scripts can inspect or override the values supplied to an emulated controller:
 
 ```lua
 input.value(port, name_or_index)
 input.held(port, name_or_index)
+input.set(port, name_or_index, value)
+input.clear(port, name_or_index)
+input.clear_all()
 ```
 
 Ports are numbered 1 through 3. Input names are case-insensitive and depend on
 the connected device. Numeric indices are zero-based. `value()` returns the raw
 integer input value; `held()` returns a boolean.
 
+`set()` accepts a boolean or a signed 16-bit integer. The override remains in
+effect every frame until `clear()` or `clear_all()` removes it. Controls without
+an override continue to use their physical controller values. Stopping,
+reloading, or encountering a script error removes every override automatically.
+
+Use `on_before_frame()` when an input must be chosen for an exact frame:
+
 ```lua
-if input.held(1, "B") then
-  gui.circle(220, 190, 5, {fill = 0xff00ff00, outline = 0xffffffff})
+local frame = 0
+
+function on_before_frame()
+  frame = frame + 1
+  input.set(1, "Right", frame <= 30)
+  input.set(1, "B", frame == 10)
+end
+
+function on_frame()
+  if input.held(1, "B") then
+    gui.circle(220, 190, 5, {fill = 0xff00ff00, outline = 0xffffffff})
+  end
 end
 ```
 
-This API observes input; it does not replace or inject controller input.
+An override may also be established during script setup or `on_frame()`; it is
+then applied to the next emulated frame. Numeric input indices are useful for
+devices with axes, while names are clearer for standard controllers.
 
 ## Files
 
@@ -195,4 +218,4 @@ For safety, `debug`, `io`, `os`, `package`, `require`, `dofile`, and `loadfile`
 are unavailable. Scripts cannot load native libraries or execute programs.
 
 Current limitations: one script at a time, one frontend font for all overlay
-text, no image drawing, no input injection, and no built-in binary formatter.
+text, no image drawing, and no built-in binary formatter.

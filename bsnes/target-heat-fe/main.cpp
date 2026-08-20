@@ -177,6 +177,7 @@ void Frontend::advance() {
     app.input.apply(app.core, app.pads, app.settings, app.sample, app.emulatedFrames);
   }
 
+  app.scripting.runBeforeFrame();
   app.core.runFrame();
   app.emulatedFrames++;
   app.scripting.runFrame();
@@ -430,6 +431,12 @@ int Frontend::runUiShot() {
 
   // warm the emulator so the shot shows the UI over a real frame
   for(int i = 0; app.core.loaded() && i < opt.warmFrames; i++) {
+    for(int port = 0; port < EmuCore::PortCount; port++) {
+      for(int input = 0; input < EmuCore::MaxInputs; input++) {
+        app.core.setInput(port, input, 0);
+      }
+    }
+    app.scripting.runBeforeFrame();
     app.core.runFrame();
     app.scripting.runFrame();
   }

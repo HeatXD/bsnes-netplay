@@ -2,16 +2,38 @@
 
 #include "app.hpp"
 
+#include <algorithm>
+
 extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
 }
 
-LuaEngine::LuaEngine(App& app) : app(app) {}
+LuaEngine::LuaEngine(App& app) : app(app) {
+  const int inputs = EmuCore::PortCount * EmuCore::MaxInputs;
+  inputOverrides.resize(inputs);
+  physicalInput.resize(inputs);
+  inputOverrideSet.resize(inputs);
+}
 LuaEngine::~LuaEngine() { close(); }
 
+void LuaEngine::clearInputOverrides() {
+  if(havePhysicalInput) {
+    for(int port = 0; port < EmuCore::PortCount; port++) {
+      for(int input = 0; input < EmuCore::MaxInputs; input++) {
+        const int slot = port * EmuCore::MaxInputs + input;
+        if(inputOverrideSet[slot]) app.core.setInput(port, input, physicalInput[slot]);
+      }
+    }
+  }
+  std::fill(inputOverrideSet.begin(), inputOverrideSet.end(), 0);
+  havePhysicalInput = false;
+  inBeforeFrame = false;
+}
+
 void LuaEngine::close() {
+  clearInputOverrides();
   if(state) lua_close(state);
   state = nullptr;
   active = false;
@@ -22,6 +44,7 @@ bool LuaEngine::failFromStack(const char* prefix) {
   const char* detail = state ? lua_tostring(state, -1) : nullptr;
   lastError = std::string(prefix) + (detail ? detail : "unknown error");
   if(state) lua_pop(state, 1);
+  clearInputOverrides();
   active = false;
   commands.clear();
   app.showMessage(lastError);
@@ -289,6 +312,47 @@ int LuaEngine::inputHeld(lua_State* state) {
   return 1;
 }
 
+int LuaEngine::inputSet(lua_State* state) {
+  LuaEngine& engine = from(state);
+  const int port = (int)luaL_checkinteger(state, 1) - 1;
+  luaL_argcheck(state, port >= 0 && port < EmuCore::PortCount, 1, "port must be from 1 to 3");
+  const int input = inputIndex(state, engine.app, port);
+  lua_Integer value = lua_isboolean(state, 3) ? lua_toboolean(state, 3)
+                                               : luaL_checkinteger(state, 3);
+  luaL_argcheck(state, value >= -32768 && value <= 32767, 3,
+                "input value must fit in a signed 16-bit integer");
+  const int slot = port * EmuCore::MaxInputs + input;
+  engine.inputOverrides[slot] = (int16_t)value;
+  engine.inputOverrideSet[slot] = 1;
+  if(engine.inBeforeFrame) engine.app.core.setInput(port, input, (int16_t)value);
+  return 0;
+}
+
+int LuaEngine::inputClear(lua_State* state) {
+  LuaEngine& engine = from(state);
+  const int port = (int)luaL_checkinteger(state, 1) - 1;
+  luaL_argcheck(state, port >= 0 && port < EmuCore::PortCount, 1, "port must be from 1 to 3");
+  const int input = inputIndex(state, engine.app, port);
+  const int slot = port * EmuCore::MaxInputs + input;
+  engine.inputOverrideSet[slot] = 0;
+  if(engine.havePhysicalInput) engine.app.core.setInput(port, input, engine.physicalInput[slot]);
+  return 0;
+}
+
+int LuaEngine::inputClearAll(lua_State* state) {
+  LuaEngine& engine = from(state);
+  for(int port = 0; port < EmuCore::PortCount; port++) {
+    for(int input = 0; input < EmuCore::MaxInputs; input++) {
+      const int slot = port * EmuCore::MaxInputs + input;
+      if(engine.inputOverrideSet[slot] && engine.havePhysicalInput) {
+        engine.app.core.setInput(port, input, engine.physicalInput[slot]);
+      }
+      engine.inputOverrideSet[slot] = 0;
+    }
+  }
+  return 0;
+}
+
 std::string LuaEngine::dataDirectory() const {
   return configDir() + "Scripts/" + fileStem(scriptPath);
 }
@@ -398,7 +462,10 @@ void LuaEngine::registerApi() {
   lua_setglobal(state, "gui");
 
   lua_newtable(state);
-  const luaL_Reg input[] = {{"value", inputValue}, {"held", inputHeld}, {nullptr, nullptr}};
+  const luaL_Reg input[] = {
+    {"value", inputValue}, {"held", inputHeld}, {"set", inputSet},
+    {"clear", inputClear}, {"clear_all", inputClearAll}, {nullptr, nullptr},
+  };
   luaL_setfuncs(state, input, 0);
   lua_setglobal(state, "input");
 
@@ -443,6 +510,35 @@ bool LuaEngine::runFrame() {
     return failFromStack("Lua frame: ");
   }
   if(lua_pcall(state, 0, 0, 0) != LUA_OK) return failFromStack("Lua frame: ");
+  return true;
+}
+
+bool LuaEngine::runBeforeFrame() {
+  if(!active || !state) return false;
+
+  for(int port = 0; port < EmuCore::PortCount; port++) {
+    for(int input = 0; input < EmuCore::MaxInputs; input++) {
+      const int slot = port * EmuCore::MaxInputs + input;
+      physicalInput[slot] = app.core.inputValue(port, input);
+      if(inputOverrideSet[slot]) app.core.setInput(port, input, inputOverrides[slot]);
+    }
+  }
+  havePhysicalInput = true;
+  inBeforeFrame = true;
+
+  lua_getglobal(state, "on_before_frame");
+  if(lua_isnil(state, -1)) {
+    lua_pop(state, 1);
+    inBeforeFrame = false;
+    return true;
+  }
+  if(!lua_isfunction(state, -1)) {
+    lua_pop(state, 1);
+    lua_pushliteral(state, "on_before_frame must be a function");
+    return failFromStack("Lua before frame: ");
+  }
+  if(lua_pcall(state, 0, 0, 0) != LUA_OK) return failFromStack("Lua before frame: ");
+  inBeforeFrame = false;
   return true;
 }
 

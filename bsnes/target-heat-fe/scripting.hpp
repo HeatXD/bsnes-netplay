@@ -18,6 +18,7 @@ public:
   bool load(const std::string& path);
   bool reload();
   void stop();
+  bool runBeforeFrame();
   bool runFrame();
   void drawOverlay();
 
@@ -34,6 +35,11 @@ private:
   std::string scriptPath;
   std::string lastError;
   bool active = false;
+  bool inBeforeFrame = false;
+  bool havePhysicalInput = false;
+  std::vector<int16_t> inputOverrides;
+  std::vector<int16_t> physicalInput;
+  std::vector<uint8_t> inputOverrideSet;
 
   struct DrawCommand {
     enum Type { Box, Ellipse, Line, Pixel, Text } type;
@@ -45,6 +51,7 @@ private:
   std::vector<DrawCommand> commands;
 
   void close();
+  void clearInputOverrides();
   bool failFromStack(const char* prefix);
   void registerApi();
 
@@ -61,6 +68,9 @@ private:
   static int drawText(lua_State* state);
   static int inputValue(lua_State* state);
   static int inputHeld(lua_State* state);
+  static int inputSet(lua_State* state);
+  static int inputClear(lua_State* state);
+  static int inputClearAll(lua_State* state);
   static int fileRead(lua_State* state);
   static int fileWrite(lua_State* state);
   static int fileDirectory(lua_State* state);

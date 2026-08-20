@@ -249,19 +249,31 @@ int runHotkeyTest(App& app) {
 }
 
 int runLuaTest(App& app, const std::string& script) {
-  app.core.setInput(0, EmuCore::B, 1);
-  app.core.setInput(0, EmuCore::Right, 1);
+  auto setPhysicalInput = [&] {
+    app.core.setInput(0, EmuCore::A, 0);
+    app.core.setInput(0, EmuCore::B, 1);
+    app.core.setInput(0, EmuCore::Right, 1);
+    app.core.setInput(0, EmuCore::Y, 1);
+  };
+  setPhysicalInput();
   bool pass = app.scripting.load(script);
   pass = pass && app.scripting.running();
   if(pass && app.scripting.globalInteger("expected_frame_error") > 0) {
-    const bool cleared = !app.scripting.runFrame() && !app.scripting.running()
+    setPhysicalInput();
+    const bool cleared = app.scripting.runBeforeFrame() && !app.scripting.runFrame()
+                      && !app.scripting.running()
                       && app.scripting.commandCount() == 0
+                      && app.core.inputValue(0, EmuCore::A) == 0
                       && !app.scripting.error().empty();
-    SDL_Log("Lua error clears drawing commands: %s", cleared ? "ok" : "FAILED");
+    SDL_Log("Lua error clears drawing and input overrides: %s", cleared ? "ok" : "FAILED");
     SDL_Log("Lua lifecycle test: %s", cleared ? "PASS" : "FAIL");
     return cleared ? 0 : 1;
   }
-  pass = pass && app.scripting.runFrame() && app.scripting.runFrame();
+  for(int frame = 0; frame < 2; frame++) {
+    setPhysicalInput();
+    const bool ran = app.scripting.runBeforeFrame() && app.scripting.runFrame();
+    pass = pass && ran;
+  }
   pass = pass && app.scripting.globalInteger("frames") == 2;
   SDL_Log("Lua frame callback: %s", pass ? "ok" : "FAILED");
   if(app.scripting.globalInteger("domains_verified") > 0) {
@@ -277,6 +289,19 @@ int runLuaTest(App& app, const std::string& script) {
     SDL_Log("Lua input inspection: %s", input ? "ok" : "FAILED");
     pass = pass && input;
   }
+  const bool injectionTest = app.scripting.globalInteger("expected_injection") > 0;
+  if(injectionTest) {
+    const bool injected = app.scripting.globalInteger("before_frames") == 2
+                       && app.scripting.globalInteger("first_a") == 1
+                       && app.scripting.globalInteger("first_b") == 0
+                       && app.scripting.globalInteger("first_right") == 0
+                       && app.scripting.globalInteger("first_y") == 1
+                       && app.scripting.globalInteger("second_a") == 0
+                       && app.scripting.globalInteger("second_b") == 1
+                       && app.scripting.globalInteger("second_right") == 1;
+    SDL_Log("Lua input injection and clearing: %s", injected ? "ok" : "FAILED");
+    pass = pass && injected;
+  }
   if(app.scripting.globalInteger("expected_commands") > 0) {
     const bool drawing = app.scripting.commandCount()
                       == app.scripting.globalInteger("expected_commands");
@@ -291,7 +316,9 @@ int runLuaTest(App& app, const std::string& script) {
     pass = pass && files;
   }
 
-  const bool reloaded = app.scripting.reload() && app.scripting.runFrame()
+  const bool loadedAgain = app.scripting.reload();
+  setPhysicalInput();
+  const bool reloaded = loadedAgain && app.scripting.runBeforeFrame() && app.scripting.runFrame()
                      && app.scripting.globalInteger("frames") == 1;
   SDL_Log("Lua reload: %s", reloaded ? "ok" : "FAILED");
   pass = pass && reloaded;
@@ -311,7 +338,12 @@ int runLuaTest(App& app, const std::string& script) {
   }
 
   app.scripting.stop();
-  const bool stopped = !app.scripting.running() && !app.scripting.runFrame();
+  const bool inputRestored = !injectionTest
+                          || (app.core.inputValue(0, EmuCore::A) == 0
+                           && app.core.inputValue(0, EmuCore::B) == 1
+                           && app.core.inputValue(0, EmuCore::Right) == 1);
+  const bool stopped = !app.scripting.running() && !app.scripting.runBeforeFrame()
+                    && !app.scripting.runFrame() && inputRestored;
   SDL_Log("Lua stop: %s", stopped ? "ok" : "FAILED");
   pass = pass && stopped;
 
