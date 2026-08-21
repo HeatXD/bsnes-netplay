@@ -6,11 +6,15 @@ void App::drawScriptingWindow() {
   placeFloating(520.0f, 360.0f);
   if(!ImGui::Begin("Lua Scripting", &showScripting)) { ImGui::End(); return; }
 
+  ImGui::BeginDisabled(movieActive());
   if(ImGui::Button("Open...")) openScriptDialog();
   ImGui::SameLine();
   ImGui::BeginDisabled(scripting.path().empty());
   if(ImGui::Button("Reload")) scripting.reload();
+  ImGui::EndDisabled();
+  ImGui::EndDisabled();
   ImGui::SameLine();
+  ImGui::BeginDisabled(scripting.path().empty());
   if(ImGui::Button("Stop")) scripting.stop();
   ImGui::EndDisabled();
 

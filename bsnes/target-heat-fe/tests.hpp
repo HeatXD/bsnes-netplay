@@ -11,3 +11,4 @@ int runHotkeyTest(App& app);
 int runLuaTest(App& app, const std::string& script);
 int runShaderTest(App& app);
 int runCheatTest(App& app);
+int runMovieTest(App& app, int warmFrames);

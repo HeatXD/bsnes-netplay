@@ -709,3 +709,95 @@ int runShaderTest(App& app) {
   SDL_Log("shader test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
+
+int runMovieTest(App& app, int warmFrames) {
+  const std::string path = configDir() + "movie-selftest.bsv";
+  const std::string beginningPath = configDir() + "movie-beginning-selftest.bsv";
+  const std::vector<EmuCore::StateComponent> map = app.core.stateMap(false);
+  auto guestHash = [&](const std::vector<uint8_t>& state) {
+    uint64_t hash = FnvBasis;
+    for(const auto& part : map) {
+      if(part.hostState) continue;
+      for(int i = part.offset; i < part.offset + part.size && i < (int)state.size(); i++) {
+        hash = fnv(hash, state[i]);
+      }
+    }
+    return hash;
+  };
+  auto setInput = [&](int frame) {
+    for(int button = 0; button < EmuCore::ButtonCount; button++) {
+      app.core.setInput(0, button, ((frame / 8 + button * 3) % 11) == 0);
+    }
+  };
+  app.core.setOption("Hacks/Entropy", "None");
+  app.core.power();
+  for(int frame = 0; frame < warmFrames; frame++) app.core.runFrame();
+
+  app.beginMovieRecording(false);
+  const int frames = 120;
+  for(int frame = 0; frame < frames; frame++) {
+    setInput(frame);
+    app.core.runFrame();
+  }
+  const uint64_t recorded = frameHash(app);
+  const uint64_t recordedState = guestHash(app.core.serialize(false));
+  const size_t inputs = app.movieInput.size();
+  app.movieMode = MovieMode::Inactive;
+  const bool wrote = inputs > 0 && app.writeMovieFile(path);
+  app.clearMovie();
+
+  for(int button = 0; button < EmuCore::ButtonCount; button++) app.core.setInput(0, button, 0);
+  const bool opened = wrote && app.playMovieFile(path);
+  for(int frame = 0; opened && frame < frames; frame++) app.core.runFrame();
+  const bool replayed = opened && frameHash(app) == recorded
+                     && guestHash(app.core.serialize(false)) == recordedState
+                     && app.movieMode == MovieMode::Inactive;
+
+  app.beginMovieRecording(true);
+  const int beginningFrames = 240;
+  for(int frame = 0; frame < beginningFrames; frame++) {
+    setInput(frame);
+    app.core.runFrame();
+  }
+  const uint64_t beginningFrame = frameHash(app);
+  const uint64_t beginningState = guestHash(app.core.serialize(false));
+  const size_t beginningInputs = app.movieInput.size();
+  app.movieMode = MovieMode::Inactive;
+  const bool beginningWrote = beginningInputs > 0 && app.writeMovieFile(beginningPath);
+  const std::vector<uint8_t> beginningFile = readBytes(beginningPath);
+  const bool stateLess = beginningFile.size() >= 8 && beginningFile[4] == 0 && beginningFile[5] == 0
+                      && beginningFile[6] == 0 && beginningFile[7] == 0;
+  app.clearMovie();
+  const bool beginningOpened = beginningWrote && stateLess && app.playMovieFile(beginningPath);
+  for(int frame = 0; beginningOpened && frame < beginningFrames; frame++) app.core.runFrame();
+  const bool beginningReplayed = beginningOpened && frameHash(app) == beginningFrame
+                              && guestHash(app.core.serialize(false)) == beginningState
+                              && app.movieMode == MovieMode::Inactive;
+
+  std::vector<uint8_t> damaged = readBytes(path);
+  if(!damaged.empty()) damaged[0] = 'X';
+  const std::string broken = configDir() + "movie-broken-selftest.bsv";
+  const bool damagedWritten = !damaged.empty() && writeBytes(broken, damaged.data(), damaged.size());
+  app.clearMovie();
+  const bool refused = damagedWritten && !app.playMovieFile(broken);
+  const std::string empty = configDir() + "movie-empty-selftest.bsv";
+  const uint8_t emptyMovie[8] = {'B', 'S', 'V', '1', 0, 0, 0, 0};
+  const uint64_t beforeEmpty = guestHash(app.core.serialize(false));
+  const bool emptyWritten = writeBytes(empty, emptyMovie, sizeof(emptyMovie));
+  const bool emptyRefused = emptyWritten && !app.playMovieFile(empty)
+                         && guestHash(app.core.serialize(false)) == beforeEmpty;
+  SDL_RemovePath(path.c_str());
+  SDL_RemovePath(beginningPath.c_str());
+  SDL_RemovePath(broken.c_str());
+  SDL_RemovePath(empty.c_str());
+  app.clearMovie();
+
+  const bool pass = wrote && replayed && beginningWrote && beginningReplayed && refused && emptyRefused;
+  SDL_Log("movie round trip: %s, %d inputs", replayed ? "ok" : "FAILED", (int)inputs);
+  SDL_Log("movie from reset: %s, %d inputs", beginningReplayed ? "ok" : "FAILED",
+          (int)beginningInputs);
+  SDL_Log("invalid movies refused without mutation: %s",
+          refused && emptyRefused ? "ok" : "FAILED");
+  SDL_Log("movie test: %s", pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}

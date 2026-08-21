@@ -85,7 +85,8 @@ auto EmuCore::Impl::audioFrame(const double* samples, uint channels) -> void {
 auto EmuCore::Impl::inputPoll(uint port, uint device, uint input) -> int16 {
   if(port >= state.size()) return 0;
   if(input >= EmuCore::MaxInputs) return 0;
-  return state[port][input];
+  const int16 value = state[port][input];
+  return owner.onInputPoll ? owner.onInputPoll((int)port, (int)device, (int)input, value) : value;
 }
 
 int16_t EmuCore::inputValue(int port, int index) const {

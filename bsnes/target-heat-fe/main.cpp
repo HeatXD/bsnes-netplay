@@ -12,7 +12,8 @@ constexpr int IdleDelayMs = 32;
 
 // what this invocation is for; the harnesses are mutually exclusive
 enum class Mode {
-  Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest, ShaderTest, CheatTest
+  Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest, ShaderTest, CheatTest,
+  MovieTest
 };
 
 struct Options {
@@ -32,7 +33,7 @@ struct Options {
   // the modes that drive the emulator itself; the hotkey matcher needs no game
   bool needsRom() const {
     return mode == Mode::StateTest || mode == Mode::DeterminismTest || mode == Mode::TimelineTest
-        || mode == Mode::CheatTest
+        || mode == Mode::CheatTest || mode == Mode::MovieTest
         || (mode == Mode::Run && frameLimit);
   }
 };
@@ -50,6 +51,7 @@ Options parseArgs(int argc, char** argv) {
     else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.mode = Mode::HotkeyTest;
     else if(SDL_strcmp(arg, "--shader-test") == 0) opt.mode = Mode::ShaderTest;
     else if(SDL_strcmp(arg, "--cheat-test") == 0) opt.mode = Mode::CheatTest;
+    else if(SDL_strcmp(arg, "--movie-test") == 0) opt.mode = Mode::MovieTest;
     else if(SDL_strcmp(arg, "--lua-test") == 0 && hasValue) {
       opt.luaTest = argv[++i];
       opt.mode = Mode::LuaTest;
@@ -264,9 +266,15 @@ bool Frontend::stepFrame() {
 }
 
 void Frontend::handleWindowEvent(const SDL_Event& event) {
-  if(event.type == SDL_EVENT_QUIT) app.running = false;
+  if(event.type == SDL_EVENT_QUIT) {
+    if(app.movieActive()) app.showMessage("stop the movie before quitting");
+    else app.running = false;
+  }
   if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED
-  && event.window.windowID == SDL_GetWindowID(app.shell.window)) app.running = false;
+  && event.window.windowID == SDL_GetWindowID(app.shell.window)) {
+    if(app.movieActive()) app.showMessage("stop the movie before quitting");
+    else app.running = false;
+  }
   if(event.type == SDL_EVENT_DROP_FILE && event.drop.data) app.loadRom(event.drop.data);
 }
 
@@ -409,8 +417,18 @@ void Frontend::drainPicks() {
     app.fontDirty = true;
   }
   if(takePick(app.scriptPick, picked) && !picked.empty()) {
-    app.scripting.load(picked);
-    app.showScripting = true;
+    if(app.movieActive()) app.showMessage("stop the movie before loading a Lua script");
+    else {
+      app.scripting.load(picked);
+      app.showScripting = true;
+    }
+  }
+  if(takePick(app.movieOpenPick, picked) && !picked.empty()) app.playMovieFile(picked);
+  if(takePick(app.movieSavePick, picked)) {
+    const bool saved = !picked.empty() && app.writeMovieFile(picked);
+    app.clearMovie();
+    app.showMessage(saved ? "movie recorded" : picked.empty() ? "movie not recorded"
+                                                        : "movie could not be recorded");
   }
 
   for(const BiosSlot& slot : BiosSlots) {
@@ -541,6 +559,9 @@ void wireCore(App& app) {
     app.shell.pushAudio(app.settings, samples, frames, app.audioGain(), app.unpaced());
     app.totalSamples += frames;
   };
+  app.core.onInputPoll = [&app](int port, int device, int input, int16_t value) {
+    return app.pollMovieInput(port, device, input, value);
+  };
 }
 
 // --ui-screen decides which panel is already open when the frame loop starts
@@ -610,6 +631,7 @@ int main(int argc, char** argv) {
     case Mode::LuaTest:         code = runLuaTest(app, opt.luaTest); break;
     case Mode::ShaderTest:      code = runShaderTest(app); break;
     case Mode::CheatTest:       code = runCheatTest(app); break;
+    case Mode::MovieTest:       code = runMovieTest(app, opt.warmFrames); break;
     case Mode::Run:             code = frontend.runLoop(); break;
   }
 

@@ -54,10 +54,11 @@ void App::drawFileMenu() {
   }
 
   ImGui::Separator();
-  if(ImGui::MenuItem("Close Game", hotkeyShortcut(HkUnloadGame).c_str(), false, core.loaded())) {
+  if(ImGui::MenuItem("Close Game", hotkeyShortcut(HkUnloadGame).c_str(), false,
+                     core.loaded() && !movieActive())) {
     unloadRom();
   }
-  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit).c_str())) running = false;
+  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit).c_str(), false, !movieActive())) running = false;
 }
 
 // the first mapping, as a menu shortcut label; empty when unbound
@@ -169,6 +170,19 @@ void App::drawEmulationMenu() {
   if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, core.loaded())) powerCycle();
 }
 
+void App::drawMovieMenu() {
+  const bool idle = !movieActive();
+  if(ImGui::MenuItem("Play...", nullptr, false, core.loaded() && idle)) openMovieDialog();
+  if(ImGui::MenuItem("Record from Current State", nullptr, false, core.loaded() && idle)) {
+    beginMovieRecording(false);
+  }
+  if(ImGui::MenuItem("Reset and Record", nullptr, false, core.loaded() && idle)) {
+    beginMovieRecording(true);
+  }
+  ImGui::Separator();
+  if(ImGui::MenuItem("Stop", nullptr, false, movieMode != MovieMode::Inactive)) stopMovie();
+}
+
 void App::drawShaderMenu() {
   if(ImGui::MenuItem("None", nullptr, settings.videoShader.empty())) {
     settings.videoShader.clear();
@@ -217,6 +231,8 @@ void App::drawMenuBar() {
   if(ImGui::BeginMenu("Settings"))  { drawSettingsMenu();  ImGui::EndMenu(); }
 
   if(ImGui::BeginMenu("Tools")) {
+    if(ImGui::BeginMenu("Movie")) { drawMovieMenu(); ImGui::EndMenu(); }
+    ImGui::Separator();
     if(ImGui::MenuItem("State Manager", nullptr, showStateManager, core.loaded())) {
       showStateManager = !showStateManager;
     }
@@ -264,7 +280,9 @@ void App::drawStatusBar() {
       const char* leftText = !status.empty() ? status.c_str()
                            : core.loaded() ? gameTitle.c_str() : "no game";
 
-      const char* state = fastForward ? "  [ff]" : rewinding ? "  [rewind]"
+      const char* state = movieMode == MovieMode::Recording ? "  [movie rec]"
+                        : movieMode == MovieMode::Playing ? "  [movie play]"
+                        : fastForward ? "  [ff]" : rewinding ? "  [rewind]"
                         : paused ? "  [paused]" : "";
       char full[96], compact[64];
       SDL_snprintf(full, sizeof(full), "%dx%d  %.1f fps%s",

@@ -46,6 +46,8 @@ struct CheatCandidate {
   int size = 0;
 };
 
+enum class MovieMode { Inactive, Playing, Recording };
+
 // shared by the Paths tab and the pick draining, so the two cannot drift
 struct BiosSlot {
   const char* label;
@@ -74,7 +76,7 @@ struct App {
   std::string gameLocation;
 
   FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick, pakPick, firmwareDirPick;
-  FilePick scriptPick;
+  FilePick scriptPick, movieOpenPick, movieSavePick;
   FilePick patchesDirPick, databaseDirPick, statesDirPick, cheatsDirPick, shadersDirPick;
   FilePick sgbBiosPick, bsxBiosPick, stBiosPick;
   FilePick sufamiAPick, sufamiBPick;
@@ -138,6 +140,11 @@ struct App {
   long long emulatedFrames = 0;  // turbo's clock; must not depend on wall time
   std::deque<std::vector<uint8_t>> rewindHistory;
   int rewindCounter = 0;
+  MovieMode movieMode = MovieMode::Inactive;
+  std::vector<uint8_t> movieState;
+  std::vector<int16_t> movieInput;
+  size_t moviePosition = 0;
+  bool movieSavePending = false;
 
   void scanGames();
   // a path, or a Sufami Turbo pair joined by '|', as the recent list stores it
@@ -174,8 +181,14 @@ struct App {
     core.setAudioFrequency(AudioRate + settings.audioSkew);
     core.setAudioBalance(SDL_clamp((settings.audioBalance - 50) / 50.0, -1.0, 1.0));
   }
-  void reset() { core.reset(); resetTimeline(); paused = false; }
-  void powerCycle() { core.power(); resetTimeline(); paused = false; }
+  void reset() {
+    if(movieActive()) { showMessage("stop the movie before resetting"); return; }
+    core.reset(); resetTimeline(); paused = false;
+  }
+  void powerCycle() {
+    if(movieActive()) { showMessage("stop the movie before power cycling"); return; }
+    core.power(); resetTimeline(); paused = false;
+  }
   void advanceOneFrame() { frameAdvance = true; }
 
   // any window we own, not just the main one: an imgui viewport panel takes
@@ -244,6 +257,16 @@ struct App {
   void stepRewind();
   void advanceEmulation();
 
+  //movies.cpp
+  void openMovieDialog();
+  void beginMovieRecording(bool fromBeginning);
+  bool playMovieFile(const std::string& path);
+  bool writeMovieFile(std::string path);
+  void stopMovie();
+  void clearMovie();
+  int16_t pollMovieInput(int port, int device, int input, int16_t physical);
+  bool movieActive() const { return movieMode != MovieMode::Inactive || movieSavePending; }
+
   //states.cpp
   // resolved states folder, and the per-game folder holding the slots
   std::string statesDir() const;
@@ -289,6 +312,7 @@ struct App {
   void drawStateMenu(bool loading);
   void drawRemoveStatesPrompt();
   void drawEmulationMenu();
+  void drawMovieMenu();
   void drawShaderMenu();
   void drawSettingsMenu();
   void drawMenuBar();

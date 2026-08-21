@@ -128,6 +128,7 @@ bool App::saveStateFile(const std::string& path, bool quiet) {
 
 bool App::loadState(const std::string& name) {
   if(!core.loaded()) return false;
+  if(movieActive()) { showMessage("stop the movie before loading a state"); return false; }
 
   std::vector<uint8_t> file;  // only a disk slot fills this
   const std::vector<uint8_t>* payload = memorySlot(name);
@@ -168,6 +169,7 @@ bool App::loadState(const std::string& name) {
 
 bool App::loadStateFile(const std::string& path) {
   if(!core.loaded()) return false;
+  if(movieActive()) { showMessage("stop the movie before loading a state"); return false; }
   std::vector<uint8_t> payload;
   if(!readStatePayload(path, payload)) {
     showMessage("could not read state file " + fileName(path));

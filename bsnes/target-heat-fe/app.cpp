@@ -83,6 +83,10 @@ void App::scanGames() {
 }
 
 bool App::loadRom(const std::string& entry) {
+  if(movieActive()) {
+    showMessage("stop the movie before changing games");
+    return false;
+  }
   auto [first, second] = splitPair(entry);
   if(isDirectory(first)) first = pakPath(first);
 
@@ -190,7 +194,7 @@ void App::setRewinding(bool enabled) {
     rewindCounter = 0;
     return;
   }
-  if(!core.loaded() || fastForward) return;
+  if(!core.loaded() || fastForward || movieActive()) return;
   if(settings.rewindFrequency == 0) {
     showMessage("enable rewind under Emulator settings first");
     return;
@@ -205,7 +209,8 @@ void App::setRewinding(bool enabled) {
 }
 
 void App::captureRewind() {
-  if(rewinding || settings.rewindFrequency == 0 || !EmuCore::deterministicStates()) return;
+  if(rewinding || movieActive() || settings.rewindFrequency == 0
+  || !EmuCore::deterministicStates()) return;
   if(++rewindCounter < settings.rewindFrequency) return;
   rewindCounter = 0;
 
@@ -237,7 +242,7 @@ void App::advanceEmulation() {
   captureRewind();
   stepRewind();
 
-  const bool runAhead = settings.runAheadFrames > 0 && !fastForward && !rewinding
+  const bool runAhead = settings.runAheadFrames > 0 && !fastForward && !rewinding && !movieActive()
                      && !scripting.running() && EmuCore::deterministicStates();
   if(!runAhead) {
     scripting.runBeforeFrame();
@@ -285,6 +290,10 @@ void App::pushEnhancements() {
 }
 
 void App::unloadRom() {
+  if(movieActive()) {
+    showMessage("stop the movie before closing the game");
+    return;
+  }
   // the game is still in the core, so this has to happen before the unload
   if(settings.autoStateOnUnload) saveState("auto", true);
   saveCheats();
@@ -443,7 +452,9 @@ void App::triggerHotkey(int index) {
     settings.mute = !settings.mute;
     settings.save(settingsCfg);
     break;
-  case HkQuit: running = false; break;
+  case HkQuit:
+    if(movieActive()) showMessage("stop the movie before quitting"); else running = false;
+    break;
   case HkSpeedDown: setSpeed(speedIndex - 1); break;
   case HkSpeedUp: setSpeed(speedIndex + 1); break;
   case HkUnloadGame: if(core.loaded()) unloadRom(); break;

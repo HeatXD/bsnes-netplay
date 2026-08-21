@@ -179,6 +179,7 @@ public:
   // frame's worth of samples in one call
   std::function<void(const uint32_t* argb, int width, int height)> onVideo;
   std::function<void(const float* interleaved, int frames)> onAudio;
+  std::function<int16_t(int port, int device, int input, int16_t value)> onInputPoll;
 
 private:
   struct Impl;
