@@ -51,6 +51,13 @@ std::string EmuCore::expansionChip() const {
 }
 std::string EmuCore::checksum() const { return (const char*)impl->info.checksum; }
 
+std::vector<std::string> EmuCore::hashes() const {
+  std::vector<std::string> out;
+  if(!loaded()) return out;
+  for(const string& hash : impl->emulator->hashes()) out.emplace_back((const char*)hash);
+  return out;
+}
+
 const std::vector<EmuCore::SlotInfo>& EmuCore::slots() const { return impl->slotCache; }
 
 const std::vector<EmuCore::ManifestInfo>& EmuCore::manifestList() const {

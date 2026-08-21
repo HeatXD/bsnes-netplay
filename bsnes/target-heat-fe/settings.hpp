@@ -136,6 +136,7 @@ struct Settings {
   // resume where the last session left off, through a slot of its own
   bool autoStateOnUnload = false;
   bool autoStateOnLoad = false;
+  bool cheatsEnabled = true;
   // IPS says nothing about copier headers, so the user tells us once
   bool ipsHeadered = false;
   bool showStatus = true;
@@ -153,6 +154,7 @@ struct Settings {
   std::string patchesDir;   // empty means beside the ROM
   std::string databaseDir;  // empty means a Database folder beside the exe
   std::string statesDir;    // empty means a States folder beside the config
+  std::string cheatsDir;    // empty means beside the ROM
   std::string shadersDir;   // empty means a Shaders folder beside the exe
   // base cartridges the slot media ride in
   std::string sgbBios;

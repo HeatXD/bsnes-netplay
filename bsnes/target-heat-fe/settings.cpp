@@ -125,6 +125,7 @@ const BoolField BoolFields[] = {
   {"ipsheadered",    &Settings::ipsHeadered},
   {"autostateunload", &Settings::autoStateOnUnload},
   {"autostateload",  &Settings::autoStateOnLoad},
+  {"cheatsenabled",  &Settings::cheatsEnabled},
 };
 
 const StrField StrFields[] = {
@@ -141,6 +142,7 @@ const StrField StrFields[] = {
   {"patchesdir",  &Settings::patchesDir,  true},
   {"databasedir", &Settings::databaseDir, true},
   {"statesdir",   &Settings::statesDir,   true},
+  {"cheatsdir",   &Settings::cheatsDir,   true},
   {"display",     &Settings::displayName, false},
   {"shader",      &Settings::videoShader, true},
   {"shadersdir",  &Settings::shadersDir,  true},

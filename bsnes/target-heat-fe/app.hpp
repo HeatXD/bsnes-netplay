@@ -34,6 +34,18 @@ struct StateEntry {
   int64_t time = 0;
 };
 
+struct CheatEntry {
+  std::string name;
+  std::string code;
+  bool enabled = false;
+};
+
+struct CheatCandidate {
+  uint32_t address = 0;
+  uint32_t value = 0;
+  int size = 0;
+};
+
 // shared by the Paths tab and the pick draining, so the two cannot drift
 struct BiosSlot {
   const char* label;
@@ -59,10 +71,11 @@ struct App {
   std::string status;
   uint64_t messageTime = 0;
   std::string gameTitle;
+  std::string gameLocation;
 
   FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick, pakPick, firmwareDirPick;
   FilePick scriptPick;
-  FilePick patchesDirPick, databaseDirPick, statesDirPick, shadersDirPick;
+  FilePick patchesDirPick, databaseDirPick, statesDirPick, cheatsDirPick, shadersDirPick;
   FilePick sgbBiosPick, bsxBiosPick, stBiosPick;
   FilePick sufamiAPick, sufamiBPick;
   std::string sufamiPending;
@@ -80,6 +93,8 @@ struct App {
   bool showManifest = false;
   bool showScripting = false;
   bool showStateManager = false;
+  bool showCheats = false;
+  bool showCheatFinder = false;
   int settingsTab = -1;
   int mapPort = 0;
   int mapPlayer = 0;  // which of a multitap's controllers is being mapped
@@ -91,6 +106,21 @@ struct App {
   std::string stateManagerSelection;
   char stateManagerName[64] = {};
   bool confirmRemoveState = false;
+  std::vector<CheatEntry> cheats;
+  bool cheatsDirty = false;
+  int cheatSelected = -1;
+  char cheatName[96] = {};
+  char cheatCode[512] = {};
+  bool cheatEditEnabled = false;
+  bool confirmRemoveCheat = false;
+  std::string cheatError;
+  std::vector<CheatEntry> databaseCheats;
+  std::vector<bool> databaseCheatSelected;
+  std::vector<CheatCandidate> cheatCandidates;
+  char cheatSearchValue[32] = {};
+  int cheatSearchSize = 0;
+  int cheatSearchMode = 0;
+  int cheatCandidateSelected = -1;
   // undo and redo never outlive the session, so they are held rather than written
   std::vector<uint8_t> undoState, redoState;
   bool confirmRemoveStates = false;
@@ -268,6 +298,8 @@ struct App {
   void drawToolsWindow();
   void drawScriptingWindow();
   void drawStateManagerWindow();
+  void drawCheatsWindow();
+  void drawCheatFinderWindow();
   void restoreVideoDefaults();
   void drawShaderSection(bool& dirty);
   void drawVideoTab();
@@ -309,5 +341,12 @@ struct App {
   void drawGamesWindow();
   void drawGamesHome();
   void drawAboutWindow();
+
+  std::string cheatPath() const;
+  void loadCheats();
+  void saveCheats();
+  void applyCheats();
+  bool normalizeCheatCode(std::string& code) const;
+  std::vector<CheatEntry> findDatabaseCheats() const;
   void drawUi();
 };

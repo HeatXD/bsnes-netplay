@@ -103,6 +103,7 @@ public:
   std::string ramSizeText() const;
   std::string expansionChip() const;
   std::string checksum() const;
+  std::vector<std::string> hashes() const;
   // the media sitting in the base cartridge's slots
   const std::vector<SlotInfo>& slots() const;
   // every loaded medium's manifest, for the manifest viewer
@@ -141,6 +142,8 @@ public:
   void saveMemory();
   // frames to drop between rendered ones; only the fast PPU honours it
   void setFrameSkip(int frames);
+  void setCheats(const std::vector<std::string>& codes);
+  bool gameBoyLoaded() const;
   void setInput(int port, int index, int16_t value);
   int16_t inputValue(int port, int index) const;
 

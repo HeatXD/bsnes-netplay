@@ -245,3 +245,14 @@ void EmuCore::runFrame() {
 void EmuCore::setRunAhead(bool enabled) {
   if(loaded()) impl->emulator->setRunAhead(enabled);
 }
+
+void EmuCore::setCheats(const std::vector<std::string>& codes) {
+  if(!loaded()) return;
+  vector<string> list;
+  for(const std::string& code : codes) list.append(code.c_str());
+  impl->emulator->cheats(list);
+}
+
+bool EmuCore::gameBoyLoaded() const {
+  return loaded() && (bool)impl->gameBoy;
+}

@@ -220,6 +220,10 @@ void App::drawMenuBar() {
     if(ImGui::MenuItem("State Manager", nullptr, showStateManager, core.loaded())) {
       showStateManager = !showStateManager;
     }
+    if(ImGui::MenuItem("Cheats", nullptr, showCheats, core.loaded())) showCheats = !showCheats;
+    if(ImGui::MenuItem("Cheat Finder", nullptr, showCheatFinder, core.loaded())) {
+      showCheatFinder = !showCheatFinder;
+    }
     if(ImGui::MenuItem("Lua Scripting", nullptr, showScripting)) showScripting = !showScripting;
     if(ImGui::MenuItem("Diagnostics", nullptr, showTools)) showTools = !showTools;
     if(ImGui::MenuItem("Manifest", nullptr, showManifest, core.loaded())) {
@@ -362,6 +366,8 @@ void App::drawUi() {
   drawToolsWindow();
   drawScriptingWindow();
   drawStateManagerWindow();
+  drawCheatsWindow();
+  drawCheatFinderWindow();
   drawManifestWindow();
   drawAboutWindow();
   drawUnverifiedPrompt();

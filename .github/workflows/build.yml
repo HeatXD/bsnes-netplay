@@ -113,6 +113,7 @@ jobs:
           for db in "Super Famicom" "BS Memory" "Sufami Turbo"; do
             cp -a "${srcdir}/bsnes/Database/${db}.bml" "${outdir}/Database"
           done
+          cp -a "${srcdir}/bsnes/Database/Cheat Codes.bml" "${outdir}/Database"
           # the .shader packages the Video tab lists
           cp -a "${srcdir}/shaders" "${outdir}/Shaders"
           # github artifacts drop the executable bit

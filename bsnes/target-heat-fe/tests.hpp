@@ -10,3 +10,4 @@ int runTimelineTest(App& app, int warmFrames);
 int runHotkeyTest(App& app);
 int runLuaTest(App& app, const std::string& script);
 int runShaderTest(App& app);
+int runCheatTest(App& app);

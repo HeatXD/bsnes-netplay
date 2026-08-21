@@ -45,6 +45,7 @@ flags += $(sdl3.flags) $(imgui.flags) $(lua.flags)
 # filter drives the CPU video filters; lzma unpacks .7z game archives
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
 objects += ui-shader ui-stbimage
+objects += ui-cheats ui-cheat-window
 objects += ui-tests
 objects += ui-scripting lua
 objects += core-main core-media core-vfs core-video core-info core-memory
@@ -68,6 +69,8 @@ obj/ui-app.o: $(ui)/app.cpp
 obj/ui-draw.o: $(ui)/ui/ui.cpp
 obj/ui-inputmap.o: $(ui)/inputmap.cpp
 obj/ui-states.o: $(ui)/states.cpp
+obj/ui-cheats.o: $(ui)/cheats.cpp
+obj/ui-cheat-window.o: $(ui)/ui/cheats.cpp
 obj/ui-tests.o: $(ui)/tests.cpp
 obj/ui-scripting.o: $(ui)/scripting.cpp
 obj/lua.o: $(lua.path)/onelua.c

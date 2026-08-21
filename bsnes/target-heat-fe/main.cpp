@@ -12,7 +12,7 @@ constexpr int IdleDelayMs = 32;
 
 // what this invocation is for; the harnesses are mutually exclusive
 enum class Mode {
-  Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest, ShaderTest
+  Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest, ShaderTest, CheatTest
 };
 
 struct Options {
@@ -32,6 +32,7 @@ struct Options {
   // the modes that drive the emulator itself; the hotkey matcher needs no game
   bool needsRom() const {
     return mode == Mode::StateTest || mode == Mode::DeterminismTest || mode == Mode::TimelineTest
+        || mode == Mode::CheatTest
         || (mode == Mode::Run && frameLimit);
   }
 };
@@ -48,6 +49,7 @@ Options parseArgs(int argc, char** argv) {
     else if(SDL_strcmp(arg, "--timeline-test") == 0) opt.mode = Mode::TimelineTest;
     else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.mode = Mode::HotkeyTest;
     else if(SDL_strcmp(arg, "--shader-test") == 0) opt.mode = Mode::ShaderTest;
+    else if(SDL_strcmp(arg, "--cheat-test") == 0) opt.mode = Mode::CheatTest;
     else if(SDL_strcmp(arg, "--lua-test") == 0 && hasValue) {
       opt.luaTest = argv[++i];
       opt.mode = Mode::LuaTest;
@@ -388,6 +390,10 @@ void Frontend::drainPicks() {
     app.settings.statesDir = normalPath(picked);
     app.settings.save(app.settingsCfg);
   }
+  if(takePick(app.cheatsDirPick, picked) && !picked.empty()) {
+    app.settings.cheatsDir = normalPath(picked);
+    app.settings.save(app.settingsCfg);
+  }
   if(takePick(app.shadersDirPick, picked) && !picked.empty()) {
     app.settings.shadersDir = normalPath(picked);
     app.settings.save(app.settingsCfg);
@@ -547,6 +553,8 @@ void openRequestedPanel(App& app, const Options& opt) {
   app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
   app.showScripting = opt.uiScreen == "scripting";
   app.showStateManager = opt.uiScreen == "state-manager";
+  app.showCheats = opt.uiScreen == "cheats";
+  app.showCheatFinder = opt.uiScreen == "cheat-finder";
   app.settingsTab = opt.shotTab;
 }
 
@@ -601,6 +609,7 @@ int main(int argc, char** argv) {
     case Mode::HotkeyTest:      code = runHotkeyTest(app); break;
     case Mode::LuaTest:         code = runLuaTest(app, opt.luaTest); break;
     case Mode::ShaderTest:      code = runShaderTest(app); break;
+    case Mode::CheatTest:       code = runCheatTest(app); break;
     case Mode::Run:             code = frontend.runLoop(); break;
   }
 

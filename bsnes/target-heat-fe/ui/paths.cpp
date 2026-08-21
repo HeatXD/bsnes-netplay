@@ -18,8 +18,10 @@ const FolderRow FolderRows[] = {
   {"Patches folder", "(beside the ROM)",
    "A .bps or .ips named after the game is applied as it loads.",
    &Settings::patchesDir, nullptr, &App::patchesDirPick, &App::pushPatchesDir},
-  {"States folder", nullptr, "Nine quick slots and the auto-resume state, per game.",
+  {"States folder", nullptr, "Quick, managed, and auto-resume states, per game.",
    &Settings::statesDir, &App::statesDir, &App::statesDirPick, nullptr},
+  {"Cheats folder", "(beside the ROM)", "One .cht file per game.",
+   &Settings::cheatsDir, nullptr, &App::cheatsDirPick, nullptr},
   {"Games database folder", nullptr,
    "A game found here is verified and uses its board layout.",
    &Settings::databaseDir, &App::databaseDirShown, &App::databaseDirPick,
@@ -39,6 +41,7 @@ void App::restorePathDefaults() {
   settings.patchesDir = defaults.patchesDir;
   settings.databaseDir = defaults.databaseDir;
   settings.statesDir = defaults.statesDir;
+  settings.cheatsDir = defaults.cheatsDir;
   settings.shadersDir = defaults.shadersDir;
   for(int i = 0; i < EmuCore::MediumCount; i++) settings.recentDir[i].clear();
   core.setPatchesDirectory(settings.patchesDir);

@@ -271,6 +271,49 @@ int runTimelineTest(App& app, int warmFrames) {
   return pass ? 0 : 1;
 }
 
+int runCheatTest(App& app) {
+  const std::string oldDir = app.settings.cheatsDir;
+  const std::string oldDatabaseDir = app.settings.databaseDir;
+  const bool oldEnabled = app.settings.cheatsEnabled;
+  const std::vector<CheatEntry> oldCheats = app.cheats;
+  app.settings.cheatsDir = configDir() + "Cheats-selftest";
+  app.settings.cheatsEnabled = true;
+
+  const uint8_t original = app.core.readMemory(EmuCore::MemoryDomain::WRAM, 0);
+  app.core.setCheats({"7e0000=42"});
+  const bool applied = app.core.readMemory(EmuCore::MemoryDomain::WRAM, 0) == 0x42;
+  app.core.setCheats({});
+  const bool restored = app.core.readMemory(EmuCore::MemoryDomain::WRAM, 0) == original;
+
+  std::string standard = "7E000042";
+  const bool decoded = app.normalizeCheatCode(standard) && standard == "7e0000=42";
+  app.settings.databaseDir = normalPath(configDir() + "../Database");
+  const bool database = !app.findDatabaseCheats().empty();
+  app.cheats = {{"Self test", standard, true}};
+  app.cheatsDirty = true;
+  app.saveCheats();
+  app.cheats.clear();
+  app.loadCheats();
+  const bool persisted = app.cheats.size() == 1 && app.cheats[0].name == "Self test"
+                      && app.cheats[0].code == standard && app.cheats[0].enabled;
+
+  app.core.setCheats({});
+  app.cheats.clear();
+  SDL_RemovePath(app.cheatPath().c_str());
+  SDL_RemovePath(app.settings.cheatsDir.c_str());
+  app.settings.cheatsDir = oldDir;
+  app.settings.databaseDir = oldDatabaseDir;
+  app.settings.cheatsEnabled = oldEnabled;
+  app.cheats = oldCheats;
+  app.cheatsDirty = false;
+  app.applyCheats();
+  SDL_Log("cheats: apply %s, restore %s, decode %s, database %s, persistence %s",
+          applied ? "ok" : "FAILED", restored ? "ok" : "FAILED",
+          decoded ? "ok" : "FAILED", database ? "ok" : "FAILED",
+          persisted ? "ok" : "FAILED");
+  return applied && restored && decoded && database && persisted ? 0 : 1;
+}
+
 // hotkeyHeld against a fabricated keyboard, since SDL's own state cannot be driven
 int runHotkeyTest(App& app) {
   bool keys[SDL_SCANCODE_COUNT] = {};

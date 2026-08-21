@@ -125,6 +125,10 @@ bool App::loadRom(const std::string& entry) {
   undoState.clear();
   redoState.clear();
   gameTitle = fileStem(first);
+  gameLocation = first;
+  loadCheats();
+  cheatCandidates.clear();
+  cheatCandidateSelected = -1;
   SDL_SetWindowTitle(shell.window, (gameTitle + " - " + AppName).c_str());
   settings.addRecent(entry);
   rememberDir(first);
@@ -283,9 +287,13 @@ void App::pushEnhancements() {
 void App::unloadRom() {
   // the game is still in the core, so this has to happen before the unload
   if(settings.autoStateOnUnload) saveState("auto", true);
+  saveCheats();
+  core.setCheats({});
   resetTimeline();
   core.unload();
   gameTitle.clear();
+  gameLocation.clear();
+  cheats.clear();
   // the memory slots belong to the machine that just went away
   undoState.clear(); undoState.shrink_to_fit();
   redoState.clear(); redoState.shrink_to_fit();
