@@ -2,6 +2,7 @@
 
 #include "app.hpp"
 
+#include <algorithm>
 #include <cstring>
 
 namespace {
@@ -65,6 +66,8 @@ std::string App::stateLabel(const std::string& name) {
   for(const auto& special : SpecialSlots) {
     if(name == special.name) return special.label;
   }
+  const std::string managed = "Managed/";
+  if(name.compare(0, managed.size(), managed) == 0) return name.substr(managed.size());
   return "state " + name;
 }
 
@@ -194,8 +197,43 @@ bool App::removeState(const std::string& name) {
   return SDL_RemovePath(statePath(name).c_str());
 }
 
+bool App::renameState(const std::string& from, const std::string& to) {
+  if(!core.loaded() || !hasState(from) || hasState(to)) return false;
+  return ensureDir(parentDir(statePath(to)))
+      && SDL_RenamePath(statePath(from).c_str(), statePath(to).c_str());
+}
+
+std::vector<StateEntry> App::availableStates(bool managed) const {
+  std::vector<StateEntry> states;
+  if(!core.loaded()) return states;
+  if(!managed) {
+    for(int slot = 1; slot <= StateSlots; slot++) {
+      const std::string name = slotName(slot);
+      states.push_back({name, "Slot " + name, stateTime(name)});
+    }
+    return states;
+  }
+
+  const std::string folder = stateFolder() + "/Managed";
+  int count = 0;
+  char** names = SDL_GlobDirectory(folder.c_str(), "*.bst", SDL_GLOB_CASEINSENSITIVE, &count);
+  for(int i = 0; names && i < count; i++) {
+    const std::string file = names[i];
+    const std::string label = fileStem(file);
+    const std::string name = "Managed/" + label;
+    states.push_back({name, label, stateTime(name)});
+  }
+  if(names) SDL_free(names);
+  std::sort(states.begin(), states.end(), [](const StateEntry& a, const StateEntry& b) {
+    return SDL_strcasecmp(a.label.c_str(), b.label.c_str()) < 0;
+  });
+  return states;
+}
+
 void App::removeAllStates() {
   for(int slot = 1; slot <= StateSlots; slot++) removeState(slotName(slot));
+  for(const StateEntry& state : availableStates(true)) removeState(state.name);
+  SDL_RemovePath((stateFolder() + "/Managed").c_str());
   undoState.clear();
   redoState.clear();
   // the folder is removed by name, so every file any build ever wrote must be

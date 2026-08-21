@@ -62,6 +62,16 @@ int runStateTest(App& app, int warmFrames, int frames) {
   SDL_Log("file round trip %s: %s", filed ? "ok" : "FAILED",
           app.statePath("statetest").c_str());
 
+  const bool managedSaved = app.saveState("Managed/original", true);
+  const bool managedListed = app.availableStates(true).size() == 1;
+  const bool managedRenamed = app.renameState("Managed/original", "Managed/renamed")
+                           && app.hasState("Managed/renamed")
+                           && !app.hasState("Managed/original");
+  const bool managedRemoved = app.removeState("Managed/renamed");
+  SDL_RemovePath((app.stateFolder() + "/Managed").c_str());
+  const bool managed = managedSaved && managedListed && managedRenamed && managedRemoved;
+  SDL_Log("managed states %s", managed ? "ok" : "FAILED");
+
   // undo and redo are memory slots: loading must be reversible, and redoing
   // must land back where the undo came from
   app.saveState("statetest", true);
@@ -81,7 +91,7 @@ int runStateTest(App& app, int warmFrames, int frames) {
   const bool refused = !app.core.unserialize(damaged);
   SDL_Log("truncated state refused: %s", refused ? "ok" : "FAILED");
 
-  const bool pass = blob && filed && reversible && refused;
+  const bool pass = blob && filed && managed && reversible && refused;
   SDL_Log("state test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }

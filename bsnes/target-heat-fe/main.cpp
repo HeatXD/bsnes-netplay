@@ -546,6 +546,7 @@ void openRequestedPanel(App& app, const Options& opt) {
   // cartridge is the old name for the same window
   app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
   app.showScripting = opt.uiScreen == "scripting";
+  app.showStateManager = opt.uiScreen == "state-manager";
   app.settingsTab = opt.shotTab;
 }
 

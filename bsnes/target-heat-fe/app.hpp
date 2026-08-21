@@ -28,6 +28,12 @@ inline int packColor(const float rgb[3]) {
 
 struct App;
 
+struct StateEntry {
+  std::string name;
+  std::string label;
+  int64_t time = 0;
+};
+
 // shared by the Paths tab and the pick draining, so the two cannot drift
 struct BiosSlot {
   const char* label;
@@ -73,6 +79,7 @@ struct App {
   bool showAbout = false;
   bool showManifest = false;
   bool showScripting = false;
+  bool showStateManager = false;
   int settingsTab = -1;
   int mapPort = 0;
   int mapPlayer = 0;  // which of a multitap's controllers is being mapped
@@ -80,6 +87,10 @@ struct App {
   int capturingHotkey = -1;  // hotkey index * HotkeySlots + slot
   int gameSelected = 0;
   int stateSlot = 1;  // 1..StateSlots; a session choice, not a setting
+  bool stateManagerManaged = true;
+  std::string stateManagerSelection;
+  char stateManagerName[64] = {};
+  bool confirmRemoveState = false;
   // undo and redo never outlive the session, so they are held rather than written
   std::vector<uint8_t> undoState, redoState;
   bool confirmRemoveStates = false;
@@ -221,6 +232,8 @@ struct App {
   bool loadState(const std::string& name);
   bool loadStateFile(const std::string& path);
   bool removeState(const std::string& name);
+  bool renameState(const std::string& from, const std::string& to);
+  std::vector<StateEntry> availableStates(bool managed) const;
   void removeAllStates();
   void setStateSlot(int slot);
   void pollHotkeys();
@@ -254,6 +267,7 @@ struct App {
   void drawGamepadDiagnostics();
   void drawToolsWindow();
   void drawScriptingWindow();
+  void drawStateManagerWindow();
   void restoreVideoDefaults();
   void drawShaderSection(bool& dirty);
   void drawVideoTab();
