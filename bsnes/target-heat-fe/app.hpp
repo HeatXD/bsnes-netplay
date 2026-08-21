@@ -97,7 +97,7 @@ struct App {
   bool showStateManager = false;
   bool showCheats = false;
   bool showCheatFinder = false;
-  int settingsTab = -1;
+  int settingsTab = 0;
   int mapPort = 0;
   int mapPlayer = 0;  // which of a multitap's controllers is being mapped
   int capturing = -1;      // emulator button slot being rebound

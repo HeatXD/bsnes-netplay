@@ -118,8 +118,8 @@ void App::drawToolsWindow() {
   ImGui::Text("Game: %s", core.loaded() ? gameTitle.c_str() : "none");
   ImGui::Text("Resolution: %d x %d", shell.frameWidth, shell.frameHeight);
   ImGui::Text("Frame rate: %.1f fps (target %.3f)", fps, core.refreshRate());
-  ImGui::Text("Audio queued: %d", (int)SDL_GetAudioStreamQueued(shell.audio));
-  ImGui::Text("Pacing target: %d", shell.paceTarget(settings));
+  ImGui::Text("Audio queued: %d bytes", (int)SDL_GetAudioStreamQueued(shell.audio));
+  ImGui::Text("Pacing target: %d bytes", shell.paceTarget(settings));
   ImGui::Text("State: %s%s", core.loaded() ? (paused ? "paused" : "running") : "idle",
               fastForward ? " (fast forward)" : "");
   ImGui::Separator();
@@ -153,9 +153,12 @@ void App::drawGamesList() {
   if(ImGui::Button("Open ROM...")) openRomDialog();
   ImGui::SameLine();
   ImGui::Text(games.size() == 1 ? "%d game" : "%d games", (int)games.size());
-  if(ImGui::Button("Play selected") && gameSelected < (int)games.size()) {
+  const bool canPlay = gameSelected >= 0 && gameSelected < (int)games.size();
+  ImGui::BeginDisabled(!canPlay);
+  if(ImGui::Button("Play selected") && canPlay) {
     if(loadRom(games[gameSelected].second)) showGames = false;
   }
+  ImGui::EndDisabled();
   ImGui::Separator();
 
   if(ImGui::BeginListBox("##games", ImVec2(-1.0f, -1.0f))) {
@@ -163,7 +166,10 @@ void App::drawGamesList() {
     clipper.Begin((int)games.size());
     while(clipper.Step()) {
       for(int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
+        const bool clipped = ImGui::CalcTextSize(games[i].first.c_str()).x
+                           > ImGui::GetContentRegionAvail().x;
         if(ImGui::Selectable(games[i].first.c_str(), gameSelected == i)) gameSelected = i;
+        if(clipped) tip(games[i].first.c_str());
         if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
           if(loadRom(games[i].second)) showGames = false;
         }

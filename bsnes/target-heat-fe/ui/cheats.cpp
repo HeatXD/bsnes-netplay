@@ -254,10 +254,12 @@ void App::drawCheatFinderWindow() {
 
   if(ImGui::Button("Scan")) scan();
   ImGui::SameLine();
+  ImGui::BeginDisabled(cheatCandidates.empty());
   if(ImGui::Button("Clear")) {
     cheatCandidates.clear();
     cheatCandidateSelected = -1;
   }
+  ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::TextDisabled("%d candidates%s", (int)cheatCandidates.size(),
                       cheatCandidates.size() == 4096 ? " (limit reached)" : "");

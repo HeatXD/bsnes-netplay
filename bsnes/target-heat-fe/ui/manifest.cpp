@@ -2,9 +2,11 @@
 
 namespace {
 void drawField(const char* label, const std::string& value) {
+  ImGui::TableNextRow();
+  ImGui::TableSetColumnIndex(0);
   ImGui::TextDisabled("%s", label);
-  ImGui::SameLine(140.0f);
-  ImGui::TextUnformatted(value.c_str());
+  ImGui::TableSetColumnIndex(1);
+  ImGui::TextWrapped("%s", value.c_str());
 }
 }
 
@@ -19,18 +21,23 @@ void App::drawManifestWindow() {
       return;
     }
 
-    drawField("Title", core.headerTitle());
-    drawField("Region", core.region());
-    drawField("Board", core.board());
-    drawField("ROM size", core.romSizeText());
-    drawField("RAM size", core.ramSizeText());
-    drawField("Expansion chip", core.expansionChip());
-    drawField("SHA-256", core.checksum());
-    drawField("Verified", core.verified()
-      ? "yes, this dump is in the games database"
-      : "no, the board layout is guessed from the ROM");
-    if(core.patched()) drawField("Patch", "applied on load");
-    for(const auto& slot : core.slots()) drawField(slot.label.c_str(), slot.game);
+    if(ImGui::BeginTable("##summary", 2, ImGuiTableFlags_SizingFixedFit)) {
+      ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 125.0f);
+      ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+      drawField("Title", core.headerTitle());
+      drawField("Region", core.region());
+      drawField("Board", core.board());
+      drawField("ROM size", core.romSizeText());
+      drawField("RAM size", core.ramSizeText());
+      drawField("Expansion chip", core.expansionChip());
+      drawField("SHA-256", core.checksum());
+      drawField("Verified", core.verified()
+        ? "yes, this dump is in the games database"
+        : "no, the board layout is guessed from the ROM");
+      if(core.patched()) drawField("Patch", "applied on load");
+      for(const auto& slot : core.slots()) drawField(slot.label.c_str(), slot.game);
+      ImGui::EndTable();
+    }
 
     const std::string hotfix = core.activeHotfix();
     if(!hotfix.empty()) {

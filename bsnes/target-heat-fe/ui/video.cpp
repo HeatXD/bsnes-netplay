@@ -166,7 +166,7 @@ void App::drawVideoTab() {
   tip("Captures the displayed game and Lua overlay without menus or tool windows.");
 
   ImGui::Separator();
-  ImGui::TextDisabled("Color Adjustment");
+  ImGui::TextDisabled("Colour Adjustment");
   bool paletteDirty = false;
   paletteDirty |= ImGui::SliderInt("Gamma", &settings.videoGamma, 100, 200, "%d%%");
   paletteDirty |= ImGui::SliderInt("Luminance", &settings.videoLuminance, 0, 100, "%d%%");

@@ -3,6 +3,7 @@
 bool App::drawColourSection() {
   bool dirty = false;
 
+  ImGui::TextDisabled("Colours");
   static const char* themes[] = {"Dark", "Light", "Classic"};
   if(ImGui::Combo("Theme", &settings.theme, themes, IM_ARRAYSIZE(themes))) {
     applyTheme();

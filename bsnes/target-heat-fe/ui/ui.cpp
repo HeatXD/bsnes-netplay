@@ -4,10 +4,14 @@
 
 void placeFloating(float w, float h) {
   const ImGuiViewport* view = ImGui::GetMainViewport();
-  const float x = view->WorkPos.x + SDL_max(0.0f, (view->WorkSize.x - w) / 2.0f);
-  const float y = view->WorkPos.y + SDL_max(0.0f, (view->WorkSize.y - h) / 2.0f);
-  ImGui::SetNextWindowPos(ImVec2(x, y), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
+  const ImVec2 size(SDL_min(w, view->WorkSize.x), SDL_min(h, view->WorkSize.y));
+  const float x = view->WorkPos.x + (view->WorkSize.x - size.x) / 2.0f;
+  const float y = view->WorkPos.y + (view->WorkSize.y - size.y) / 2.0f;
+  const bool integrated = !(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable);
+  ImGui::SetNextWindowPos(ImVec2(x, y), integrated ? ImGuiCond_Always
+                                                   : ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(size, integrated ? ImGuiCond_Always
+                                            : ImGuiCond_FirstUseEver);
 }
 
 namespace {
@@ -21,7 +25,7 @@ const struct { const char* name; void (App::*draw)(); } SettingsTabs[] = {
   {"Emulator",      &App::drawEmulatorTab},
   {"Enhancements",  &App::drawEnhancementsTab},
   {"Compatibility", &App::drawCompatibilityTab},
-  {"Customization", &App::drawCustomizationTab},
+  {"Appearance",    &App::drawCustomizationTab},
   {"Paths",         &App::drawPathsTab},
 };
 
@@ -42,7 +46,7 @@ void App::drawFileMenu() {
   if(ImGui::MenuItem("Open Game Pak...")) openFolderDialog(pakPick);
   if(ImGui::MenuItem("Open Sufami Turbo Pair...")) openSufamiPairDialog();
   // with no game the list is already the home screen
-  if(ImGui::MenuItem("Games List", nullptr, showGames, core.loaded())) showGames = !showGames;
+  if(ImGui::MenuItem("Games", nullptr, showGames, core.loaded())) showGames = !showGames;
 
   if(ImGui::BeginMenu("Recent", !settings.recent.empty())) {
     for(const std::string& rom : settings.recent) {
@@ -335,9 +339,15 @@ void App::drawStatusBar() {
   if(!status.empty() && SDL_GetTicks() - messageTime > MessageMs) status.clear();
 
   ImGuiViewport* view = ImGui::GetMainViewport();
+  const ImGuiStyle& style = ImGui::GetStyle();
+  const float paddingY = SDL_max(0.0f,
+    SDL_floor((ImGui::GetFrameHeight() - ImGui::GetTextLineHeight()) / 2.0f));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(style.WindowPadding.x, paddingY));
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, style.Colors[ImGuiCol_MenuBarBg]);
   if(ImGui::BeginViewportSideBar("##status", view, ImGuiDir_Down, ImGui::GetFrameHeight(),
-                                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_MenuBar)) {
-    if(ImGui::BeginMenuBar()) {
+                                 ImGuiWindowFlags_NoScrollbar |
+                                 ImGuiWindowFlags_NoScrollWithMouse |
+                                 ImGuiWindowFlags_NoNavInputs)) {
       if(core.loaded()) {
         // bsnes marks the same thing with an icon
         const bool clean = core.verified();
@@ -359,7 +369,6 @@ void App::drawStatusBar() {
                    shell.frameWidth, shell.frameHeight, fps, state);
       SDL_snprintf(compact, sizeof(compact), "%.0f fps%s", fps, state);
 
-      const ImGuiStyle& style = ImGui::GetStyle();
       const ImVec2 leftPos = ImGui::GetCursorScreenPos();
       const float rightEdge = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 12.0f;
       const float minimumLeft = ImGui::CalcTextSize("...").x;
@@ -391,46 +400,44 @@ void App::drawStatusBar() {
         ImGui::SetCursorScreenPos(ImVec2(rightX, leftPos.y));
         ImGui::TextUnformatted(rightText);
       }
-      ImGui::EndMenuBar();
-    }
   }
   ImGui::End();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar();
 }
 
-// tabs clip rather than scroll, so being a pixel short truncates a label;
-// the per-tab term mirrors TabItemCalcSize()
-static float settingsWidth() {
+static float settingsNavigationWidth() {
   const ImGuiStyle& style = ImGui::GetStyle();
-  float tabs = 0.0f;
+  float width = 0.0f;
   for(const auto& tab : SettingsTabs) {
-    tabs += ImGui::CalcTextSize(tab.name).x + style.FramePadding.x * 2.0f + 1.0f
-          + style.ItemInnerSpacing.x;
+    width = SDL_max(width, ImGui::CalcTextSize(tab.name).x);
   }
-  return SDL_max(520.0f, tabs + style.WindowPadding.x * 2.0f + style.ScrollbarSize
-                       + style.WindowBorderSize * 2.0f);
+  return width + style.FramePadding.x * 2.0f + style.ScrollbarSize;
 }
 
 void App::drawSettingsWindow() {
   if(!showSettings) return;
 
-  // measured every frame, so a resize or a font change cannot squeeze the tab bar
-  const float width = settingsWidth();
-  placeFloating(width, 480.0f);
-  ImGui::SetNextWindowSizeConstraints(ImVec2(width, 240.0f), ImVec2(FLT_MAX, FLT_MAX));
+  placeFloating(720.0f, 480.0f);
+  ImGui::SetNextWindowSizeConstraints(ImVec2(520.0f, 240.0f), ImVec2(FLT_MAX, FLT_MAX));
   if(!ImGui::Begin("Settings", &showSettings)) { ImGui::End(); return; }
 
-  if(ImGui::BeginTabBar("settingstabs")) {
-    for(int i = 0; i < IM_ARRAYSIZE(SettingsTabs); i++) {
-      const ImGuiTabItemFlags flags = settingsTab == i ? ImGuiTabItemFlags_SetSelected : 0;
-      if(ImGui::BeginTabItem(SettingsTabs[i].name, nullptr, flags)) {
-        (this->*SettingsTabs[i].draw)();
-        ImGui::EndTabItem();
-      }
+  settingsTab = SDL_clamp(settingsTab, 0, IM_ARRAYSIZE(SettingsTabs) - 1);
+  ImGui::BeginChild("##settings-navigation", ImVec2(settingsNavigationWidth(), 0.0f),
+                    ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding);
+  for(int i = 0; i < IM_ARRAYSIZE(SettingsTabs); i++) {
+    if(ImGui::Selectable(SettingsTabs[i].name, settingsTab == i,
+                         ImGuiSelectableFlags_SpanAvailWidth)) {
+      settingsTab = i;
     }
-    ImGui::EndTabBar();
   }
+  ImGui::EndChild();
 
-  settingsTab = -1;
+  ImGui::SameLine();
+  ImGui::BeginChild("##settings-content", ImVec2(0.0f, 0.0f),
+                    ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding);
+  (this->*SettingsTabs[settingsTab].draw)();
+  ImGui::EndChild();
   ImGui::End();
 }
 

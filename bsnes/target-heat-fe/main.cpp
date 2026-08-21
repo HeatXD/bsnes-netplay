@@ -516,7 +516,7 @@ int Frontend::runUiShot() {
   // that drifts per frame
   const int passes = opt.frameLimit > 0 ? opt.frameLimit : 3;
   for(int pass = 0; pass < passes; pass++) {
-    app.settingsTab = pass == 0 ? opt.shotTab : -1;
+    if(pass == 0 && opt.shotTab >= 0) app.settingsTab = opt.shotTab;
     renderUi();
   }
 
@@ -590,7 +590,7 @@ void openRequestedPanel(App& app, const Options& opt) {
   app.showStateManager = opt.uiScreen == "state-manager";
   app.showCheats = opt.uiScreen == "cheats";
   app.showCheatFinder = opt.uiScreen == "cheat-finder";
-  app.settingsTab = opt.shotTab;
+  if(opt.shotTab >= 0) app.settingsTab = opt.shotTab;
 }
 
 void shutdownApp(App& app) {
