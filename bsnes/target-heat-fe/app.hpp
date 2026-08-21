@@ -225,6 +225,7 @@ struct App {
   std::string shadersDir() const;
   // rebuilds the GLSL chain from the selected package and its overrides
   void applyShader();
+  void applyVideoFilter();
   // keeps only the parameters the user moved away from the manifest's values
   void saveShaderParams();
   // unset means a Firmware folder beside the config

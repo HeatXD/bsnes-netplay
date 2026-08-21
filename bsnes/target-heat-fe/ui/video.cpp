@@ -24,7 +24,6 @@ void App::restoreVideoDefaults() {
   applyShader();
 }
 
-// the chain runs on whatever the CPU filter produced, as it does in target-bsnes
 void App::drawShaderSection(bool& dirty) {
   ImGui::TextDisabled("Shader");
   if(!shell.shader.supported()) {
@@ -185,11 +184,15 @@ void App::drawVideoTab() {
     items.push_back(filterNames[i].c_str());
     if(filterNames[i] == settings.videoFilter) current = (int)i;
   }
+  ImGui::BeginDisabled(shell.shader.active());
   if(ImGui::Combo("Filter", &current, items.data(), (int)items.size())) {
     settings.videoFilter = filterNames[current];
-    core.setFilter(settings.videoFilter);
+    applyVideoFilter();
     dirty = true;
   }
+  ImGui::EndDisabled();
+  tip(shell.shader.active() ? "Saved but bypassed while a shader is active."
+                            : "CPU filter used when no GLSL shader is active.");
 
   ImGui::Separator();
   drawShaderSection(dirty);

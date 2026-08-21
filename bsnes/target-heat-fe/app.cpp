@@ -40,8 +40,13 @@ void App::applyShader() {
   if(!shell.shader.load(settings.videoShader, overrides)) {
     showMessage("shader: " + shell.shader.failure);
   }
+  applyVideoFilter();
   // a shader switched on while paused has no frame of its own yet
   shell.repushVideo();
+}
+
+void App::applyVideoFilter() {
+  core.setFilter(shell.shader.active() ? "None" : settings.videoFilter);
 }
 
 void App::saveShaderParams() {
