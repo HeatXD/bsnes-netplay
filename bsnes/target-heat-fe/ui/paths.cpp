@@ -24,6 +24,8 @@ const FolderRow FolderRows[] = {
    "A game found here is verified and uses its board layout.",
    &Settings::databaseDir, &App::databaseDirShown, &App::databaseDirPick,
    &App::refreshDatabaseDir},
+  {"Shaders folder", nullptr, "Holds the .shader packages the Video tab lists.",
+   &Settings::shadersDir, &App::shadersDir, &App::shadersDirPick, nullptr},
 };
 }  // namespace
 
@@ -37,6 +39,7 @@ void App::restorePathDefaults() {
   settings.patchesDir = defaults.patchesDir;
   settings.databaseDir = defaults.databaseDir;
   settings.statesDir = defaults.statesDir;
+  settings.shadersDir = defaults.shadersDir;
   for(int i = 0; i < EmuCore::MediumCount; i++) settings.recentDir[i].clear();
   core.setPatchesDirectory(settings.patchesDir);
   refreshDatabaseDir();

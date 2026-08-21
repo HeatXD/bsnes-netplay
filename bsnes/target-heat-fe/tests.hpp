@@ -1,6 +1,6 @@
 #pragma once
 
-// The verification harnesses drive App directly without pumping events.
+// Verification harnesses drive App directly without drawing or pumping events.
 
 #include "app.hpp"
 
@@ -9,3 +9,4 @@ int runDeterminismTest(App& app, int frames);
 int runTimelineTest(App& app, int warmFrames);
 int runHotkeyTest(App& app);
 int runLuaTest(App& app, const std::string& script);
+int runShaderTest(App& app);

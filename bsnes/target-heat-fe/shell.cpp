@@ -4,24 +4,22 @@
 
 #include "imgui.h"
 
-// macOS has no 3.0 compatibility context, only 2.1 legacy or 3.2+ core
 namespace {
+// the quark packages are #version 150, and macOS has nothing between it and 2.1
+void requestGl(bool core) {
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, core ? 2 : 0);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                      core ? SDL_GL_CONTEXT_PROFILE_CORE : 0);
 #ifdef __APPLE__
-constexpr int GlMajor = 3, GlMinor = 2;
-#else
-constexpr int GlMajor = 3, GlMinor = 0;
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 #endif
+}
 }
 
 bool Shell::initVideo() {
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GlMajor);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GlMinor);
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-#ifdef __APPLE__
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-#endif
-
+  requestGl(true);
   window = SDL_CreateWindow(AppName, 878, 224 * 3 + 24,
                             SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
   if(!window) {
@@ -30,11 +28,21 @@ bool Shell::initVideo() {
   }
 
   gl = SDL_GL_CreateContext(window);
+#ifndef __APPLE__
+  // a driver with no 3.2 still runs everything but the shader pipeline
+  if(!gl) {
+    SDL_Log("gl 3.2 core unavailable (%s), falling back", SDL_GetError());
+    requestGl(false);
+    gl = SDL_GL_CreateContext(window);
+    glslVersion = "#version 130";
+  }
+#endif
   if(!gl) {
     SDL_Log("gl context failed: %s", SDL_GetError());
     return false;
   }
   SDL_GL_MakeCurrent(window, gl);
+  if(!shader.init()) SDL_Log("gl shader pipeline unavailable on this driver");
   // audio is the master clock, so vsync must not also gate the loop
   SDL_GL_SetSwapInterval(0);
 
@@ -122,6 +130,7 @@ bool Shell::init(const Settings& settings) {
 
 void Shell::shutdown() {
   if(audio) SDL_DestroyAudioStream(audio);
+  if(gl) shader.shutdown();
   if(texture) glDeleteTextures(1, &texture);
   if(gl) SDL_GL_DestroyContext(gl);
   if(window) SDL_DestroyWindow(window);
@@ -168,6 +177,8 @@ void Shell::pushVideo(const uint32_t* argb, int width, int height) {
                  GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
   }
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, argb);
+  // the texture above is oversized, and quark shaders index texels off sourceSize
+  shader.pushFrame(argb, width, height);
 }
 
 void Shell::pushAudio(const Settings& settings, const float* samples, int frames,
@@ -212,22 +223,44 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
   drawWidth = (int)(w + 0.5f);
   drawHeight = (int)(h + 0.5f);
 
-  const GLint filter = settings.linearFilter ? GL_LINEAR : GL_NEAREST;
-  glBindTexture(GL_TEXTURE_2D, texture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-
   const ImVec2 p0(view->WorkPos.x + (availW - w) / 2.0f, view->WorkPos.y + (availH - h) / 2.0f);
   const ImVec2 p1(p0.x + w, p0.y + h);
   drawX = p0.x;
   drawY = p0.y;
+
+  GLuint present = texture;
   // Half a texel in on every side: the texture is larger than the frame, so
   // CLAMP_TO_EDGE guards its edge, not the picture's, and sampling right at
   // frameWidth would blend the last column with never-written texels.
-  const ImVec2 uv0(0.5f / textureWidth, 0.5f / textureHeight);
-  const ImVec2 uv1((frameWidth - 0.5f) / textureWidth, (frameHeight - 0.5f) / textureHeight);
-  ImGui::GetBackgroundDrawList(view)->AddImage((ImTextureID)(intptr_t)texture, p0, p1, uv0, uv1,
+  ImVec2 uv0(0.5f / textureWidth, 0.5f / textureHeight);
+  ImVec2 uv1((frameWidth - 0.5f) / textureWidth, (frameHeight - 0.5f) / textureHeight);
+  GLint filter = settings.linearFilter ? GL_LINEAR : GL_NEAREST;
+
+  if(shader.active()) {
+    // the chain renders at device resolution, which is what a CRT mask needs
+    const float dpi = pixelScale();
+    const GLuint output = shader.render(SDL_max(1, (int)(w * dpi + 0.5f)),
+                                        SDL_max(1, (int)(h * dpi + 0.5f)));
+    if(output) {
+      present = output;
+      uv0 = ImVec2(0.0f, 0.0f);
+      uv1 = ImVec2(1.0f, 1.0f);
+      filter = (GLint)shader.outputFilter;
+    }
+  }
+
+  glBindTexture(GL_TEXTURE_2D, present);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+  ImGui::GetBackgroundDrawList(view)->AddImage((ImTextureID)(intptr_t)present, p0, p1, uv0, uv1,
                                               (ImU32)tint);
+}
+
+float Shell::pixelScale() const {
+  int points = 0, pixels = 0;
+  SDL_GetWindowSize(window, &points, nullptr);
+  SDL_GetWindowSizeInPixels(window, &pixels, nullptr);
+  return points > 0 ? (float)pixels / points : 1.0f;
 }
 
 void Shell::shrinkToFit(const Settings& settings) {

@@ -2,18 +2,13 @@
 
 #include "emucore/emucore.hpp"
 #include "settings.hpp"
+#include "shader.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
 #include <string>
 #include <vector>
-
-#ifdef __APPLE__
-constexpr const char* GlslVersion = "#version 150";
-#else
-constexpr const char* GlslVersion = "#version 130";
-#endif
 
 constexpr int AudioRate = 48000;
 
@@ -34,6 +29,9 @@ struct Shell {
   SDL_GLContext gl = nullptr;
   GLuint texture = 0;
   SDL_AudioStream* audio = nullptr;
+  Shader shader;
+  // what imgui's backend is told; follows whichever context we ended up with
+  const char* glslVersion = "#version 150";
 
   // valid until the core's next frame, which is enough for a screenshot
   const uint32_t* lastPixels = nullptr;
@@ -61,6 +59,8 @@ struct Shell {
   int displayFrameMs() const;
   void pace(const Settings& settings);
   void pushVideo(const uint32_t* argb, int width, int height);
+  // re-uploads the frame on screen, for a shader switched on while paused
+  void repushVideo() { shader.pushFrame(lastPixels, frameWidth, frameHeight); }
   // unpaced means no audio clock, so a full backlog is dropped rather than queued
   void pushAudio(const Settings& settings, const float* samples, int frames,
                  float gain, bool unpaced);
@@ -77,6 +77,8 @@ struct Shell {
     drawWidth = drawHeight = 0;
     drawX = drawY = 0.0f;
   }
+  // window pixels per logical point, for shading at the display's resolution
+  float pixelScale() const;
   // tint multiplies the frame, which is how the idle dimming is applied
   void drawGame(const Settings& settings, unsigned tint = 0xffffffffu);
   void shrinkToFit(const Settings& settings);

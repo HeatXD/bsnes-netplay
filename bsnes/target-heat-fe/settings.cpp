@@ -142,6 +142,8 @@ const StrField StrFields[] = {
   {"databasedir", &Settings::databaseDir, true},
   {"statesdir",   &Settings::statesDir,   true},
   {"display",     &Settings::displayName, false},
+  {"shader",      &Settings::videoShader, true},
+  {"shadersdir",  &Settings::shadersDir,  true},
 };
 }  // namespace
 
@@ -156,6 +158,19 @@ void Settings::applyKey(const std::string& key, const std::string& value) {
   }
   for(const StrField& f : StrFields) {
     if(key == f.key) { this->*f.field = f.path ? normalPath(value) : value; return; }
+  }
+
+  // "name=value"; only the selected shader's overrides are kept
+  if(key == "shaderparam") {
+    const size_t equals = value.find('=');
+    if(equals != std::string::npos) {
+      const std::string name = value.substr(0, equals);
+      for(ShaderSetting& param : shaderParams) {
+        if(param.name == name) { param.value = value.substr(equals + 1); return; }
+      }
+      shaderParams.push_back({name, value.substr(equals + 1)});
+    }
+    return;
   }
 
   if(key == "recent") {
@@ -235,6 +250,7 @@ void Settings::save(const std::string& path) const {
     add(key, recentDir[i]);
   }
   for(const std::string& rom : recent) add("recent", rom);
+  for(const ShaderSetting& param : shaderParams) add("shaderparam", param.name + "=" + param.value);
 
   writeText(path, text);
 }

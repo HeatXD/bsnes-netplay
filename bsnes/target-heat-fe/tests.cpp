@@ -500,3 +500,159 @@ int runLuaTest(App& app, const std::string& script) {
   SDL_Log("Lua lifecycle test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }
+
+namespace {
+// a frame the chain can actually chew on: flat colour hides sampling mistakes
+std::vector<uint32_t> testFrame(int width, int height) {
+  std::vector<uint32_t> pixels((size_t)width * height);
+  for(int y = 0; y < height; y++) {
+    for(int x = 0; x < width; x++) {
+      pixels[(size_t)y * width + x] = 0xff000000u | (uint32_t)(x * 255 / width) << 16
+                                    | (uint32_t)(y * 255 / height) << 8 | 0x40u;
+    }
+  }
+  return pixels;
+}
+
+// reads the chain's own output, so nothing depends on a UI frame being drawn
+uint64_t renderHash(Shader& shader, int width, int height) {
+  const GLuint texture = shader.render(width, height);
+  if(!texture) return 0;
+
+  std::vector<uint32_t> pixels((size_t)shader.outputWidth * shader.outputHeight);
+  glBindTexture(GL_TEXTURE_2D, texture);
+  glPixelStorei(GL_PACK_ALIGNMENT, 4);
+  glGetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels.data());
+
+  uint64_t hash = FnvBasis;
+  bool lit = false;
+  for(uint32_t pixel : pixels) {
+    hash = fnv(hash, pixel);
+    lit = lit || (pixel & 0x00ffffffu) != 0;
+  }
+  return lit ? hash : 0;  // an all-black chain reads as no output at all
+}
+
+// a package that will not compile, for the diagnostics check
+std::string writeBrokenPackage() {
+  const std::string dir = configDir() + "broken-selftest.shader";
+  if(!ensureDir(dir)) return {};
+  writeText(dir + "/manifest.bml", "program\n  fragment: broken.fs\n");
+  writeText(dir + "/broken.fs",
+            "#version 150\nout vec4 fragColor;\nvoid main() { !!! }\n");
+  return dir;
+}
+
+void removeBrokenPackage(const std::string& dir) {
+  SDL_RemovePath((dir + "/manifest.bml").c_str());
+  SDL_RemovePath((dir + "/broken.fs").c_str());
+  SDL_RemovePath(dir.c_str());
+}
+}  // namespace
+
+// loads every package in the shaders folder, runs it, and checks it lets go
+int runShaderTest(App& app) {
+  Shader& shader = app.shell.shader;
+  if(!shader.supported()) {
+    SDL_Log("shader test: FAIL, no OpenGL 3.2 on this driver");
+    return 1;
+  }
+
+  bool pass = true;
+  const bool refused = !shader.load(configDir() + "no-such.shader", {})
+                    && !shader.active() && !shader.failure.empty();
+  SDL_Log("missing package refused: %s", refused ? "ok" : "FAILED");
+  pass = pass && refused;
+
+  const std::vector<uint32_t> frame = testFrame(256, 224);
+  const std::string dir = app.shadersDir();
+  const std::vector<std::string> folders = shaderList(dir);
+  SDL_Log("%d packages in %s", (int)folders.size(), dir.c_str());
+  if(folders.empty()) {
+    SDL_Log("shader test: FAIL, no packages to exercise");
+    return 1;
+  }
+
+  for(const std::string& folder : folders) {
+    const std::string path = normalPath(dir + "/" + folder);
+    if(!shader.load(path, {})) {
+      SDL_Log("%-24s FAILED: %s", folder.c_str(), shader.failure.c_str());
+      if(!shader.log.empty()) SDL_Log("%s", shader.log.c_str());
+      pass = false;
+      continue;
+    }
+    shader.pushFrame(frame.data(), 256, 224);
+    const uint64_t once = renderHash(shader, 640, 480);
+    // a bare redraw must reuse the last chain run; a resize must not
+    const uint64_t redraw = renderHash(shader, 640, 480);
+    const bool cachedRedraw = shader.renderCount == 1 && redraw == once;
+    const bool resized = renderHash(shader, 512, 448) != 0 && shader.renderCount == 2;
+    const GLenum error = glGetError();
+
+    // a full ring of the same picture has to match one seeded frame
+    if(!shader.load(path, {})) { pass = false; continue; }
+    for(int i = 0; i < 9; i++) shader.pushFrame(frame.data(), 256, 224);
+    const bool coherent = renderHash(shader, 640, 480) == once;
+
+    if(!once || !cachedRedraw || !resized || !coherent || error != GL_NO_ERROR) {
+      SDL_Log("%-24s FAILED:%s%s%s%s%s", folder.c_str(), once ? "" : " blank frame",
+              cachedRedraw ? "" : " redraw reran the chain", resized ? "" : " resize not redrawn",
+              coherent ? "" : " history not seeded", error == GL_NO_ERROR ? "" : " gl error");
+      pass = false;
+      continue;
+    }
+    SDL_Log("%-24s ok, %d passes, %d x %d", folder.c_str(), (int)shader.passCount(),
+            shader.outputWidth, shader.outputHeight);
+  }
+
+  // a compile failure has to leave the driver's message behind for the UI
+  if(const std::string broken = writeBrokenPackage(); !broken.empty()) {
+    const bool reported = !shader.load(broken, {}) && !shader.active()
+                       && !shader.failure.empty() && !shader.log.empty();
+    SDL_Log("compiler diagnostics kept: %s", reported ? "ok" : "FAILED");
+    pass = pass && reported;
+    removeBrokenPackage(broken);
+  }
+
+  // a package with parameters has to honour an override
+  std::string withParams;
+  for(const std::string& folder : folders) {
+    if(!shader.load(normalPath(dir + "/" + folder), {})) continue;
+    if(!shader.params.empty()) { withParams = folder; break; }
+  }
+  if(!withParams.empty()) {
+    const std::string name = shader.params[0].name;
+    const std::vector<ShaderParam> overrides = {{name, "0.25", {}}};
+    const bool applied = shader.load(normalPath(dir + "/" + withParams), overrides)
+                      && shader.params[0].value == "0.25"
+                      && shader.params[0].stock != "0.25";
+    SDL_Log("parameter override in %s: %s", withParams.c_str(), applied ? "ok" : "FAILED");
+    pass = pass && applied;
+  } else {
+    SDL_Log("no package exposes parameters, override untested");
+  }
+
+  // the selection and its overrides have to survive settings.cfg
+  Settings written;
+  written.videoShader = dir + "/" + folders[0];
+  written.shaderParams = {{"gamma", "2.5"}};
+  const std::string temp = configDir() + "shader-selftest.cfg";
+  written.save(temp);
+  Settings reread;
+  reread.load(temp);
+  SDL_RemovePath(temp.c_str());
+  const bool roundTrip = reread.videoShader == normalPath(written.videoShader)
+                      && reread.shaderParams.size() == 1
+                      && reread.shaderParams[0].name == "gamma"
+                      && reread.shaderParams[0].value == "2.5";
+  SDL_Log("settings round-trip: %s", roundTrip ? "ok" : "FAILED");
+  pass = pass && roundTrip;
+
+  shader.unload();
+  const bool released = !shader.active() && shader.params.empty();
+  SDL_Log("unload: %s", released ? "ok" : "FAILED");
+  pass = pass && released;
+
+  SDL_Log("shader test: %s", pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}

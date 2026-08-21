@@ -12,6 +12,8 @@ void App::restoreVideoDefaults() {
   settings.videoLuminance = defaults.videoLuminance;
   settings.videoSaturation = defaults.videoSaturation;
   settings.videoFilter = defaults.videoFilter;
+  settings.videoShader = defaults.videoShader;
+  settings.shaderParams = defaults.shaderParams;
   settings.videoDimming = defaults.videoDimming;
   settings.screenshotLua = defaults.screenshotLua;
   settings.displayName = defaults.displayName;
@@ -19,6 +21,90 @@ void App::restoreVideoDefaults() {
   core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
   core.setPaletteAdjust(settings.videoGamma, settings.videoLuminance, settings.videoSaturation);
   core.setFilter(settings.videoFilter);
+  applyShader();
+}
+
+// the chain runs on whatever the CPU filter produced, as it does in target-bsnes
+void App::drawShaderSection(bool& dirty) {
+  ImGui::TextDisabled("Shader");
+  if(!shell.shader.supported()) {
+    ImGui::TextWrapped("This driver has no OpenGL 3.2, so shaders are unavailable.");
+    return;
+  }
+
+  const std::string dir = shadersDir();
+  const std::string current = settings.videoShader.empty() ? "None"
+                            : shaderLabel(settings.videoShader);
+  if(ImGui::BeginCombo("Shader", current.c_str())) {
+    if(ImGui::Selectable("None", settings.videoShader.empty())) {
+      settings.videoShader.clear();
+      settings.shaderParams.clear();
+      applyShader();
+      dirty = true;
+    }
+    for(const std::string& folder : shaderList(dir)) {
+      const std::string path = normalPath(dir + "/" + folder);
+      if(ImGui::Selectable(shaderLabel(folder).c_str(), settings.videoShader == path)) {
+        settings.videoShader = path;
+        settings.shaderParams.clear();
+        applyShader();
+        dirty = true;
+      }
+    }
+    ImGui::EndCombo();
+  }
+  tip("Multipass GLSL packages from the Shaders folder, in bsnes' own format.");
+
+  if(!settings.videoShader.empty() && ImGui::Button("Reload##shader")) {
+    applyShader();
+    if(shell.shader.active()) showMessage("shader reloaded");
+  }
+
+  if(!shell.shader.failure.empty()) {
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+    ImGui::TextWrapped("%s", shell.shader.failure.c_str());
+    ImGui::PopStyleColor();
+    if(!shell.shader.log.empty()) ImGui::TextWrapped("%s", shell.shader.log.c_str());
+    return;
+  }
+  if(!shell.shader.active()) return;
+
+  if(shell.shader.outputWidth > 0) {
+    ImGui::Text("%d passes, output %d x %d", (int)shell.shader.passCount(),
+                shell.shader.outputWidth, shell.shader.outputHeight);
+  } else {
+    ImGui::Text("%d passes", (int)shell.shader.passCount());
+  }
+
+  if(shell.shader.params.empty()) return;
+  ImGui::TextDisabled("Parameters");
+  // reloading replaces the parameter list, so the edit is applied after the loop
+  int edited = -1;
+  std::string value;
+  for(size_t i = 0; i < shell.shader.params.size(); i++) {
+    const ShaderParam& param = shell.shader.params[i];
+    char buffer[64];
+    SDL_strlcpy(buffer, param.value.c_str(), sizeof(buffer));
+    ImGui::PushID((int)i);
+    if(ImGui::InputText(param.name.c_str(), buffer, sizeof(buffer),
+                        ImGuiInputTextFlags_EnterReturnsTrue)) {
+      edited = (int)i;
+      value = buffer;
+    }
+    ImGui::PopID();
+  }
+  ImGui::TextWrapped("Press Enter to rebuild the chain with the new value.");
+  if(ImGui::Button("Reset parameters")) {
+    settings.shaderParams.clear();
+    applyShader();
+    dirty = true;
+  }
+  if(edited >= 0) {
+    shell.shader.params[(size_t)edited].value = value;
+    saveShaderParams();
+    applyShader();
+    dirty = true;
+  }
 }
 
 void App::drawVideoTab() {
@@ -104,6 +190,9 @@ void App::drawVideoTab() {
     core.setFilter(settings.videoFilter);
     dirty = true;
   }
+
+  ImGui::Separator();
+  drawShaderSection(dirty);
 
   ImGui::Separator();
   ImGui::Text("Console output: %d x %d", shell.frameWidth, shell.frameHeight);

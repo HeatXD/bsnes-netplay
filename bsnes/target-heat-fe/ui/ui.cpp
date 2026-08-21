@@ -169,10 +169,33 @@ void App::drawEmulationMenu() {
   if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, core.loaded())) powerCycle();
 }
 
+void App::drawShaderMenu() {
+  if(ImGui::MenuItem("None", nullptr, settings.videoShader.empty())) {
+    settings.videoShader.clear();
+    settings.shaderParams.clear();
+    applyShader();
+    settings.save(settingsCfg);
+  }
+  const std::string dir = shadersDir();
+  const std::vector<std::string> folders = shaderList(dir);
+  if(!folders.empty()) ImGui::Separator();
+  for(const std::string& folder : folders) {
+    const std::string path = normalPath(dir + "/" + folder);
+    if(ImGui::MenuItem(shaderLabel(folder).c_str(), nullptr, settings.videoShader == path)) {
+      settings.videoShader = path;
+      settings.shaderParams.clear();
+      applyShader();
+      settings.save(settingsCfg);
+    }
+  }
+}
+
 void App::drawSettingsMenu() {
   for(int i = 0; i < IM_ARRAYSIZE(SettingsTabs); i++) {
     if(ImGui::MenuItem(SettingsTabs[i].name)) { showSettings = true; settingsTab = i; }
   }
+  ImGui::Separator();
+  if(ImGui::BeginMenu("Shader", shell.shader.supported())) { drawShaderMenu(); ImGui::EndMenu(); }
   ImGui::Separator();
   if(ImGui::BeginMenu("Window Size", !fullscreen())) { drawWindowSizeMenu(); ImGui::EndMenu(); }
   if(ImGui::MenuItem("Fullscreen", hotkeyShortcut(HkFullscreen).c_str(), fullscreen())) {

@@ -23,6 +23,34 @@ std::string App::databaseDir() const {
   return configDir() + "Database";
 }
 
+std::string App::shadersDir() const {
+  if(!settings.shadersDir.empty()) return settings.shadersDir;
+  if(const char* base = SDL_GetBasePath()) {
+    const std::string beside = std::string(base) + "Shaders";
+    if(isDirectory(beside)) return beside;
+  }
+  return configDir() + "Shaders";
+}
+
+void App::applyShader() {
+  std::vector<ShaderParam> overrides;
+  for(const ShaderSetting& param : settings.shaderParams) {
+    overrides.push_back({param.name, param.value, {}});
+  }
+  if(!shell.shader.load(settings.videoShader, overrides)) {
+    showMessage("shader: " + shell.shader.failure);
+  }
+  // a shader switched on while paused has no frame of its own yet
+  shell.repushVideo();
+}
+
+void App::saveShaderParams() {
+  settings.shaderParams.clear();
+  for(const ShaderParam& param : shell.shader.params) {
+    if(param.value != param.stock) settings.shaderParams.push_back({param.name, param.value});
+  }
+}
+
 void App::rememberDir(const std::string& path) {
   const std::string normal = normalPath(path);
   if(std::string dir = parentDir(normal); !dir.empty()) {

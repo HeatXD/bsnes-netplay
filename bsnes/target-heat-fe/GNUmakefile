@@ -44,6 +44,7 @@ flags += $(sdl3.flags) $(imgui.flags) $(lua.flags)
 
 # filter drives the CPU video filters; lzma unpacks .7z game archives
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
+objects += ui-shader ui-stbimage
 objects += ui-tests
 objects += ui-scripting lua
 objects += core-main core-media core-vfs core-video core-info core-memory
@@ -59,6 +60,10 @@ obj/ui-main.o: $(ui)/main.cpp
 obj/ui-util.o: $(ui)/util.cpp
 obj/ui-settings.o: $(ui)/settings.cpp
 obj/ui-shell.o: $(ui)/shell.cpp
+obj/ui-shader.o: $(ui)/shader.cpp
+obj/ui-stbimage.o: $(ui)/stbimage.cpp
+# CRT-Royale's mask LUTs are PNGs; SDL already vendors a decoder for its own use
+obj/ui-stbimage.o: flags += -I$(sdl3.path)/src/video -Wno-unused-function
 obj/ui-app.o: $(ui)/app.cpp
 obj/ui-draw.o: $(ui)/ui/ui.cpp
 obj/ui-inputmap.o: $(ui)/inputmap.cpp

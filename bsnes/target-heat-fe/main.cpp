@@ -11,7 +11,9 @@ namespace {
 constexpr int IdleDelayMs = 32;
 
 // what this invocation is for; the harnesses are mutually exclusive
-enum class Mode { Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest };
+enum class Mode {
+  Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest, ShaderTest
+};
 
 struct Options {
   Mode mode = Mode::Run;
@@ -45,6 +47,7 @@ Options parseArgs(int argc, char** argv) {
     else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.mode = Mode::DeterminismTest;
     else if(SDL_strcmp(arg, "--timeline-test") == 0) opt.mode = Mode::TimelineTest;
     else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.mode = Mode::HotkeyTest;
+    else if(SDL_strcmp(arg, "--shader-test") == 0) opt.mode = Mode::ShaderTest;
     else if(SDL_strcmp(arg, "--lua-test") == 0 && hasValue) {
       opt.luaTest = argv[++i];
       opt.mode = Mode::LuaTest;
@@ -84,7 +87,7 @@ void initImGui(App& app, bool viewports) {
 
   app.applyTheme();
   ImGui_ImplSDL3_InitForOpenGL(app.shell.window, app.shell.gl);
-  ImGui_ImplOpenGL3_Init(GlslVersion);
+  ImGui_ImplOpenGL3_Init(app.shell.glslVersion);
   app.fontDirty = true;
 }
 
@@ -385,6 +388,10 @@ void Frontend::drainPicks() {
     app.settings.statesDir = normalPath(picked);
     app.settings.save(app.settingsCfg);
   }
+  if(takePick(app.shadersDirPick, picked) && !picked.empty()) {
+    app.settings.shadersDir = normalPath(picked);
+    app.settings.save(app.settingsCfg);
+  }
   if(takePick(app.firmwareDirPick, picked) && !picked.empty()) {
     app.settings.firmwareDir = normalPath(picked);
     app.core.setFirmwareDirectory(app.firmwareDir());
@@ -567,6 +574,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  app.applyShader();  // needs the GL context, so not with the rest of the config
   app.scanGames();
   initImGui(app, opt.mode != Mode::UiShot);
   loadGamepadMappings();
@@ -591,6 +599,7 @@ int main(int argc, char** argv) {
     case Mode::TimelineTest:    code = runTimelineTest(app, opt.warmFrames); break;
     case Mode::HotkeyTest:      code = runHotkeyTest(app); break;
     case Mode::LuaTest:         code = runLuaTest(app, opt.luaTest); break;
+    case Mode::ShaderTest:      code = runShaderTest(app); break;
     case Mode::Run:             code = frontend.runLoop(); break;
   }
 

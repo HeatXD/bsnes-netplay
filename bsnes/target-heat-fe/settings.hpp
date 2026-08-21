@@ -69,6 +69,12 @@ enum Speed { SpeedHalf, SpeedSlow, SpeedNormal, SpeedFast, SpeedDouble, SpeedCou
 extern const char* const SpeedNames[SpeedCount];
 extern const double SpeedScales[SpeedCount];
 
+// one overridden manifest `settings` entry of the selected shader
+struct ShaderSetting {
+  std::string name;
+  std::string value;
+};
+
 struct Settings {
   int latencyMs = 48;
   int volume = 100;
@@ -90,6 +96,9 @@ struct Settings {
   int videoLuminance = 100;   // percent, 0-100
   int videoSaturation = 100;  // percent, 0-200
   std::string videoFilter = "None";
+  // a .shader package folder; empty means no GLSL chain at all
+  std::string videoShader;
+  std::vector<ShaderSetting> shaderParams;
   // display to put the window on by name; empty follows wherever it was dragged
   std::string displayName;
   int defocusPolicy = DefocusPause;
@@ -144,6 +153,7 @@ struct Settings {
   std::string patchesDir;   // empty means beside the ROM
   std::string databaseDir;  // empty means a Database folder beside the exe
   std::string statesDir;    // empty means a States folder beside the config
+  std::string shadersDir;   // empty means a Shaders folder beside the exe
   // base cartridges the slot media ride in
   std::string sgbBios;
   std::string bsxBios;

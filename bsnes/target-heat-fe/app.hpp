@@ -56,7 +56,7 @@ struct App {
 
   FilePick romPick, dirPick, shotDirPick, savesDirPick, fontPick, pakPick, firmwareDirPick;
   FilePick scriptPick;
-  FilePick patchesDirPick, databaseDirPick, statesDirPick;
+  FilePick patchesDirPick, databaseDirPick, statesDirPick, shadersDirPick;
   FilePick sgbBiosPick, bsxBiosPick, stBiosPick;
   FilePick sufamiAPick, sufamiBPick;
   std::string sufamiPending;
@@ -157,6 +157,12 @@ struct App {
   const Controller* portPad(int port, int player) const {
     return resolvePad(pads, settings.padIndex[padSlot(port, player)]);
   }
+  // unset means a Shaders folder beside the exe, then one beside the config
+  std::string shadersDir() const;
+  // rebuilds the GLSL chain from the selected package and its overrides
+  void applyShader();
+  // keeps only the parameters the user moved away from the manifest's values
+  void saveShaderParams();
   // unset means a Firmware folder beside the config
   std::string firmwareDir() const {
     return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;
@@ -240,6 +246,7 @@ struct App {
   void drawStateMenu(bool loading);
   void drawRemoveStatesPrompt();
   void drawEmulationMenu();
+  void drawShaderMenu();
   void drawSettingsMenu();
   void drawMenuBar();
   void drawStatusBar();
@@ -248,6 +255,7 @@ struct App {
   void drawToolsWindow();
   void drawScriptingWindow();
   void restoreVideoDefaults();
+  void drawShaderSection(bool& dirty);
   void drawVideoTab();
   void restoreAudioDefaults();
   void drawAudioTab();
