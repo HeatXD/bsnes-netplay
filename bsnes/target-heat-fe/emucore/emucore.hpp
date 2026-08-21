@@ -78,6 +78,7 @@ public:
   void power();
   void reset();
   void runFrame();
+  void setRunAhead(bool enabled);
 
   // the whole machine; false is the deterministic capture rollback needs
   std::vector<uint8_t> serialize(bool synchronize = true);

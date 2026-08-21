@@ -241,3 +241,7 @@ void EmuCore::runFrame() {
     onAudio(impl->audioOut.data(), (int)(impl->audioOut.size() / 2));
   }
 }
+
+void EmuCore::setRunAhead(bool enabled) {
+  if(loaded()) impl->emulator->setRunAhead(enabled);
+}

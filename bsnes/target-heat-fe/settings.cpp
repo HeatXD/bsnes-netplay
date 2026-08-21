@@ -31,6 +31,7 @@ constexpr struct { const char* name; SDL_Scancode key; } Hotkeys[HotkeyCount] = 
   {"Redo Last Undo",       SDL_SCANCODE_UNKNOWN},
   {"Previous State Slot",  SDL_SCANCODE_UNKNOWN},
   {"Next State Slot",      SDL_SCANCODE_UNKNOWN},
+  {"Rewind",               SDL_SCANCODE_UNKNOWN},
 };
 }  // namespace
 
@@ -66,6 +67,9 @@ const IntField IntFields[] = {
   {"windowscale", &Settings::windowScale,      0,              MaxWindowScale},
   {"ffspeed",     &Settings::fastForwardSpeed, 2,              16},
   {"ffframeskip", &Settings::fastForwardFrameSkip, 0,          9},
+  {"rewindfrequency", &Settings::rewindFrequency, 0,            60},
+  {"rewindlength", &Settings::rewindLength,       10,           320},
+  {"runahead",     &Settings::runAheadFrames,     0,            4},
   {"mode7scale",  &Settings::hackMode7Scale,   1,              MaxMode7Scale},
   {"entropy",     &Settings::hackEntropy,      0,              EntropyCount - 1},
   {"cpuoverclock",   &Settings::hackCpuOverclock,    100,      400},
@@ -112,6 +116,7 @@ const BoolField BoolFields[] = {
   {"fastmath",       &Settings::hackCpuFastMath},
   {"ffunlimited",    &Settings::fastForwardUnlimited},
   {"ffmute",         &Settings::fastForwardMute},
+  {"rewindmute",     &Settings::rewindMute},
   {"tooltips",       &Settings::showToolTips},
   {"dimming",        &Settings::videoDimming},
   {"screenshotlua",  &Settings::screenshotLua},

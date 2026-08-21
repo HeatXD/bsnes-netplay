@@ -93,6 +93,7 @@ bool App::loadRom(const std::string& entry) {
     return false;
   }
 
+  resetTimeline();
   undoState.clear();
   redoState.clear();
   gameTitle = fileStem(first);
@@ -145,6 +146,90 @@ void App::saveMemoryTick() {
   core.saveMemory();
 }
 
+void App::resetTimeline() {
+  rewinding = false;
+  rewindCounter = 0;
+  std::deque<std::vector<uint8_t>>().swap(rewindHistory);
+}
+
+void App::setRewinding(bool enabled) {
+  if(!enabled) {
+    rewinding = false;
+    rewindCounter = 0;
+    return;
+  }
+  if(!core.loaded() || fastForward) return;
+  if(settings.rewindFrequency == 0) {
+    showMessage("enable rewind under Emulator settings first");
+    return;
+  }
+  if(rewindHistory.empty()) {
+    showMessage("rewind history is empty");
+    return;
+  }
+  rewinding = true;
+  rewindCounter = SDL_max(1, settings.rewindFrequency / 4) - 1;
+  if(shell.audio) SDL_ClearAudioStream(shell.audio);
+}
+
+void App::captureRewind() {
+  if(rewinding || settings.rewindFrequency == 0 || !EmuCore::deterministicStates()) return;
+  if(++rewindCounter < settings.rewindFrequency) return;
+  rewindCounter = 0;
+
+  std::vector<uint8_t> state = core.serialize(false);
+  if(state.empty()) return;
+  while((int)rewindHistory.size() >= settings.rewindLength) rewindHistory.pop_front();
+  rewindHistory.push_back(std::move(state));
+}
+
+void App::stepRewind() {
+  if(!rewinding) return;
+  if(++rewindCounter < SDL_max(1, settings.rewindFrequency / 4)) return;
+  rewindCounter = 0;
+
+  if(rewindHistory.empty()) {
+    rewinding = false;
+    showMessage("rewind history exhausted");
+    return;
+  }
+  std::vector<uint8_t> state = std::move(rewindHistory.back());
+  rewindHistory.pop_back();
+  if(!core.unserialize(state)) {
+    resetTimeline();
+    showMessage("rewind state could not be restored");
+  }
+}
+
+void App::advanceEmulation() {
+  captureRewind();
+  stepRewind();
+
+  const bool runAhead = settings.runAheadFrames > 0 && !fastForward && !rewinding
+                     && !scripting.running() && EmuCore::deterministicStates();
+  if(!runAhead) {
+    scripting.runBeforeFrame();
+    core.runFrame();
+    emulatedFrames++;
+    scripting.runFrame();
+    return;
+  }
+
+  core.setRunAhead(true);
+  core.runFrame();
+  emulatedFrames++;
+  const std::vector<uint8_t> state = core.serialize(false);
+  for(int frame = 1; frame < settings.runAheadFrames; frame++) core.runFrame();
+  core.setRunAhead(false);
+  core.runFrame();
+
+  if(state.empty() || !core.unserialize(state)) {
+    settings.runAheadFrames = 0;
+    settings.save(settingsCfg);
+    showMessage("run-ahead disabled after a state restore failure");
+  }
+}
+
 void App::pushEnhancements() {
   core.setOption("Frontend/Hotfixes", flag(settings.hackHotfixes));
   core.setOption("Hacks/Entropy", EntropyNames[settings.hackEntropy]);
@@ -170,6 +255,7 @@ void App::pushEnhancements() {
 void App::unloadRom() {
   // the game is still in the core, so this has to happen before the unload
   if(settings.autoStateOnUnload) saveState("auto", true);
+  resetTimeline();
   core.unload();
   gameTitle.clear();
   // the memory slots belong to the machine that just went away
@@ -310,7 +396,7 @@ void App::triggerHotkey(int index) {
   switch(index) {
   case HkPause: if(core.loaded()) paused = !paused; break;
   case HkReset: if(core.loaded()) reset(); break;
-  case HkFastForward: toggleFastForward(); break;
+  case HkFastForward: if(!rewinding) toggleFastForward(); break;
   case HkFullscreen: toggleFullscreen(); break;
   case HkScreenshot: takeScreenshot(); break;
   case HkFrameAdvance:
@@ -344,6 +430,7 @@ void App::triggerHotkey(int index) {
     showMessage(std::string("supersampling ") + (settings.hackMode7Supersample ? "on" : "off"));
     enhanced = true;
     break;
+  case HkRewind: break;
   }
 
   if(enhanced) {
@@ -360,7 +447,11 @@ void App::pollHotkeys() {
   for(int i = 0; i < HotkeyCount; i++) {
     const bool held = !typing && !rebinding
                    && input.hotkeyHeld(i, sample, pads);
-    if(held && !hotkeyWasHeld[i]) triggerHotkey(i);
+    if(i == HkRewind) {
+      if(held != hotkeyWasHeld[i]) setRewinding(held);
+    } else if(held && !hotkeyWasHeld[i]) {
+      triggerHotkey(i);
+    }
     hotkeyWasHeld[i] = held;
   }
 }

@@ -9,6 +9,7 @@
 
 #include "imgui.h"
 
+#include <deque>
 #include <string>
 #include <utility>
 #include <vector>
@@ -64,6 +65,7 @@ struct App {
   bool fontDirty = false;
   bool paused = false;
   bool fastForward = false;
+  bool rewinding = false;
   bool frameAdvance = false;  // one-shot: advance a frame, then stay paused
   bool showSettings = false;
   bool showTools = false;
@@ -93,6 +95,8 @@ struct App {
   // a load that still has to be confirmed; the game is in the core but held
   bool unverifiedPrompt = false;
   long long emulatedFrames = 0;  // turbo's clock; must not depend on wall time
+  std::deque<std::vector<uint8_t>> rewindHistory;
+  int rewindCounter = 0;
 
   void scanGames();
   // a path, or a Sufami Turbo pair joined by '|', as the recent list stores it
@@ -109,13 +113,14 @@ struct App {
   bool unpaced() const { return fastForward && settings.fastForwardUnlimited; }
   bool muted() const {
     return settings.mute || (settings.muteUnfocused && !focused())
-        || (fastForward && settings.fastForwardMute);
+        || (fastForward && settings.fastForwardMute)
+        || (rewinding && settings.rewindMute);
   }
   // a limited fast forward plays at 65%: decimated audio is harsh
   float audioGain() const {
     if(muted()) return 0.0f;
     const bool limited = fastForward && !settings.fastForwardUnlimited;
-    return settings.volume / 100.0f * (limited ? 0.65f : 1.0f);
+    return settings.volume / 100.0f * (limited || rewinding ? 0.65f : 1.0f);
   }
   void setSpeed(int index) {
     speedIndex = SDL_clamp(index, 0, SpeedCount - 1);
@@ -128,8 +133,8 @@ struct App {
     core.setAudioFrequency(AudioRate + settings.audioSkew);
     core.setAudioBalance(SDL_clamp((settings.audioBalance - 50) / 50.0, -1.0, 1.0));
   }
-  void reset() { core.reset(); paused = false; }
-  void powerCycle() { core.power(); paused = false; }
+  void reset() { core.reset(); resetTimeline(); paused = false; }
+  void powerCycle() { core.power(); resetTimeline(); paused = false; }
   void advanceOneFrame() { frameAdvance = true; }
 
   // any window we own, not just the main one: an imgui viewport panel takes
@@ -185,6 +190,12 @@ struct App {
   std::string pendingScreenshot;
   void finishScreenshot(bool saved);
   void saveMemoryTick();
+
+  void resetTimeline();
+  void setRewinding(bool enabled);
+  void captureRewind();
+  void stepRewind();
+  void advanceEmulation();
 
   //states.cpp
   // resolved states folder, and the per-game folder holding the slots

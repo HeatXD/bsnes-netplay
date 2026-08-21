@@ -11,7 +11,7 @@ namespace {
 constexpr int IdleDelayMs = 32;
 
 // what this invocation is for; the harnesses are mutually exclusive
-enum class Mode { Run, UiShot, StateTest, DeterminismTest, HotkeyTest, LuaTest };
+enum class Mode { Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest };
 
 struct Options {
   Mode mode = Mode::Run;
@@ -29,7 +29,7 @@ struct Options {
 
   // the modes that drive the emulator itself; the hotkey matcher needs no game
   bool needsRom() const {
-    return mode == Mode::StateTest || mode == Mode::DeterminismTest
+    return mode == Mode::StateTest || mode == Mode::DeterminismTest || mode == Mode::TimelineTest
         || (mode == Mode::Run && frameLimit);
   }
 };
@@ -43,6 +43,7 @@ Options parseArgs(int argc, char** argv) {
     if(SDL_strcmp(arg, "--fast") == 0) opt.fast = true;
     else if(SDL_strcmp(arg, "--state-test") == 0) opt.mode = Mode::StateTest;
     else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.mode = Mode::DeterminismTest;
+    else if(SDL_strcmp(arg, "--timeline-test") == 0) opt.mode = Mode::TimelineTest;
     else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.mode = Mode::HotkeyTest;
     else if(SDL_strcmp(arg, "--lua-test") == 0 && hasValue) {
       opt.luaTest = argv[++i];
@@ -201,10 +202,7 @@ void Frontend::advance() {
     app.input.apply(app.core, app.pads, app.settings, app.sample, app.emulatedFrames);
   }
 
-  app.scripting.runBeforeFrame();
-  app.core.runFrame();
-  app.emulatedFrames++;
-  app.scripting.runFrame();
+  app.advanceEmulation();
   frames++;
   fpsFrames++;
 }
@@ -590,6 +588,7 @@ int main(int argc, char** argv) {
     case Mode::UiShot:          code = frontend.runUiShot(); break;
     case Mode::StateTest:       code = runStateTest(app, opt.warmFrames, opt.frameLimit); break;
     case Mode::DeterminismTest: code = runDeterminismTest(app, opt.frameLimit); break;
+    case Mode::TimelineTest:    code = runTimelineTest(app, opt.warmFrames); break;
     case Mode::HotkeyTest:      code = runHotkeyTest(app); break;
     case Mode::LuaTest:         code = runLuaTest(app, opt.luaTest); break;
     case Mode::Run:             code = frontend.runLoop(); break;

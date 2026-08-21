@@ -157,6 +157,7 @@ bool App::loadState(const std::string& name) {
     return false;
   }
 
+  resetTimeline();
   paused = false;
   showMessage("loaded " + stateLabel(name));
   return true;
@@ -176,6 +177,7 @@ bool App::loadStateFile(const std::string& path) {
     return false;
   }
 
+  resetTimeline();
   paused = false;
   showMessage("loaded state file " + fileName(path));
   return true;

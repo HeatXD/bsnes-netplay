@@ -7,6 +7,10 @@ void App::restoreEmulatorDefaults() {
   settings.fastForwardUnlimited = defaults.fastForwardUnlimited;
   settings.fastForwardFrameSkip = defaults.fastForwardFrameSkip;
   settings.fastForwardMute = defaults.fastForwardMute;
+  settings.rewindFrequency = defaults.rewindFrequency;
+  settings.rewindLength = defaults.rewindLength;
+  settings.rewindMute = defaults.rewindMute;
+  settings.runAheadFrames = defaults.runAheadFrames;
   settings.showStatus = defaults.showStatus;
   settings.showToolTips = defaults.showToolTips;
   settings.warnUnverified = defaults.warnUnverified;
@@ -19,6 +23,7 @@ void App::restoreEmulatorDefaults() {
   settings.ipsHeadered = defaults.ipsHeadered;
   core.setIpsHeadered(settings.ipsHeadered);
   applySpeed();
+  resetTimeline();
 }
 
 void App::drawEmulatorTab() {
@@ -44,6 +49,28 @@ void App::drawEmulatorTab() {
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   tip("Skipping frames raises the top fast forward rate; needs the fast PPU.");
   dirty |= ImGui::Checkbox("Mute while fast forwarding", &settings.fastForwardMute);
+
+  ImGui::Spacing();
+  ImGui::TextDisabled("Latency");
+  ImGui::BeginDisabled(!EmuCore::deterministicStates());
+  dirty |= ImGui::SliderInt("Run-ahead", &settings.runAheadFrames, 0, 4, "%d frames");
+  ImGui::EndDisabled();
+  tip("Runs speculative frames to reduce controller latency; disabled while Lua is running.");
+
+  ImGui::Spacing();
+  ImGui::TextDisabled("Rewind");
+  if(ImGui::SliderInt("Capture interval", &settings.rewindFrequency, 0, 60, "%d frames")) {
+    resetTimeline();
+    dirty = true;
+  }
+  tip("Zero disables rewind; shorter intervals use more memory for the same duration.");
+  ImGui::BeginDisabled(settings.rewindFrequency == 0);
+  if(ImGui::SliderInt("History length", &settings.rewindLength, 10, 320, "%d states")) {
+    resetTimeline();
+    dirty = true;
+  }
+  dirty |= ImGui::Checkbox("Mute while rewinding", &settings.rewindMute);
+  ImGui::EndDisabled();
 
   ImGui::Spacing();
   ImGui::TextDisabled("Memory");

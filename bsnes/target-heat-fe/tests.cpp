@@ -190,6 +190,77 @@ int runDeterminismTest(App& app, int frames) {
   return pass ? 0 : 1;
 }
 
+int runTimelineTest(App& app, int warmFrames) {
+  const int oldFrequency = app.settings.rewindFrequency;
+  const int oldLength = app.settings.rewindLength;
+  const int oldRunAhead = app.settings.runAheadFrames;
+  auto restoreSettings = [&] {
+    app.settings.rewindFrequency = oldFrequency;
+    app.settings.rewindLength = oldLength;
+    app.settings.runAheadFrames = oldRunAhead;
+    app.core.setRunAhead(false);
+    app.resetTimeline();
+  };
+
+  app.core.setOption("Hacks/Entropy", "None");
+  app.core.power();
+  for(int frame = 0; frame < warmFrames; frame++) app.core.runFrame();
+  const std::vector<uint8_t> baseline = app.core.serialize(false);
+  const std::vector<EmuCore::StateComponent> map = app.core.stateMap(false);
+  auto guestHash = [&](const std::vector<uint8_t>& state) {
+    uint64_t hash = FnvBasis;
+    for(const auto& part : map) {
+      if(part.hostState) continue;
+      for(int i = part.offset; i < part.offset + part.size && i < (int)state.size(); i++) {
+        hash = fnv(hash, state[i]);
+      }
+    }
+    return hash;
+  };
+  auto run = [&](int frames) {
+    for(int frame = 0; frame < frames; frame++) app.core.runFrame();
+  };
+
+  app.core.unserialize(baseline);
+  run(3);
+  const uint64_t futureFrame = frameHash(app);
+  app.core.unserialize(baseline);
+  run(1);
+  const uint64_t oneFrameState = guestHash(app.core.serialize(false));
+
+  app.core.unserialize(baseline);
+  app.settings.rewindFrequency = 0;
+  app.settings.runAheadFrames = 2;
+  app.resetTimeline();
+  app.advanceEmulation();
+  const bool runAheadVideo = frameHash(app) == futureFrame;
+  const bool runAheadState = guestHash(app.core.serialize(false)) == oneFrameState;
+  SDL_Log("run-ahead: future frame %s, authoritative state %s",
+          runAheadVideo ? "ok" : "FAILED", runAheadState ? "ok" : "FAILED");
+
+  app.core.unserialize(baseline);
+  run(20);
+  const uint64_t twentyFrameState = guestHash(app.core.serialize(false));
+  app.core.unserialize(baseline);
+  app.settings.runAheadFrames = 0;
+  app.settings.rewindFrequency = 5;
+  app.settings.rewindLength = 3;
+  app.resetTimeline();
+  for(int frame = 0; frame < 25; frame++) app.advanceEmulation();
+  const bool bounded = app.rewindHistory.size() == 3;
+  app.setRewinding(true);
+  app.advanceEmulation();
+  app.advanceEmulation();
+  const bool rewound = guestHash(app.core.serialize(false)) == twentyFrameState;
+  SDL_Log("rewind: history bound %s, restored timeline %s",
+          bounded ? "ok" : "FAILED", rewound ? "ok" : "FAILED");
+
+  restoreSettings();
+  const bool pass = !baseline.empty() && runAheadVideo && runAheadState && bounded && rewound;
+  SDL_Log("timeline test: %s", pass ? "PASS" : "FAIL");
+  return pass ? 0 : 1;
+}
+
 // hotkeyHeld against a fabricated keyboard, since SDL's own state cannot be driven
 int runHotkeyTest(App& app) {
   bool keys[SDL_SCANCODE_COUNT] = {};

@@ -234,7 +234,8 @@ void App::drawStatusBar() {
       const char* leftText = !status.empty() ? status.c_str()
                            : core.loaded() ? gameTitle.c_str() : "no game";
 
-      const char* state = fastForward ? "  [ff]" : paused ? "  [paused]" : "";
+      const char* state = fastForward ? "  [ff]" : rewinding ? "  [rewind]"
+                        : paused ? "  [paused]" : "";
       char full[96], compact[64];
       SDL_snprintf(full, sizeof(full), "%dx%d  %.1f fps%s",
                    shell.frameWidth, shell.frameHeight, fps, state);

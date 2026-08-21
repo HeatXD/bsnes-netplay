@@ -32,7 +32,7 @@ enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot,
              HkUnloadGame, HkMouseCapture,
              HkMode7Down, HkMode7Up, HkSupersample,
              HkSaveState, HkLoadState, HkUndoState, HkRedoState,
-             HkSlotDown, HkSlotUp, HotkeyCount };
+             HkSlotDown, HkSlotUp, HkRewind, HotkeyCount };
 
 const char* HotkeyName(int index);
 // SDL_SCANCODE_UNKNOWN where bsnes ships the action unbound too
@@ -97,6 +97,10 @@ struct Settings {
   bool fastForwardUnlimited = true;
   int fastForwardFrameSkip = 9;
   bool fastForwardMute = false;
+  int rewindFrequency = 0;
+  int rewindLength = 80;
+  bool rewindMute = false;
+  int runAheadFrames = 0;
   bool hackPpuFast = true;
   bool hackPpuDeinterlace = true;
   bool hackPpuNoSpriteLimit = false;
