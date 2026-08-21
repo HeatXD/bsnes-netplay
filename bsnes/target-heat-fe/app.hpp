@@ -321,6 +321,8 @@ struct App {
   void setWindowScale(int scale);
   void drawFileMenu();
   void drawWindowSizeMenu();
+  void drawOutputMenu();
+  void drawFilterMenu();
   void drawSpeedMenu();
   void drawStateMenu(bool loading);
   void drawRemoveStatesPrompt();

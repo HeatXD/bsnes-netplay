@@ -95,6 +95,47 @@ void App::drawWindowSizeMenu() {
   if(ImGui::MenuItem("Center window")) shell.center(settings);
 }
 
+void App::drawOutputMenu() {
+  for(int mode = 0; mode < OutputCount; mode++) {
+    if(ImGui::MenuItem(OutputNames[mode], nullptr, settings.outputMode == mode)) {
+      settings.outputMode = mode;
+      settings.save(settingsCfg);
+    }
+  }
+
+  ImGui::Separator();
+  if(ImGui::MenuItem("Aspect correction (8:7)", nullptr, settings.aspectCorrect)) {
+    settings.aspectCorrect = !settings.aspectCorrect;
+    if(settings.windowScale > 0) shell.shrinkToFit(settings);
+    settings.save(settingsCfg);
+  }
+  if(ImGui::MenuItem("Linear filtering", nullptr, settings.linearFilter)) {
+    settings.linearFilter = !settings.linearFilter;
+    settings.save(settingsCfg);
+  }
+  if(ImGui::MenuItem("Crop overscan", nullptr, settings.overscanCrop)) {
+    settings.overscanCrop = !settings.overscanCrop;
+    core.setOverscanCrop(settings.overscanCrop);
+    if(settings.windowScale > 0) shell.shrinkToFit(settings);
+    settings.save(settingsCfg);
+  }
+  if(ImGui::MenuItem("Hires blur emulation", nullptr, settings.hiresBlur)) {
+    settings.hiresBlur = !settings.hiresBlur;
+    core.setOption("Video/BlurEmulation", flag(settings.hiresBlur));
+    settings.save(settingsCfg);
+  }
+}
+
+void App::drawFilterMenu() {
+  for(const std::string& filter : core.filterNames()) {
+    if(ImGui::MenuItem(filter.c_str(), nullptr, settings.videoFilter == filter)) {
+      settings.videoFilter = filter;
+      applyVideoFilter();
+      settings.save(settingsCfg);
+    }
+  }
+}
+
 // the slow down and speed up hotkeys walk this same list
 void App::drawSpeedMenu() {
   for(int i = 0; i < SpeedCount; i++) {
@@ -211,13 +252,24 @@ void App::drawShaderMenu() {
 }
 
 void App::drawSettingsMenu() {
-  for(int i = 0; i < IM_ARRAYSIZE(SettingsTabs); i++) {
-    if(ImGui::MenuItem(SettingsTabs[i].name)) { showSettings = true; settingsTab = i; }
+  if(ImGui::BeginMenu("Window Size", !fullscreen())) {
+    drawWindowSizeMenu();
+    ImGui::EndMenu();
   }
+  if(ImGui::BeginMenu("Output")) {
+    drawOutputMenu();
+    ImGui::EndMenu();
+  }
+  if(ImGui::BeginMenu("Filter", !shell.shader.active())) {
+    drawFilterMenu();
+    ImGui::EndMenu();
+  }
+  if(ImGui::BeginMenu("Shader", shell.shader.supported())) {
+    drawShaderMenu();
+    ImGui::EndMenu();
+  }
+
   ImGui::Separator();
-  if(ImGui::BeginMenu("Shader", shell.shader.supported())) { drawShaderMenu(); ImGui::EndMenu(); }
-  ImGui::Separator();
-  if(ImGui::BeginMenu("Window Size", !fullscreen())) { drawWindowSizeMenu(); ImGui::EndMenu(); }
   if(ImGui::MenuItem("Fullscreen", hotkeyShortcut(HkFullscreen).c_str(), fullscreen())) {
     toggleFullscreen();
   }
@@ -226,6 +278,15 @@ void App::drawSettingsMenu() {
   }
   if(ImGui::MenuItem("Show Status Bar", nullptr, &settings.showStatus)) {
     settings.save(settingsCfg);
+  }
+
+  ImGui::Separator();
+  for(int i = 0; i < IM_ARRAYSIZE(SettingsTabs); i++) {
+    const std::string label = std::string(SettingsTabs[i].name) + "...";
+    if(ImGui::MenuItem(label.c_str())) {
+      showSettings = true;
+      settingsTab = i;
+    }
   }
 }
 
