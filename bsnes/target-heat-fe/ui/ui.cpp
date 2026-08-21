@@ -388,17 +388,27 @@ void App::drawStatusBar() {
       const float rightX = rightEdge - rightWidth;
       const float leftWidth = SDL_max(0.0f, (rightText ? rightX - style.ItemSpacing.x
                                                        : rightEdge) - leftPos.x);
+      ImDrawList* drawList = ImGui::GetWindowDrawList();
+      const ImVec2 clipMin(ImGui::GetWindowPos().x + style.WindowBorderSize,
+                           ImGui::GetWindowPos().y + style.WindowBorderSize);
+      const ImVec2 clipMax(ImGui::GetWindowPos().x + ImGui::GetWindowWidth()
+                             - style.WindowBorderSize,
+                           ImGui::GetWindowPos().y + ImGui::GetWindowHeight()
+                             - style.WindowBorderSize);
       if(leftWidth > 0.0f) {
         const ImVec2 leftMax(leftPos.x + leftWidth, leftPos.y + ImGui::GetTextLineHeight());
         const ImVec2 leftSize = ImGui::CalcTextSize(leftText);
-        ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), leftPos, leftMax,
+        drawList->PushClipRect(clipMin, clipMax, false);
+        ImGui::RenderTextEllipsis(drawList, leftPos, ImVec2(leftMax.x, clipMax.y),
                                   leftMax.x, leftMax.x, leftText, nullptr, &leftSize);
+        drawList->PopClipRect();
         ImGui::Dummy(ImVec2(leftWidth, ImGui::GetTextLineHeight()));
         if(leftSize.x > leftWidth) tip(leftText);
       }
       if(rightText) {
-        ImGui::SetCursorScreenPos(ImVec2(rightX, leftPos.y));
-        ImGui::TextUnformatted(rightText);
+        drawList->PushClipRect(clipMin, clipMax, false);
+        drawList->AddText(ImVec2(rightX, leftPos.y), ImGui::GetColorU32(ImGuiCol_Text), rightText);
+        drawList->PopClipRect();
       }
   }
   ImGui::End();
