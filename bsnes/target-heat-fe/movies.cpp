@@ -5,7 +5,10 @@
 
 namespace {
 constexpr uint8_t Signature[] = {'B', 'S', 'V', '1'};
-const SDL_DialogFileFilter MovieFilters[] = {{"bsnes movies", "bsv"}, {"All files", "*"}};
+const SDL_DialogFileFilter MovieFilters[] = {
+  {"bsnes movies", "bsv"},
+  {"All files", "*"},
+};
 
 uint32_t read32(const uint8_t* data) {
   return (uint32_t)data[0] | (uint32_t)data[1] << 8 | (uint32_t)data[2] << 16
@@ -13,7 +16,9 @@ uint32_t read32(const uint8_t* data) {
 }
 
 void append32(std::vector<uint8_t>& data, uint32_t value) {
-  for(int shift = 0; shift < 32; shift += 8) data.push_back(value >> shift);
+  for(int shift = 0; shift < 32; shift += 8) {
+    data.push_back(value >> shift);
+  }
 }
 }
 
@@ -22,7 +27,9 @@ void App::openMovieDialog() {
 }
 
 void App::beginMovieRecording(bool fromBeginning) {
-  if(!core.loaded() || movieActive()) return;
+  if(!core.loaded() || movieActive()) {
+    return;
+  }
   if(scripting.running()) {
     showMessage("stop Lua scripting before recording a movie");
     return;
@@ -46,7 +53,9 @@ void App::beginMovieRecording(bool fromBeginning) {
 }
 
 bool App::playMovieFile(const std::string& path) {
-  if(!core.loaded() || movieActive()) return false;
+  if(!core.loaded() || movieActive()) {
+    return false;
+  }
   if(scripting.running()) {
     showMessage("stop Lua scripting before playing a movie");
     return false;
@@ -89,9 +98,17 @@ bool App::playMovieFile(const std::string& path) {
 }
 
 bool App::writeMovieFile(std::string path) {
-  if(path.empty()) return false;
-  if(path.size() < 4 || SDL_strcasecmp(path.c_str() + path.size() - 4, ".bsv") != 0) path += ".bsv";
-  if(movieState.size() > UINT32_MAX) return false;
+  if(path.empty()) {
+    return false;
+  }
+  const bool hasExtension = path.size() >= 4
+                         && SDL_strcasecmp(path.c_str() + path.size() - 4, ".bsv") == 0;
+  if(!hasExtension) {
+    path += ".bsv";
+  }
+  if(movieState.size() > UINT32_MAX) {
+    return false;
+  }
 
   std::vector<uint8_t> file;
   file.reserve(8 + movieState.size() + movieInput.size() * 2);
@@ -112,7 +129,9 @@ void App::stopMovie() {
     showMessage("movie playback stopped");
     return;
   }
-  if(movieMode != MovieMode::Recording || movieSavePending) return;
+  if(movieMode != MovieMode::Recording || movieSavePending) {
+    return;
+  }
 
   movieMode = MovieMode::Inactive;
   movieSavePending = true;
@@ -134,7 +153,9 @@ int16_t App::pollMovieInput(int, int, int, int16_t physical) {
     movieInput.push_back(physical);
     return physical;
   }
-  if(movieMode != MovieMode::Playing) return physical;
+  if(movieMode != MovieMode::Playing) {
+    return physical;
+  }
   if(moviePosition >= movieInput.size()) {
     clearMovie();
     showMessage("movie playback finished");

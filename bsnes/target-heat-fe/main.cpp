@@ -12,8 +12,8 @@ constexpr int IdleDelayMs = 32;
 
 // what this invocation is for; the harnesses are mutually exclusive
 enum class Mode {
-  Run, UiShot, StateTest, DeterminismTest, TimelineTest, HotkeyTest, LuaTest, ShaderTest, CheatTest,
-  MovieTest
+  Run, UiShot, StateTest, DeterminismTest, TimelineTest,
+  HotkeyTest, LuaTest, ShaderTest, CheatTest, MovieTest
 };
 
 struct Options {
@@ -267,13 +267,19 @@ bool Frontend::stepFrame() {
 
 void Frontend::handleWindowEvent(const SDL_Event& event) {
   if(event.type == SDL_EVENT_QUIT) {
-    if(app.movieActive()) app.showMessage("stop the movie before quitting");
-    else app.running = false;
+    if(app.movieActive()) {
+      app.showMessage("stop the movie before quitting");
+    } else {
+      app.running = false;
+    }
   }
   if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED
   && event.window.windowID == SDL_GetWindowID(app.shell.window)) {
-    if(app.movieActive()) app.showMessage("stop the movie before quitting");
-    else app.running = false;
+    if(app.movieActive()) {
+      app.showMessage("stop the movie before quitting");
+    } else {
+      app.running = false;
+    }
   }
   if(event.type == SDL_EVENT_DROP_FILE && event.drop.data) app.loadRom(event.drop.data);
 }
@@ -417,18 +423,26 @@ void Frontend::drainPicks() {
     app.fontDirty = true;
   }
   if(takePick(app.scriptPick, picked) && !picked.empty()) {
-    if(app.movieActive()) app.showMessage("stop the movie before loading a Lua script");
-    else {
+    if(app.movieActive()) {
+      app.showMessage("stop the movie before loading a Lua script");
+    } else {
       app.scripting.load(picked);
       app.showScripting = true;
     }
   }
-  if(takePick(app.movieOpenPick, picked) && !picked.empty()) app.playMovieFile(picked);
+  if(takePick(app.movieOpenPick, picked) && !picked.empty()) {
+    app.playMovieFile(picked);
+  }
   if(takePick(app.movieSavePick, picked)) {
     const bool saved = !picked.empty() && app.writeMovieFile(picked);
     app.clearMovie();
-    app.showMessage(saved ? "movie recorded" : picked.empty() ? "movie not recorded"
-                                                        : "movie could not be recorded");
+    if(saved) {
+      app.showMessage("movie recorded");
+    } else if(picked.empty()) {
+      app.showMessage("movie not recorded");
+    } else {
+      app.showMessage("movie could not be recorded");
+    }
   }
 
   for(const BiosSlot& slot : BiosSlots) {

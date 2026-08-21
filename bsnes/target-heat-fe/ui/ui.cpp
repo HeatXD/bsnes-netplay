@@ -58,7 +58,9 @@ void App::drawFileMenu() {
                      core.loaded() && !movieActive())) {
     unloadRom();
   }
-  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit).c_str(), false, !movieActive())) running = false;
+  if(ImGui::MenuItem("Quit", hotkeyShortcut(HkQuit).c_str(), false, !movieActive())) {
+    running = false;
+  }
 }
 
 // the first mapping, as a menu shortcut label; empty when unbound
@@ -172,7 +174,9 @@ void App::drawEmulationMenu() {
 
 void App::drawMovieMenu() {
   const bool idle = !movieActive();
-  if(ImGui::MenuItem("Play...", nullptr, false, core.loaded() && idle)) openMovieDialog();
+  if(ImGui::MenuItem("Play...", nullptr, false, core.loaded() && idle)) {
+    openMovieDialog();
+  }
   if(ImGui::MenuItem("Record from Current State", nullptr, false, core.loaded() && idle)) {
     beginMovieRecording(false);
   }
@@ -180,7 +184,9 @@ void App::drawMovieMenu() {
     beginMovieRecording(true);
   }
   ImGui::Separator();
-  if(ImGui::MenuItem("Stop", nullptr, false, movieMode != MovieMode::Inactive)) stopMovie();
+  if(ImGui::MenuItem("Stop", nullptr, false, movieMode != MovieMode::Inactive)) {
+    stopMovie();
+  }
 }
 
 void App::drawShaderMenu() {
@@ -231,7 +237,10 @@ void App::drawMenuBar() {
   if(ImGui::BeginMenu("Settings"))  { drawSettingsMenu();  ImGui::EndMenu(); }
 
   if(ImGui::BeginMenu("Tools")) {
-    if(ImGui::BeginMenu("Movie")) { drawMovieMenu(); ImGui::EndMenu(); }
+    if(ImGui::BeginMenu("Movie")) {
+      drawMovieMenu();
+      ImGui::EndMenu();
+    }
     ImGui::Separator();
     if(ImGui::MenuItem("State Manager", nullptr, showStateManager, core.loaded())) {
       showStateManager = !showStateManager;

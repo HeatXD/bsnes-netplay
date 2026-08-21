@@ -194,7 +194,9 @@ void App::setRewinding(bool enabled) {
     rewindCounter = 0;
     return;
   }
-  if(!core.loaded() || fastForward || movieActive()) return;
+  if(!core.loaded() || fastForward || movieActive()) {
+    return;
+  }
   if(settings.rewindFrequency == 0) {
     showMessage("enable rewind under Emulator settings first");
     return;
@@ -209,8 +211,13 @@ void App::setRewinding(bool enabled) {
 }
 
 void App::captureRewind() {
-  if(rewinding || movieActive() || settings.rewindFrequency == 0
-  || !EmuCore::deterministicStates()) return;
+  const bool unavailable = rewinding
+                        || movieActive()
+                        || settings.rewindFrequency == 0
+                        || !EmuCore::deterministicStates();
+  if(unavailable) {
+    return;
+  }
   if(++rewindCounter < settings.rewindFrequency) return;
   rewindCounter = 0;
 
@@ -242,8 +249,12 @@ void App::advanceEmulation() {
   captureRewind();
   stepRewind();
 
-  const bool runAhead = settings.runAheadFrames > 0 && !fastForward && !rewinding && !movieActive()
-                     && !scripting.running() && EmuCore::deterministicStates();
+  const bool runAhead = settings.runAheadFrames > 0
+                     && !fastForward
+                     && !rewinding
+                     && !movieActive()
+                     && !scripting.running()
+                     && EmuCore::deterministicStates();
   if(!runAhead) {
     scripting.runBeforeFrame();
     core.runFrame();
@@ -453,7 +464,11 @@ void App::triggerHotkey(int index) {
     settings.save(settingsCfg);
     break;
   case HkQuit:
-    if(movieActive()) showMessage("stop the movie before quitting"); else running = false;
+    if(movieActive()) {
+      showMessage("stop the movie before quitting");
+    } else {
+      running = false;
+    }
     break;
   case HkSpeedDown: setSpeed(speedIndex - 1); break;
   case HkSpeedUp: setSpeed(speedIndex + 1); break;

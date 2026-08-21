@@ -86,7 +86,10 @@ auto EmuCore::Impl::inputPoll(uint port, uint device, uint input) -> int16 {
   if(port >= state.size()) return 0;
   if(input >= EmuCore::MaxInputs) return 0;
   const int16 value = state[port][input];
-  return owner.onInputPoll ? owner.onInputPoll((int)port, (int)device, (int)input, value) : value;
+  if(owner.onInputPoll) {
+    return owner.onInputPoll((int)port, (int)device, (int)input, value);
+  }
+  return value;
 }
 
 int16_t EmuCore::inputValue(int port, int index) const {

@@ -182,12 +182,22 @@ struct App {
     core.setAudioBalance(SDL_clamp((settings.audioBalance - 50) / 50.0, -1.0, 1.0));
   }
   void reset() {
-    if(movieActive()) { showMessage("stop the movie before resetting"); return; }
-    core.reset(); resetTimeline(); paused = false;
+    if(movieActive()) {
+      showMessage("stop the movie before resetting");
+      return;
+    }
+    core.reset();
+    resetTimeline();
+    paused = false;
   }
   void powerCycle() {
-    if(movieActive()) { showMessage("stop the movie before power cycling"); return; }
-    core.power(); resetTimeline(); paused = false;
+    if(movieActive()) {
+      showMessage("stop the movie before power cycling");
+      return;
+    }
+    core.power();
+    resetTimeline();
+    paused = false;
   }
   void advanceOneFrame() { frameAdvance = true; }
 
@@ -265,7 +275,9 @@ struct App {
   void stopMovie();
   void clearMovie();
   int16_t pollMovieInput(int port, int device, int input, int16_t physical);
-  bool movieActive() const { return movieMode != MovieMode::Inactive || movieSavePending; }
+  bool movieActive() const {
+    return movieMode != MovieMode::Inactive || movieSavePending;
+  }
 
   //states.cpp
   // resolved states folder, and the per-game folder holding the slots
