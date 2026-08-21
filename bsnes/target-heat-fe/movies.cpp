@@ -20,6 +20,12 @@ void append32(std::vector<uint8_t>& data, uint32_t value) {
     data.push_back(value >> shift);
   }
 }
+
+void powerForMovie(EmuCore& core, int configuredEntropy) {
+  core.setOption("Hacks/Entropy", "None");
+  core.power();
+  core.setOption("Hacks/Entropy", EntropyNames[configuredEntropy]);
+}
 }
 
 void App::openMovieDialog() {
@@ -39,8 +45,7 @@ void App::beginMovieRecording(bool fromBeginning) {
   movieInput.clear();
   moviePosition = 0;
   if(fromBeginning) {
-    core.setOption("Hacks/Entropy", "None");
-    core.power();
+    powerForMovie(core, settings.hackEntropy);
   } else {
     movieState = core.serialize();
     if(movieState.empty()) {
@@ -77,8 +82,7 @@ bool App::playMovieFile(const std::string& path) {
   }
   std::vector<uint8_t> state(file.begin() + 8, file.begin() + 8 + stateSize);
   if(state.empty()) {
-    core.setOption("Hacks/Entropy", "None");
-    core.power();
+    powerForMovie(core, settings.hackEntropy);
   } else if(!core.unserialize(state)) {
     showMessage("movie state does not match this game");
     return false;

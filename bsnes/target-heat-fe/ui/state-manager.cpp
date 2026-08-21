@@ -1,15 +1,13 @@
 #include "ui.hpp"
 
-#include <ctime>
-
 namespace {
 std::string stateDate(int64_t value) {
   if(value == 0) return "Empty";
-  const time_t stamp = (time_t)value;
-  tm local{};
-  localtime_s(&local, &stamp);
+  SDL_DateTime local;
+  if(!SDL_TimeToDateTime(SDL_SECONDS_TO_NS(value), &local, true)) return "Saved";
   char text[32];
-  strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &local);
+  SDL_snprintf(text, sizeof(text), "%04d-%02d-%02d %02d:%02d",
+               local.year, local.month, local.day, local.hour, local.minute);
   return text;
 }
 

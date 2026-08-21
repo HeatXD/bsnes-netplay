@@ -748,6 +748,8 @@ int runShaderTest(App& app, int warmFrames) {
 int runMovieTest(App& app, int warmFrames) {
   const std::string path = configDir() + "movie-selftest.bsv";
   const std::string beginningPath = configDir() + "movie-beginning-selftest.bsv";
+  const int configuredEntropy = app.settings.hackEntropy;
+  app.settings.hackEntropy = EntropyHigh;
   const std::vector<EmuCore::StateComponent> map = app.core.stateMap(false);
   auto guestHash = [&](const std::vector<uint8_t>& state) {
     uint64_t hash = FnvBasis;
@@ -822,6 +824,11 @@ int runMovieTest(App& app, int warmFrames) {
                               && guestHash(app.core.serialize(false)) == beginningState
                               && app.movieMode == MovieMode::Inactive;
 
+  app.core.power();
+  const uint64_t firstRandomPower = guestHash(app.core.serialize(false));
+  app.core.power();
+  const bool entropyRestored = guestHash(app.core.serialize(false)) != firstRandomPower;
+
   std::vector<uint8_t> damaged = readBytes(path);
   if(!damaged.empty()) {
     damaged[0] = 'X';
@@ -841,12 +848,15 @@ int runMovieTest(App& app, int warmFrames) {
   SDL_RemovePath(broken.c_str());
   SDL_RemovePath(empty.c_str());
   app.clearMovie();
+  app.settings.hackEntropy = configuredEntropy;
+  app.core.setOption("Hacks/Entropy", EntropyNames[configuredEntropy]);
 
   const bool pass = wrote && replayed && beginningWrote
-                 && beginningReplayed && refused && emptyRefused;
+                 && beginningReplayed && entropyRestored && refused && emptyRefused;
   SDL_Log("movie round trip: %s, %d inputs", replayed ? "ok" : "FAILED", (int)inputs);
   SDL_Log("movie from reset: %s, %d inputs", beginningReplayed ? "ok" : "FAILED",
           (int)beginningInputs);
+  SDL_Log("configured entropy restored: %s", entropyRestored ? "ok" : "FAILED");
   SDL_Log("invalid movies refused without mutation: %s",
           refused && emptyRefused ? "ok" : "FAILED");
   SDL_Log("movie test: %s", pass ? "PASS" : "FAIL");
