@@ -75,6 +75,7 @@ private:
   std::vector<ShaderPass> passes;
   // ring[head] is the newest frame; walking forward goes back in time
   std::vector<ShaderTexture> ring;
+  std::vector<uint32_t> uploadScratch;
   int head = 0;
   GLuint inputFormat = GL_RGBA8, inputFilter = GL_LINEAR, inputWrap = GL_CLAMP_TO_BORDER;
 

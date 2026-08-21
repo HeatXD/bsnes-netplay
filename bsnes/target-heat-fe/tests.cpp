@@ -578,12 +578,29 @@ uint64_t renderHash(Shader& shader, int width, int height) {
   glGetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels.data());
 
   uint64_t hash = FnvBasis;
-  bool lit = false;
+  size_t visible = 0;
+  size_t litPixels = 0;
+  size_t opaquePixels = 0;
   for(uint32_t pixel : pixels) {
     hash = fnv(hash, pixel);
-    lit = lit || (pixel & 0x00ffffffu) != 0;
+    const bool lit = (pixel & 0x00ffffffu) != 0;
+    const bool opaque = (pixel >> 24) >= 0x80;
+    if(lit) {
+      litPixels++;
+    }
+    if(opaque) {
+      opaquePixels++;
+    }
+    if(lit && opaque) {
+      visible++;
+    }
   }
-  return lit ? hash : 0;  // an all-black chain reads as no output at all
+  if(visible == 0) {
+    SDL_Log("shader output hidden: %d lit, %d opaque, %d visible of %d pixels",
+            (int)litPixels, (int)opaquePixels, (int)visible, (int)pixels.size());
+    return 0;
+  }
+  return hash;
 }
 
 // a package that will not compile, for the diagnostics check
@@ -604,7 +621,7 @@ void removeBrokenPackage(const std::string& dir) {
 }  // namespace
 
 // loads every package in the shaders folder, runs it, and checks it lets go
-int runShaderTest(App& app) {
+int runShaderTest(App& app, int warmFrames) {
   Shader& shader = app.shell.shader;
   if(!shader.supported()) {
     SDL_Log("shader test: FAIL, no OpenGL 3.2 on this driver");
@@ -617,7 +634,23 @@ int runShaderTest(App& app) {
   SDL_Log("missing package refused: %s", refused ? "ok" : "FAILED");
   pass = pass && refused;
 
-  const std::vector<uint32_t> frame = testFrame(256, 224);
+  std::vector<uint32_t> frame;
+  int frameWidth = 256;
+  int frameHeight = 224;
+  if(app.core.loaded()) {
+    for(int i = 0; i < warmFrames; i++) {
+      app.core.runFrame();
+    }
+    frameWidth = app.shell.frameWidth;
+    frameHeight = app.shell.frameHeight;
+    const size_t pixels = (size_t)frameWidth * frameHeight;
+    if(app.shell.lastPixels && pixels > 0) {
+      frame.assign(app.shell.lastPixels, app.shell.lastPixels + pixels);
+    }
+  }
+  if(frame.empty()) {
+    frame = testFrame(frameWidth, frameHeight);
+  }
   const std::string dir = app.shadersDir();
   const std::vector<std::string> folders = shaderList(dir);
   SDL_Log("%d packages in %s", (int)folders.size(), dir.c_str());
@@ -634,7 +667,7 @@ int runShaderTest(App& app) {
       pass = false;
       continue;
     }
-    shader.pushFrame(frame.data(), 256, 224);
+    shader.pushFrame(frame.data(), frameWidth, frameHeight);
     const uint64_t once = renderHash(shader, 640, 480);
     // a bare redraw must reuse the last chain run; a resize must not
     const uint64_t redraw = renderHash(shader, 640, 480);
@@ -644,7 +677,9 @@ int runShaderTest(App& app) {
 
     // a full ring of the same picture has to match one seeded frame
     if(!shader.load(path, {})) { pass = false; continue; }
-    for(int i = 0; i < 9; i++) shader.pushFrame(frame.data(), 256, 224);
+    for(int i = 0; i < 9; i++) {
+      shader.pushFrame(frame.data(), frameWidth, frameHeight);
+    }
     const bool coherent = renderHash(shader, 640, 480) == once;
 
     if(!once || !cachedRedraw || !resized || !coherent || error != GL_NO_ERROR) {

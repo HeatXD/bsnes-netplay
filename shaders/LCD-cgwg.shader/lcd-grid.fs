@@ -84,5 +84,5 @@ void main()
 
   averageColor = mat3x3(cred, cgreen, cblue) * averageColor;
 
-  fragColor = vec4(pow(averageColor,vec3(1.0/outgamma)),0.0);
+  fragColor = vec4(pow(averageColor,vec3(1.0/outgamma)),1.0);
 }

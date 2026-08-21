@@ -643,7 +643,7 @@ int main(int argc, char** argv) {
     case Mode::TimelineTest:    code = runTimelineTest(app, opt.warmFrames); break;
     case Mode::HotkeyTest:      code = runHotkeyTest(app); break;
     case Mode::LuaTest:         code = runLuaTest(app, opt.luaTest); break;
-    case Mode::ShaderTest:      code = runShaderTest(app); break;
+    case Mode::ShaderTest:      code = runShaderTest(app, opt.warmFrames); break;
     case Mode::CheatTest:       code = runCheatTest(app); break;
     case Mode::MovieTest:       code = runMovieTest(app, opt.warmFrames); break;
     case Mode::Run:             code = frontend.runLoop(); break;

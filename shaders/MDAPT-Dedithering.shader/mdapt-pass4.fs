@@ -169,18 +169,18 @@ void main(void) {
 
 	// checkerboard pattern
 	if(C.w > 0){
-		fragColor=vec4(merge9(C,UL,UR,DL,DR,U1,D1,L1,R1),0);
+		fragColor=vec4(merge9(C,UL,UR,DL,DR,U1,D1,L1,R1),1.0);
 		return;
 	}
 	// horizontal one line dither
 	if(C.w == -1){
-		fragColor=vec4(merge3(C,L1,R1,-1),0);
+		fragColor=vec4(merge3(C,L1,R1,-1),1.0);
 		return;
 	}
 
 	// vertical one line dither
 	if(C.w == -2){
-		fragColor=vec4(merge3(C,U1,D1,-2),0);
+		fragColor=vec4(merge3(C,U1,D1,-2),1.0);
 		return;
 	}
 	

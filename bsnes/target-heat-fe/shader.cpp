@@ -585,12 +585,20 @@ void uploadFrame(ShaderTexture& frame, const uint32_t* argb, int width, int heig
 void Shader::pushFrame(const uint32_t* argb, int width, int height) {
   if(!entryPoints || ring.empty() || !argb || width <= 0 || height <= 0) return;
 
+  const size_t pixels = (size_t)width * height;
+  uploadScratch.resize(pixels);
+  for(size_t i = 0; i < pixels; i++) {
+    uploadScratch[i] = argb[i] | 0xff000000u;
+  }
+
   // stepping the head backwards reuses the oldest slot, so no frame is copied
   head = (head + (int)ring.size() - 1) % (int)ring.size();
-  uploadFrame(ring[(size_t)head], argb, width, height);
+  uploadFrame(ring[(size_t)head], uploadScratch.data(), width, height);
   // an unwritten slot is an incomplete texture with a 1/0 size, so seed them all
   for(ShaderTexture& frame : ring) {
-    if(frame.width == 0) uploadFrame(frame, argb, width, height);
+    if(frame.width == 0) {
+      uploadFrame(frame, uploadScratch.data(), width, height);
+    }
   }
   fresh = true;
 }
