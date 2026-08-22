@@ -42,6 +42,15 @@ struct Options {
   // directly (skipping the save dialog) once --frames stops the run
   std::string netplayRecord;
   std::string playMovie;  // manual verification only: plays a .bsv from startup
+  // manual verification only: exercises the room browser headlessly
+  std::string weyveServer;  // "host:port"
+  bool weyveCreate = false;
+  bool weyveBrowse = false;
+  std::string weyveJoin;  // room code
+  bool weyveSelectFirstGame = false;
+  bool weyveAutoStart = false;
+  int weyveDemoteAtCount = 0;  // manual verification only: force the newest member to spectate
+
   // the modes that drive the emulator itself; the hotkey matcher needs no game
   bool needsRom() const {
     return mode == Mode::StateTest || mode == Mode::DeterminismTest || mode == Mode::TimelineTest
@@ -91,6 +100,13 @@ Options parseArgs(int argc, char** argv) {
     else if(SDL_strcmp(arg, "--netplay-spectator-remote") == 0 && hasValue) opt.netplaySpectators.push_back(argv[++i]);
     else if(SDL_strcmp(arg, "--netplay-record") == 0 && hasValue) opt.netplayRecord = argv[++i];
     else if(SDL_strcmp(arg, "--play-movie") == 0 && hasValue) opt.playMovie = argv[++i];
+    else if(SDL_strcmp(arg, "--weyve-server") == 0 && hasValue) opt.weyveServer = argv[++i];
+    else if(SDL_strcmp(arg, "--weyve-create") == 0) opt.weyveCreate = true;
+    else if(SDL_strcmp(arg, "--weyve-browse") == 0) opt.weyveBrowse = true;
+    else if(SDL_strcmp(arg, "--weyve-join") == 0 && hasValue) opt.weyveJoin = argv[++i];
+    else if(SDL_strcmp(arg, "--weyve-select-first-game") == 0) opt.weyveSelectFirstGame = true;
+    else if(SDL_strcmp(arg, "--weyve-auto-start") == 0) opt.weyveAutoStart = true;
+    else if(SDL_strcmp(arg, "--weyve-demote-at-count") == 0 && hasValue) opt.weyveDemoteAtCount = SDL_atoi(argv[++i]);
     else if(arg[0] != '-' && opt.romPath.empty()) opt.romPath = arg;
   }
   return opt;
@@ -169,6 +185,12 @@ struct Frontend {
   uint64_t fpsMark = SDL_GetTicksNS();
   bool inFrame = false;
   bool screensaverInhibited = false;
+  bool weyveGamePicked = false;  // manual verification only
+  bool weyveRoomReported = false;
+  bool weyveStarted = false;
+  bool weyveDemoted = false;
+  int weyveDemotedFrames = 0;
+  std::string weyveBlocked;
 
   void renderUi();
   void advance();
@@ -246,6 +268,44 @@ bool Frontend::stepFrame() {
   // one read a frame: the relative delta is consumed by whoever asks first
   app.sample = InputSample::poll(app.mouseCaptured);
   app.pollHotkeys();
+  app.weyvePoll();
+
+  if(!weyveRoomReported && app.weyveInRoom()) {
+    uint32_t length = 0;
+    const char* id = weyve_room_id(app.weyve.client, &length);
+    SDL_Log("weyve room id: %.*s", (int)length, id);
+    weyveRoomReported = true;
+  }
+
+  // manual verification only: pick a game and start once the room is ready
+  if(opt.weyveSelectFirstGame && !weyveGamePicked && app.weyveInRoom() && !app.games.empty()) {
+    weyveGamePicked = true;
+    SDL_Log("weyve selected game: %s", app.games[0].first.c_str());
+    app.weyveSelectGame(0);
+  }
+  if(opt.weyveDemoteAtCount && !weyveDemoted && app.weyveInRoom() && weyve_is_host(app.weyve.client)) {
+    uint32_t count = 0;
+    const uint32_t* members = weyve_members(app.weyve.client, &count);
+    if((int)count >= opt.weyveDemoteAtCount) {
+      weyveDemoted = true;
+      uint32_t newest = 0;
+      for(uint32_t i = 0; i < count; i++) newest = SDL_max(newest, members[i]);
+      app.weyveSetRole(newest, "spec");
+    }
+  }
+  if(weyveDemoted && weyveDemotedFrames < 60) weyveDemotedFrames++;  // let the role change propagate
+  if(opt.weyveAutoStart && !weyveStarted && app.weyveInRoom() && weyve_is_host(app.weyve.client)) {
+    const std::string blocked = app.weyveStartBlockedReason();
+    if(blocked != weyveBlocked) {
+      weyveBlocked = blocked;
+      SDL_Log("weyve start: %s", blocked.empty() ? "ready" : blocked.c_str());
+    }
+    if((!opt.weyveDemoteAtCount || weyveDemotedFrames >= 60) && blocked.empty()) {
+      weyveStarted = true;
+      app.weyveStartGame();
+    }
+  }
+
   // --frames has to keep running while unfocused, or a headless run stalls
   const bool stopped = app.emulationIdle()
                     && !(opt.frameLimit && !app.paused && app.core.loaded());
@@ -515,6 +575,14 @@ int Frontend::runLoop() {
             app.netplay.detectDesyncs ? "on" : "off",
             (int)app.netplay.stateCache.size());
   }
+  if(!opt.weyveServer.empty()) {
+    SDL_Log("weyve: connected=%d inRoom=%d roomListCount=%d",
+            app.weyveConnected(), app.weyveInRoom(), (int)app.weyve.roomList.size());
+    for(const WeyveRoomListing& room : app.weyve.roomList) {
+      SDL_Log("weyve room: id=%s members=%u passworded=%d game=\"%s\" host=\"%s\"",
+              room.id.c_str(), room.members, room.passworded, room.game.c_str(), room.host.c_str());
+    }
+  }
   if(!opt.netplayRecord.empty() && app.movieMode == MovieMode::Recording) {
     const bool wrote = app.writeMovieFile(opt.netplayRecord);
     SDL_Log("netplay movie: %s, %d inputs -> %s",
@@ -608,6 +676,10 @@ void loadConfigs(App& app) {
   }
   applySettingsToCore(app);
 
+  SDL_strlcpy(app.weyveHostInput, app.settings.weyveHost.c_str(), sizeof(app.weyveHostInput));
+  SDL_snprintf(app.weyvePortInput, sizeof(app.weyvePortInput), "%d", app.settings.weyvePort);
+  SDL_strlcpy(app.weyveNicknameInput, app.settings.weyveNickname.c_str(), sizeof(app.weyveNicknameInput));
+
   for(int port = 0; port < EmuCore::PortCount; port++) {
     app.core.connect(port, app.settings.devices[port]);
   }
@@ -649,6 +721,7 @@ void shutdownApp(App& app) {
     if(pad.gamepad) SDL_CloseGamepad(pad.gamepad);
     else if(pad.joystick) SDL_CloseJoystick(pad.joystick);
   }
+  app.weyveDisconnect();
   // quitting with a game up otherwise skips the auto-resume state
   if(app.core.loaded()) app.unloadRom();
   app.shell.shutdown();
@@ -685,6 +758,15 @@ int main(int argc, char** argv) {
     if(!opt.netplayRecord.empty()) app.beginMovieRecording(false);
   }
   if(!opt.playMovie.empty()) app.playMovieFile(opt.playMovie);
+  if(!opt.weyveServer.empty()) {
+    const size_t colon = opt.weyveServer.find(':');
+    const std::string host = opt.weyveServer.substr(0, colon);
+    const uint16_t port = (uint16_t)SDL_atoi(opt.weyveServer.c_str() + colon + 1);
+    app.weyveConnect(host, port);
+    if(opt.weyveCreate) app.weyveCreateRoom(true);
+    else if(!opt.weyveJoin.empty()) app.weyveJoinRoom(opt.weyveJoin, "");
+    if(opt.weyveBrowse) app.weyveListRooms();
+  }
   if(opt.needsRom() && !app.core.loaded()) {
     SDL_Log("no rom loaded");
     shutdownApp(app);

@@ -94,6 +94,7 @@ const IntField IntFields[] = {
   {"netplaydelay",  &Settings::netplayDelay,     0,             10},
   {"netplayrunahead", &Settings::netplayRunAhead, 0,             4},
   {"netplayspectatordelay", &Settings::netplaySpectatorDelay, 0, 3600},
+  {"weyveport",     &Settings::weyvePort,        1,             65535},
 };
 
 const BoolField BoolFields[] = {
@@ -151,6 +152,8 @@ const StrField StrFields[] = {
   {"display",     &Settings::displayName, false},
   {"shader",      &Settings::videoShader, true},
   {"shadersdir",  &Settings::shadersDir,  true},
+  {"weyvehost",   &Settings::weyveHost,   false},
+  {"weyvenickname", &Settings::weyveNickname, false},
 };
 }  // namespace
 

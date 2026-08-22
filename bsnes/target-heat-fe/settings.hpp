@@ -181,6 +181,9 @@ struct Settings {
   int netplayRunAhead = 0;   // frames
   int netplaySpectatorDelay = 0;  // frames
   bool netplayDesyncDetection = false;
+  std::string weyveHost = "";
+  int weyvePort = 5555;
+  std::string weyveNickname = "Player";
 
   void applyKey(const std::string& key, const std::string& value);
   void load(const std::string& path);

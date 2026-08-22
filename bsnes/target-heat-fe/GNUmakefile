@@ -6,7 +6,7 @@ name := bsnes-heat-fe
 local := false
 flags := $(filter-out -march=native,$(flags))
 
-# SDL3 builds through its own cmake, the same way gekkonet does.
+# SDL3 builds through its own cmake, the same way gekkonet and weyvelength do.
 sdl3.path := ../sdl
 sdl3.build := ../sdl/build
 sdl3.flags := -I$(sdl3.path)/include
@@ -40,7 +40,7 @@ imgui.flags := -I$(imgui.path) -I$(imgui.path)/backends
 lua.path := ../lua
 lua.flags := -I$(lua.path)
 
-# gekkonet builds through its own cmake, the same as SDL3
+# gekkonet and weyvelength build through their own cmake, the same as SDL3
 gekkonet.path := ../gekkonet/GekkoLib
 gekkonet.build := ../gekkonet/build
 # without this, gekkonet.h defaults to __declspec(dllimport) on Windows and the
@@ -50,14 +50,26 @@ gekkonet.lib := $(gekkonet.build)/GekkoLib/libGekkoNet_STATIC.a
 gekkonet.options :=
 gekkonet.cmake.args :=
 
+weyvelength.path := ../weyvelength/Client
+weyvelength.build := ../weyvelength/build
+weyvelength.flags := -I$(weyvelength.path)/include
+weyvelength.lib := $(weyvelength.build)/Client/libweyvelength_client.a
+# a side effect of the weyvelength_client build, not a target of its own
+weyvelength.juicelib := $(weyvelength.build)/Client/thirdparty/libjuice/libjuice-static.a
+weyvelength.options :=
+weyvelength.cmake.args := -DWEYVELENGTH_BUILD_TESTS=OFF
+
 ifeq ($(platform),windows)
   gekkonet.cmake.args += -G "MinGW Makefiles"
   gekkonet.options += -lws2_32
+  weyvelength.cmake.args += -G "MinGW Makefiles"
+  weyvelength.options += -lws2_32 -lbcrypt -lmswsock
 else ifeq ($(platform),bsd)
   gekkonet.cmake.args += -DCMAKE_MAKE_PROGRAM=gmake -DCMAKE_C_COMPILER=gcc14 -DCMAKE_CXX_COMPILER=g++14
+  weyvelength.cmake.args += -DCMAKE_MAKE_PROGRAM=gmake -DCMAKE_C_COMPILER=gcc14 -DCMAKE_CXX_COMPILER=g++14
 endif
 
-flags += $(sdl3.flags) $(imgui.flags) $(lua.flags) $(gekkonet.flags)
+flags += $(sdl3.flags) $(imgui.flags) $(lua.flags) $(gekkonet.flags) $(weyvelength.flags)
 
 # filter drives the CPU video filters; lzma unpacks .7z game archives
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
@@ -66,7 +78,7 @@ objects += ui-shader ui-stbimage
 objects += ui-cheats ui-cheat-window
 objects += ui-tests
 objects += ui-scripting lua
-objects += ui-netplay ui-netplay-window
+objects += ui-netplay ui-netplay-weyve ui-netplay-window
 objects += core-main core-media core-vfs core-video core-info core-memory
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
 objects += ui-custom ui-paths ui-windows ui-state-manager ui-manifest ui-compat
@@ -94,6 +106,7 @@ obj/ui-cheat-window.o: $(ui)/ui/cheats.cpp
 obj/ui-tests.o: $(ui)/tests.cpp
 obj/ui-scripting.o: $(ui)/scripting.cpp
 obj/ui-netplay.o: $(ui)/netplay.cpp
+obj/ui-netplay-weyve.o: $(ui)/netplay-weyve.cpp
 obj/ui-netplay-window.o: $(ui)/ui/netplay.cpp
 obj/lua.o: $(lua.path)/onelua.c
 obj/lua.o: flags += -DMAKE_LIB $(if $(findstring g++,$(compiler)),-Wno-stringop-overflow)
@@ -149,11 +162,21 @@ endif
 	cmake -B $(gekkonet.build) -S ../gekkonet -DBUILD_SHARED_LIBS=OFF $(gekkonet.cmake.args)
 	+cmake --build $(gekkonet.build)
 
+$(weyvelength.lib):
+ifeq ($(wildcard ../weyvelength/CMakeLists.txt),)
+	git -C .. submodule update --init --recursive weyvelength
+endif
+	cmake -B $(weyvelength.build) -S ../weyvelength -DBUILD_SHARED_LIBS=OFF $(weyvelength.cmake.args)
+	+cmake --build $(weyvelength.build) --target weyvelength_client
+
+# a side effect of the weyvelength_client build above, not its own recipe
+$(weyvelength.juicelib): $(weyvelength.lib)
+
 # order-only prerequisite: headers must exist before anything includes them
-$(objects): | $(sdl3.lib) $(gekkonet.lib)
+$(objects): | $(sdl3.lib) $(gekkonet.lib) $(weyvelength.lib) $(weyvelength.juicelib)
 
 all: $(objects)
 	$(info Linking out/$(name) ...)
-	+@$(compiler) -o out/$(name) $(objects) $(sdl3.lib) $(gekkonet.lib) $(sdl3.options) $(gekkonet.options) $(options)
+	+@$(compiler) -o out/$(name) $(objects) $(sdl3.lib) $(gekkonet.lib) $(weyvelength.lib) $(weyvelength.juicelib) $(sdl3.options) $(gekkonet.options) $(weyvelength.options) $(options)
 
 verbose: nall.verbose all;

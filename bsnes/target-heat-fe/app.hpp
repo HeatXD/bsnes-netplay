@@ -10,6 +10,7 @@
 #include "imgui.h"
 
 #include <gekkonet.h>
+#include <weyvelength.h>
 
 #include <deque>
 #include <string>
@@ -58,7 +59,8 @@ struct NetplayPeer {
   GekkoPlayerType type = GekkoLocalPlayer;
   bool connected = false;
   GekkoNetworkStats stats{};
-  std::string addr;  // "ip:port"
+  std::string addr;       // Direct transport: "ip:port"
+  uint32_t weyveId = 0;   // Weyvelength transport: member id
 };
 
 struct NetplayStateSnapshot {
@@ -70,7 +72,7 @@ struct NetplayStateSnapshot {
 
 struct Netplay {
   enum Mode { Inactive, Running } mode = Inactive;
-  enum Transport { Direct } transport = Direct;
+  enum Transport { Direct, Weyvelength } transport = Direct;
 
   std::vector<NetplayPeer> peers;
   std::vector<uint16_t> inputs;  // this tick's confirmed buttons, one mask per port
@@ -97,6 +99,11 @@ struct Netplay {
   static constexpr int LogLimit = 200;
 };
 
+struct WeyveKnownName {
+  uint32_t id = 0;
+  std::string name;
+};
+
 enum class NetplayEntryRole { Player, Spectator };
 
 struct NetplayRemoteEntry {
@@ -104,6 +111,40 @@ struct NetplayRemoteEntry {
   int playerNumber = 1;  // Player role only; 1-based, never equal to App::netplayLocalPlayer
   char ip[64] = "127.0.0.1";
   char port[8] = "7000";
+};
+
+// one row of a room-browser result; copied out of the client's borrowed
+// storage immediately on WEYVE_EVENT_ROOM_LIST, since that storage lasts only
+// until the next weyve_poll
+struct WeyveRoomListing {
+  std::string id;
+  uint32_t members = 0;
+  bool passworded = false;
+  std::string game;  // "listing" key "game", empty if the host hasn't set one
+  std::string host;  // "listing" key "host"; empty on a legacy or unset host
+};
+
+struct Weyve {
+  WeyveClient* client = nullptr;
+  std::string lastError;
+  uint64_t idleSince = 0;
+  static constexpr uint64_t IdleTimeoutMs = 5 * 60 * 1000;
+
+  bool pendingListed = false;
+  bool rolesDirty = true;  // host reassigns roles on the next poll
+  uint32_t lastStartToken = 0;
+  uint32_t lastStopToken = 0;
+  std::string lastGameHash;
+
+  std::vector<WeyveKnownName> knownNames;  // remembered after a member leaves
+
+  static constexpr int LogLimit = 200;
+  std::deque<std::string> log;
+  char chatInput[256] = {};
+
+  std::vector<WeyveRoomListing> roomList;  // last weyve_list_rooms reply
+
+  static constexpr int PlayerCap = 5;
 };
 
 // shared by the Paths tab and the pick draining, so the two cannot drift
@@ -208,12 +249,19 @@ struct App {
   bool movieDevicesChanged = false;
   bool movieDeterministic = false;
   Netplay netplay;
+  Weyve weyve;
   bool showNetplay = false;
+  int netplayTab = 0;  // Netplay window: 0 direct, 1 weyvelength
   char netplayPortInput[8] = "7000";
   int netplayLocalPlayer = 1;  // 1-based; which slot *this* peer occupies, picked by the user
   bool netplayDirectSpectator = false;
   int netplaySpectatorPlayers = 2;
   std::vector<NetplayRemoteEntry> netplayRemotes;
+  char weyveHostInput[128] = {};
+  char weyvePortInput[8] = "5555";
+  char weyveJoinCode[32] = {};
+  char weyveJoinPassword[64] = {};
+  char weyveNicknameInput[32] = {};
 
   void scanGames();
   // a path, or a Sufami Turbo pair joined by '|', as the recent list stores it
@@ -374,6 +422,43 @@ struct App {
   uint32_t netplayChecksum(const std::vector<uint8_t>& state);
   void netplayCacheState(int frame, uint32_t checksum, const std::vector<uint8_t>& state);
   void netplayDumpState(int frame, const char* tag, uint32_t checksum, const std::vector<uint8_t>& data);
+
+  //netplay-weyve.cpp
+  bool weyveConnect(const std::string& host, uint16_t port);
+  void weyveDisconnect();
+  bool weyveConnected() const { return weyve.client != nullptr; }
+  bool weyveSessionActive() const {
+    return netplayActive() && netplay.transport == Netplay::Weyvelength;
+  }
+  bool weyveInRoom() const;
+  void weyveCreateRoom(bool listed);
+  void weyveJoinRoom(const std::string& id, const std::string& password);
+  void weyveLeaveRoom();
+  void weyveResetRoomState();
+  void weyvePoll();
+  void netplayStartWeyve();
+  void weyveLog(std::string line);
+  std::string weyveRoomData(const std::string& key) const;
+  std::string weyveMemberData(uint32_t memberId, const std::string& key) const;
+  std::string weyveRoleOf(uint32_t memberId) const;
+  std::string weyveRoleLabel(const std::string& role) const;
+  std::vector<uint32_t> weyvePlayerOrder() const;
+  void weyveAutoAssignRoles();
+  void weyveSetRole(uint32_t memberId, const std::string& role);
+  void weyveKick(uint32_t memberId);
+  void weyveTransferHost(uint32_t memberId);
+  void weyveStartGame();
+  void weyveStopGame();
+  std::string weyveStartBlockedReason() const;
+  // searches the existing Games-tab library (settings.gamesDir) for a plain
+  // ROM file matching this content hash; empty when not found locally
+  std::string weyveHasGame(const std::string& hash) const;
+  std::string weyveGameFingerprint() const;
+  void weyveSelectGame(uint32_t gamesIndex);  // indexes App::games, not a netplay-only list
+  void weyveCopyRoomCode() const;
+  void weyvePublishHostListing();  // republishes our name under the "host" listing key
+  void weyveListRooms();
+  void weyveClearRoomList();
 
   //states.cpp
   // resolved states folder, and the per-game folder holding the slots
