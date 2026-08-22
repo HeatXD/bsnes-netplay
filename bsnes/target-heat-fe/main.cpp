@@ -270,6 +270,11 @@ bool Frontend::stepFrame() {
   app.pollHotkeys();
   app.weyvePoll();
 
+  if(app.pendingNetplayUnload) {
+    app.pendingNetplayUnload = false;
+    if(app.core.loaded()) app.unloadRom();
+  }
+
   if(!weyveRoomReported && app.weyveInRoom()) {
     uint32_t length = 0;
     const char* id = weyve_room_id(app.weyve.client, &length);

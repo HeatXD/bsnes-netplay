@@ -263,6 +263,7 @@ struct App {
   Netplay netplay;
   Weyve weyve;
   bool showNetplay = false;
+  bool pendingNetplayUnload = false;
   int netplayTab = 0;  // Netplay window: 0 direct, 1 weyvelength
   char netplayPortInput[8] = "7000";
   int netplayLocalPlayer = 1;  // 1-based; which slot *this* peer occupies, picked by the user

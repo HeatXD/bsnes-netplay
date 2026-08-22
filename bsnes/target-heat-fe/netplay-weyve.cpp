@@ -580,7 +580,11 @@ void App::weyvePoll() {
   const uint32_t stopToken = (uint32_t)SDL_atoi(weyveRoomData("stop_token").c_str());
   if(stopToken != weyve.lastStopToken) {
     weyve.lastStopToken = stopToken;
-    if(weyveSessionActive()) { netplayStop(); weyveLog("Host ended the session"); }
+    if(weyveSessionActive()) {
+      netplayStop();
+      pendingNetplayUnload = true;
+      weyveLog("Host ended the session");
+    }
   }
 }
 
