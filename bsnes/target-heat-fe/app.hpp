@@ -131,9 +131,11 @@ struct Weyve {
   static constexpr uint64_t IdleTimeoutMs = 5 * 60 * 1000;
 
   bool pendingListed = false;
+  bool focusTab = false;
   bool rolesDirty = true;  // host reassigns roles on the next poll
   uint32_t lastStartToken = 0;
   uint32_t lastStopToken = 0;
+  uint32_t selectedMember = 0;
   std::string lastGameHash;
 
   std::vector<WeyveKnownName> knownNames;  // remembered after a member leaves

@@ -83,6 +83,7 @@ bool App::weyveConnect(const std::string& host, uint16_t port) {
     return false;
   }
   weyve_set_name(weyve.client, settings.weyveNickname.c_str());
+  weyve.focusTab = true;
   weyve.log.clear();
   weyve.lastStartToken = 0;
   weyve.lastStopToken = 0;
@@ -122,6 +123,7 @@ void App::weyveResetRoomState() {
   weyve.lastGameHash.clear();
   weyve.lastStartToken = 0;
   weyve.lastStopToken = 0;
+  weyve.selectedMember = 0;
   weyve.log.clear();
   weyve.rolesDirty = true;
 }
@@ -353,6 +355,7 @@ void App::weyvePoll() {
       break;
     case WEYVE_EVENT_PEER_LEFT: {
       weyve.rolesDirty = true;
+      if(weyve.selectedMember == event.data.peer_left.id) weyve.selectedMember = 0;
       uint32_t nameLen = 0;
       const char* name = weyve_peer_name(weyve.client, event.data.peer_left.id, &nameLen);
       weyveLog(bytes(name, nameLen) + " left");

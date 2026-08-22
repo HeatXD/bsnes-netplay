@@ -633,6 +633,10 @@ int Frontend::runUiShot() {
   // that drifts per frame
   const int passes = opt.frameLimit > 0 ? opt.frameLimit : 3;
   for(int pass = 0; pass < passes; pass++) {
+    if(app.weyveConnected()) {
+      SDL_Delay(1);
+      app.weyvePoll();
+    }
     if(pass == 0 && opt.shotTab >= 0) app.settingsTab = opt.shotTab;
     renderUi();
   }
