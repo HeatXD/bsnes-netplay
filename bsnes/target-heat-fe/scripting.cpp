@@ -80,6 +80,10 @@ bool LuaEngine::takeConsoleScroll() {
 }
 
 bool LuaEngine::load(const std::string& path) {
+  if(app.netplayActive()) {
+    app.showMessage("Lua scripting is disabled during netplay");
+    return false;
+  }
   close();
   scriptPath = normalPath(path);
   lastError.clear();

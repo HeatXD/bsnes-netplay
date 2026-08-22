@@ -3,7 +3,6 @@
 #include "app.hpp"
 
 #include <algorithm>
-#include <cstring>
 
 namespace {
 // "HFS" and a format version, so a state from a future layout is refused
@@ -31,15 +30,15 @@ uint32_t readLE32(const uint8_t* in) {
 
 bool writeStatePayload(const std::string& path, const std::vector<uint8_t>& payload) {
   std::vector<uint8_t> file(HeaderSize + payload.size());
-  std::memcpy(file.data(), Magic, sizeof(Magic));
+  SDL_memcpy(file.data(), Magic, sizeof(Magic));
   writeLE32(file.data() + 4, (uint32_t)payload.size());
-  std::memcpy(file.data() + HeaderSize, payload.data(), payload.size());
+  SDL_memcpy(file.data() + HeaderSize, payload.data(), payload.size());
   return ensureDir(parentDir(path)) && writeBytes(path, file.data(), file.size());
 }
 
 bool readStatePayload(const std::string& path, std::vector<uint8_t>& payload) {
   payload = readBytes(path);
-  if(payload.size() <= HeaderSize || std::memcmp(payload.data(), Magic, sizeof(Magic)) != 0
+  if(payload.size() <= HeaderSize || SDL_memcmp(payload.data(), Magic, sizeof(Magic)) != 0
   || readLE32(payload.data() + 4) != payload.size() - HeaderSize) return false;
   payload.erase(payload.begin(), payload.begin() + HeaderSize);
   return true;
@@ -94,7 +93,7 @@ bool App::hasState(const std::string& name) const {
 
 // quiet leaves the status line to the user's own action
 bool App::saveState(const std::string& name, bool quiet) {
-  if(!core.loaded()) return false;
+  if(!core.loaded() || netplayActive()) return false;
 
   std::vector<uint8_t> payload = core.serialize();
   if(payload.empty()) {
@@ -118,7 +117,7 @@ bool App::saveState(const std::string& name, bool quiet) {
 }
 
 bool App::saveStateFile(const std::string& path, bool quiet) {
-  if(!core.loaded()) return false;
+  if(!core.loaded() || netplayActive()) return false;
   const std::vector<uint8_t> payload = core.serialize();
   const bool saved = !payload.empty() && writeStatePayload(path, payload);
   if(!quiet) showMessage(saved ? "saved state file " + fileName(path)
@@ -128,6 +127,10 @@ bool App::saveStateFile(const std::string& path, bool quiet) {
 
 bool App::loadState(const std::string& name) {
   if(!core.loaded()) return false;
+  if(netplayActive()) {
+    showMessage("states are not available during netplay");
+    return false;
+  }
   if(movieActive()) {
     showMessage("stop the movie before loading a state");
     return false;
@@ -139,7 +142,7 @@ bool App::loadState(const std::string& name) {
   if(!payload) {
     file = readBytes(statePath(name));
     if(!file.empty()) {
-      if(file.size() <= HeaderSize || std::memcmp(file.data(), Magic, sizeof(Magic)) != 0
+      if(file.size() <= HeaderSize || SDL_memcmp(file.data(), Magic, sizeof(Magic)) != 0
       || readLE32(file.data() + 4) != file.size() - HeaderSize) {
         showMessage(stateLabel(name) + " is not a state this build can read");
         return false;
@@ -172,6 +175,10 @@ bool App::loadState(const std::string& name) {
 
 bool App::loadStateFile(const std::string& path) {
   if(!core.loaded()) return false;
+  if(netplayActive()) {
+    showMessage("states are not available during netplay");
+    return false;
+  }
   if(movieActive()) {
     showMessage("stop the movie before loading a state");
     return false;

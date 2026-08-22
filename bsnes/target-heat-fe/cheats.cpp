@@ -168,6 +168,12 @@ void App::saveCheats() {
 }
 
 void App::applyCheats() {
+  // a locally-applied memory patch is invisible to peers and desyncs them
+  // the instant it touches anything the checksum covers
+  if(netplayActive()) {
+    showMessage("cheats cannot be changed during netplay");
+    return;
+  }
   std::vector<std::string> codes;
   if(settings.cheatsEnabled) {
     for(const CheatEntry& cheat : cheats) if(cheat.enabled) codes.push_back(cheat.code);
