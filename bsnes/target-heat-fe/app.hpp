@@ -119,6 +119,7 @@ struct NetplayRemoteEntry {
 struct WeyveRoomListing {
   std::string id;
   uint32_t members = 0;
+  bool joinable = true;
   bool passworded = false;
   std::string game;  // "listing" key "game", empty if the host hasn't set one
   std::string host;  // "listing" key "host"; empty on a legacy or unset host
@@ -136,7 +137,6 @@ struct Weyve {
   bool connectAttempted = false;
   bool focusTab = false;
   bool openHostSettings = false;
-  bool temporarySessionPassword = false;
   bool rolesDirty = true;  // host reassigns roles on the next poll
   uint32_t lastStartToken = 0;
   uint32_t lastStopToken = 0;

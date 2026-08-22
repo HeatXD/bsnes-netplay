@@ -132,7 +132,6 @@ void App::weyveJoinRoom(const std::string& id, const std::string& password) {
 
 void App::weyveResetRoomState() {
   weyve.pendingLeave = false;
-  weyve.temporarySessionPassword = false;
   weyve.lastGameHash.clear();
   weyve.lastStartToken = 0;
   weyve.lastStopToken = 0;
@@ -322,23 +321,13 @@ void App::weyveStartGame() {
                       std::to_string(weyve.spectatorDelay).c_str());
   const uint32_t token = (uint32_t)SDL_atoi(weyveRoomData("start_token").c_str()) + 1;
   weyve_set_room_data(weyve.client, "start_token", std::to_string(token).c_str());
-  if(!weyve_room_passworded(weyve.client)) {
-    char password[24];
-    SDL_snprintf(password, sizeof(password), "%08x%08x", SDL_rand_bits(), SDL_rand_bits());
-    weyve_set_room_password(weyve.client, password);
-    weyve.temporarySessionPassword = true;
-  }
-  weyve_set_room_joinable(weyve.client, true);
+  weyve_set_room_joinable(weyve.client, false);
 }
 
 void App::weyveStopGame() {
   if(!weyve.client || !weyve_is_host(weyve.client)) return;
   const uint32_t token = (uint32_t)SDL_atoi(weyveRoomData("stop_token").c_str()) + 1;
   weyve_set_room_data(weyve.client, "stop_token", std::to_string(token).c_str());
-  if(weyve.temporarySessionPassword) {
-    weyve_set_room_password(weyve.client, "");
-    weyve.temporarySessionPassword = false;
-  }
   weyve_set_room_joinable(weyve.client, true);
 }
 
@@ -556,6 +545,7 @@ void App::weyvePoll() {
         const char* id = weyve_room_list_id(weyve.client, i, &idLen);
         listing.id = bytes(id, idLen);
         listing.members = weyve_room_list_members(weyve.client, i);
+        listing.joinable = weyve_room_list_joinable(weyve.client, i);
         listing.passworded = weyve_room_list_passworded(weyve.client, i);
         uint32_t valueLen = 0;
         const char* game = weyve_room_list_listing(weyve.client, i, "game", &valueLen);

@@ -648,6 +648,7 @@ void drawWeyveTab(App& app) {
       ImGui::TableHeadersRow();
       for(size_t i = 0; i < app.weyve.roomList.size(); i++) {
         const WeyveRoomListing& room = app.weyve.roomList[i];
+        const bool locked = !room.joinable || room.passworded;
         ImGui::PushID((int)i);
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
@@ -656,7 +657,7 @@ void drawWeyveTab(App& app) {
         if(ImGui::Selectable(game.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns |
                             ImGuiSelectableFlags_AllowDoubleClick)) {
           SDL_strlcpy(app.weyveJoinCode, room.id.c_str(), sizeof(app.weyveJoinCode));
-          if(ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !room.passworded) {
+          if(ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !locked) {
             app.weyveJoinRoom(room.id, "");
           }
         }
@@ -666,7 +667,7 @@ void drawWeyveTab(App& app) {
         ImGui::TableSetColumnIndex(2);
         ImGui::Text("%u", room.members);
         ImGui::TableSetColumnIndex(3);
-        ImGui::TextUnformatted(room.passworded ? "yes" : "no");
+        ImGui::TextUnformatted(locked ? "yes" : "no");
         ImGui::PopID();
       }
       ImGui::EndTable();
