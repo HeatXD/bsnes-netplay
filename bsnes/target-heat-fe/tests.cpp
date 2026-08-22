@@ -790,13 +790,21 @@ int runMovieTest(App& app, int warmFrames) {
   for(int button = 0; button < EmuCore::ButtonCount; button++) {
     app.core.setInput(0, button, 0);
   }
+  const int previousDevice = app.movieDevices[1] == EmuCore::None
+                           ? EmuCore::Gamepad : EmuCore::None;
+  app.core.connect(1, previousDevice);
+  app.core.power();
   const bool opened = wrote && app.playMovieFile(path);
   for(int frame = 0; opened && frame < frames; frame++) {
     app.core.runFrame();
   }
   const bool replayed = opened && frameHash(app) == recorded
                       && guestHash(app.core.serialize(false)) == recordedState
-                      && app.movieMode == MovieMode::Inactive;
+                      && app.moviePlaybackFinished;
+  app.clearMovie();
+  const bool playbackRestored = app.movieMode == MovieMode::Inactive
+                             && app.core.connectedDevice(1) == previousDevice
+                             && !app.movieDevicesChanged;
 
   app.beginMovieRecording(true);
   const int beginningFrames = 240;
@@ -822,7 +830,8 @@ int runMovieTest(App& app, int warmFrames) {
   }
   const bool beginningReplayed = beginningOpened && frameHash(app) == beginningFrame
                               && guestHash(app.core.serialize(false)) == beginningState
-                              && app.movieMode == MovieMode::Inactive;
+                              && app.moviePlaybackFinished;
+  app.clearMovie();
 
   app.core.power();
   const uint64_t firstRandomPower = guestHash(app.core.serialize(false));
@@ -851,11 +860,12 @@ int runMovieTest(App& app, int warmFrames) {
   app.settings.hackEntropy = configuredEntropy;
   app.core.setOption("Hacks/Entropy", EntropyNames[configuredEntropy]);
 
-  const bool pass = wrote && replayed && beginningWrote
+  const bool pass = wrote && replayed && playbackRestored && beginningWrote
                  && beginningReplayed && entropyRestored && refused && emptyRefused;
   SDL_Log("movie round trip: %s, %d inputs", replayed ? "ok" : "FAILED", (int)inputs);
   SDL_Log("movie from reset: %s, %d inputs", beginningReplayed ? "ok" : "FAILED",
           (int)beginningInputs);
+  SDL_Log("playback state restored: %s", playbackRestored ? "ok" : "FAILED");
   SDL_Log("configured entropy restored: %s", entropyRestored ? "ok" : "FAILED");
   SDL_Log("invalid movies refused without mutation: %s",
           refused && emptyRefused ? "ok" : "FAILED");

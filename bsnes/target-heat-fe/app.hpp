@@ -258,6 +258,7 @@ struct App {
   int movieDevices[EmuCore::PortCount] = {EmuCore::Gamepad, EmuCore::Gamepad};
   int moviePreviousDevices[EmuCore::PortCount] = {};
   bool movieDevicesChanged = false;
+  bool moviePlaybackFinished = false;
   bool movieDeterministic = false;
   Netplay netplay;
   Weyve weyve;

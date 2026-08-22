@@ -52,6 +52,7 @@ void App::beginMovieRecording(bool fromBeginning) {
   movieState.clear();
   movieInput.clear();
   moviePosition = 0;
+  moviePlaybackFinished = false;
   for(int port = 0; port < EmuCore::PortCount; port++) {
     movieDevices[port] = core.connectedDevice(port);
   }
@@ -144,8 +145,8 @@ bool App::playMovieFile(const std::string& path) {
   resetTimeline();
   movieState = std::move(state);
   moviePosition = 0;
+  moviePlaybackFinished = false;
   movieMode = MovieMode::Playing;
-  movieDevicesChanged = false;
   showMessage("movie playback started");
   return true;
 }
@@ -196,11 +197,14 @@ void App::stopMovie() {
 }
 
 void App::clearMovie() {
+  const bool restorePlayback = movieMode == MovieMode::Playing && movieDevicesChanged;
   movieMode = MovieMode::Inactive;
   movieSavePending = false;
   movieState.clear();
   movieInput.clear();
   moviePosition = 0;
+  moviePlaybackFinished = false;
+  if(restorePlayback) restoreMovieDevices();
 }
 
 void App::restoreMovieDevices() {
@@ -224,14 +228,9 @@ int16_t App::pollMovieInput(int, int, int, int16_t physical) {
     return physical;
   }
   if(moviePosition >= movieInput.size()) {
-    clearMovie();
-    showMessage("movie playback finished");
     return physical;
   }
   const int16_t value = movieInput[moviePosition++];
-  if(moviePosition == movieInput.size()) {
-    clearMovie();
-    showMessage("movie playback finished");
-  }
+  if(moviePosition == movieInput.size()) moviePlaybackFinished = true;
   return value;
 }

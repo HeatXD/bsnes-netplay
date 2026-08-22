@@ -271,6 +271,10 @@ void App::advanceEmulation() {
     core.runFrame();
     emulatedFrames++;
     scripting.runFrame();
+    if(moviePlaybackFinished) {
+      clearMovie();
+      showMessage("movie playback finished");
+    }
     return;
   }
 
