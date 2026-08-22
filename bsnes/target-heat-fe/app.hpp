@@ -132,6 +132,7 @@ struct Weyve {
 
   bool pendingListed = false;
   bool pendingCreate = false;
+  bool pendingLeave = false;
   bool connectAttempted = false;
   bool focusTab = false;
   bool openHostSettings = false;

@@ -592,7 +592,9 @@ void drawRoomLobby(App& app) {
     if(app.weyveSessionActive()) ImGui::TextDisabled("Session running");
     else if(host && !blocked.empty()) ImGui::TextDisabled("%s", blocked.c_str());
     ImGui::TableNextColumn();
+    ImGui::BeginDisabled(app.weyve.pendingLeave);
     if(ImGui::Button("Leave room")) app.weyveLeaveRoom();
+    ImGui::EndDisabled();
     ImGui::EndTable();
   }
 }

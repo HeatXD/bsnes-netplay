@@ -98,7 +98,10 @@ bool App::weyveConnect(const std::string& host, uint16_t port) {
 
 void App::weyveDisconnect() {
   if(!weyve.client) return;
-  if(weyveSessionActive()) netplayStop();
+  if(weyveSessionActive()) {
+    netplayStop();
+    pendingNetplayUnload = true;
+  }
   weyve_client_destroy(weyve.client);
   weyve.client = nullptr;
   weyveClearRoomList();
@@ -128,6 +131,7 @@ void App::weyveJoinRoom(const std::string& id, const std::string& password) {
 }
 
 void App::weyveResetRoomState() {
+  weyve.pendingLeave = false;
   weyve.temporarySessionPassword = false;
   weyve.lastGameHash.clear();
   weyve.lastStartToken = 0;
@@ -139,11 +143,14 @@ void App::weyveResetRoomState() {
 }
 
 void App::weyveLeaveRoom() {
-  if(!weyve.client) return;
+  if(!weyve.client || weyve.pendingLeave) return;
+  const bool sessionActive = weyveSessionActive();
   if(weyve_is_host(weyve.client)) weyveStopGame();
-  if(netplayActive() && netplay.transport == Netplay::Weyvelength) netplayStop();
-  weyve_leave_room(weyve.client);
-  weyveResetRoomState();
+  if(sessionActive) {
+    netplayStop();
+    pendingNetplayUnload = true;
+  }
+  weyve.pendingLeave = weyve_leave_room(weyve.client);
 }
 
 void App::weyveLog(std::string line) {
@@ -413,7 +420,10 @@ void App::weyvePoll() {
   }
 
   if(!weyve_poll(weyve.client)) {
-    if(weyveSessionActive()) netplayStop();
+    if(weyveSessionActive()) {
+      netplayStop();
+      pendingNetplayUnload = true;
+    }
     weyve_client_destroy(weyve.client);
     weyve.client = nullptr;
     weyve.lastError = "The server closed the connection";
@@ -431,6 +441,7 @@ void App::weyvePoll() {
     case WEYVE_EVENT_ROOM_ERROR:
       weyve.pendingCreate = false;
       weyve.pendingListed = false;
+      weyve.pendingLeave = false;
       weyve.lastError = weyveRoomErrorText(event.data.room_error.code);
       weyveLog(weyve.lastError);
       break;
@@ -447,6 +458,15 @@ void App::weyvePoll() {
       break;
     }
     case WEYVE_EVENT_PEER_LEFT: {
+      if(event.data.peer_left.id == weyve_id(weyve.client)) {
+        if(weyveSessionActive()) {
+          netplayStop();
+          pendingNetplayUnload = true;
+        }
+        weyveResetRoomState();
+        weyveListRooms();
+        break;
+      }
       weyve.rolesDirty = true;
       if(weyve.selectedMember == event.data.peer_left.id) weyve.selectedMember = 0;
       weyveLog(weyveNameOf(event.data.peer_left.id) + " left");
@@ -502,14 +522,22 @@ void App::weyvePoll() {
       break;
     }
     case WEYVE_EVENT_KICKED:
-      if(weyveSessionActive()) netplayStop();
+      if(weyveSessionActive()) {
+        netplayStop();
+        pendingNetplayUnload = true;
+      }
       weyveResetRoomState();
       weyveLog("You were kicked from the room");
+      weyveListRooms();
       break;
     case WEYVE_EVENT_BANNED:
-      if(weyveSessionActive()) netplayStop();
+      if(weyveSessionActive()) {
+        netplayStop();
+        pendingNetplayUnload = true;
+      }
       weyveResetRoomState();
       weyveLog("You were banned from the room");
+      weyveListRooms();
       break;
     case WEYVE_EVENT_ROOM_ACCESS_CHANGED:
       weyveLog(std::string("Room access: ") + (event.data.room_access.open ? "open" : "closed")
