@@ -516,6 +516,12 @@ void drawRoomLobby(App& app) {
   const char* id = weyve_room_id(app.weyve.client, &idLen);
   ImGui::Text("Room %s", std::string(id, idLen).c_str());
   ImGui::SameLine();
+  const ImGuiStyle& style = ImGui::GetStyle();
+  const float copyWidth = ImGui::CalcTextSize("Copy code").x + style.FramePadding.x * 2.0f;
+  const float rescanWidth = ImGui::CalcTextSize("Rescan games").x + style.FramePadding.x * 2.0f;
+  const float buttonWidth = copyWidth + style.ItemSpacing.x + rescanWidth;
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX()
+    + SDL_max(0.0f, ImGui::GetContentRegionAvail().x - buttonWidth));
   if(ImGui::Button("Copy code")) app.weyveCopyRoomCode();
   ImGui::SameLine();
   if(ImGui::Button("Rescan games")) app.weyveRescanGames();
