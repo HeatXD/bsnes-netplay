@@ -144,7 +144,7 @@ struct Weyve {
   int localDelay = 2;
   int rollbackBaseline = 8;
   int delayBaseline = 2;
-  int spectatorDelay = 0;
+  int spectatorDelay = 300;
   std::string lastGameHash;
 
   std::vector<WeyveKnownName> knownNames;  // remembered after a member leaves

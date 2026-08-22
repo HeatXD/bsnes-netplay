@@ -206,7 +206,6 @@ void drawDirectTab(App& app) {
   }
   saveSettings |= ImGui::Checkbox("Desync detection", &app.settings.netplayDesyncDetection);
   app.tip("Compare state checksums with peers; enable when diagnosing a desync.");
-
   bool hasSpectator = false;
   for(const NetplayRemoteEntry& entry : app.netplayRemotes) {
     hasSpectator |= entry.role == NetplayEntryRole::Spectator;
@@ -216,7 +215,7 @@ void drawDirectTab(App& app) {
     ImGui::SetNextItemWidth(90.0f);
     ImGui::InputInt("Spectator delay", &app.settings.netplaySpectatorDelay, 60, 300);
     app.settings.netplaySpectatorDelay = SDL_clamp(app.settings.netplaySpectatorDelay, 0, 3600);
-    app.tip("Frames spectators watch behind live play; 0 follows it live.");
+    app.tip("Frames spectators watch behind live play; 300 is about 5 seconds, and 0 is live.");
     saveSettings |= ImGui::IsItemDeactivatedAfterEdit();
   }
   if(saveSettings) app.settings.save(app.settingsCfg);
@@ -470,7 +469,7 @@ void drawWeyveHostSettings(App& app) {
       weyve_set_room_data(app.weyve.client, "spectator_delay",
                           std::to_string(app.weyve.spectatorDelay).c_str());
     }
-    app.tip("Frames spectators remain behind live play; 0 follows it live.");
+    app.tip("Frames spectators remain behind live play; 300 is about 5 seconds, and 0 is live.");
     ImGui::EndTable();
   }
   ImGui::EndDisabled();

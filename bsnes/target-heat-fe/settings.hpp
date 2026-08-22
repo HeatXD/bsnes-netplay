@@ -179,7 +179,7 @@ struct Settings {
   int netplayRollback = 8;   // frames
   int netplayDelay = 2;      // frames
   int netplayRunAhead = 0;   // frames
-  int netplaySpectatorDelay = 0;  // frames
+  int netplaySpectatorDelay = 300;  // frames; 5 seconds at 60 Hz
   bool netplayDesyncDetection = false;
   std::string weyveHost = "";
   int weyvePort = 5555;
