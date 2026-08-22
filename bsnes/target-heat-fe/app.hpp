@@ -134,6 +134,8 @@ struct Weyve {
   bool pendingCreate = false;
   bool connectAttempted = false;
   bool focusTab = false;
+  bool openHostSettings = false;
+  bool temporarySessionPassword = false;
   bool rolesDirty = true;  // host reassigns roles on the next poll
   uint32_t lastStartToken = 0;
   uint32_t lastStopToken = 0;
@@ -467,6 +469,7 @@ struct App {
   // searches the existing Games-tab library (settings.gamesDir) for a plain
   // ROM file matching this content hash; empty when not found locally
   std::string weyveHasGame(const std::string& hash) const;
+  void weyveRescanGames();
   std::string weyveGameFingerprint() const;
   void weyveSelectGame(uint32_t gamesIndex);  // indexes App::games, not a netplay-only list
   void weyveCopyRoomCode() const;

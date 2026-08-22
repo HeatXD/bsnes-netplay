@@ -632,10 +632,16 @@ int Frontend::runUiShot() {
   // early passes settle window sizing; --frames asks for more to catch layout
   // that drifts per frame
   const int passes = opt.frameLimit > 0 ? opt.frameLimit : 3;
+  bool weyveStarted = false;
   for(int pass = 0; pass < passes; pass++) {
     if(app.weyveConnected()) {
       SDL_Delay(1);
       app.weyvePoll();
+      if(opt.weyveAutoStart && !weyveStarted && app.weyveInRoom()
+         && weyve_is_host(app.weyve.client) && app.weyveStartBlockedReason().empty()) {
+        weyveStarted = true;
+        app.weyveStartGame();
+      }
     }
     if(pass == 0 && opt.shotTab >= 0) app.settingsTab = opt.shotTab;
     renderUi();
@@ -712,8 +718,10 @@ void openRequestedPanel(App& app, const Options& opt) {
   // cartridge is the old name for the same window
   app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
   app.showScripting = opt.uiScreen == "scripting";
-  app.showNetplay = opt.uiScreen == "netplay" || opt.uiScreen == "weyve";
-  if(opt.uiScreen == "weyve") app.weyve.focusTab = true;
+  app.showNetplay = opt.uiScreen == "netplay" || opt.uiScreen == "weyve"
+                 || opt.uiScreen == "weyve-host-settings";
+  if(opt.uiScreen == "weyve" || opt.uiScreen == "weyve-host-settings") app.weyve.focusTab = true;
+  if(opt.uiScreen == "weyve-host-settings") app.weyve.openHostSettings = true;
   app.showStateManager = opt.uiScreen == "state-manager";
   app.showCheats = opt.uiScreen == "cheats";
   app.showCheatFinder = opt.uiScreen == "cheat-finder";

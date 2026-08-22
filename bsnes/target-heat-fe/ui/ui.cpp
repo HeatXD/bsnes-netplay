@@ -307,7 +307,16 @@ void App::drawMenuBar() {
   if(ImGui::BeginMenu("File"))      { drawFileMenu();      ImGui::EndMenu(); }
   if(ImGui::BeginMenu("Emulation")) { drawEmulationMenu(); ImGui::EndMenu(); }
   if(ImGui::BeginMenu("Settings"))  { drawSettingsMenu();  ImGui::EndMenu(); }
-  if(ImGui::MenuItem("Netplay", nullptr, showNetplay)) showNetplay = !showNetplay;
+  if(ImGui::MenuItem("Netplay", nullptr, showNetplay)) {
+    showNetplay = !showNetplay;
+    if(showNetplay) {
+      weyve.connectAttempted = false;
+      weyve.focusTab = true;
+    } else {
+      weyveDisconnect();
+      weyve.connectAttempted = false;
+    }
+  }
 
   if(ImGui::BeginMenu("Tools")) {
     if(ImGui::BeginMenu("Movie")) {

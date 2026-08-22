@@ -268,9 +268,12 @@ void drawRoomMembers(App& app) {
   ImGui::Text("Members (%u)", count);
   const float controlsHeight = host ? ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y : 0.0f;
   ImGui::BeginChild("##weyve-member-list", ImVec2(0.0f, -controlsHeight), ImGuiChildFlags_Borders);
-  if(ImGui::BeginTable("##weyve-members", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+  const bool running = app.weyveSessionActive();
+  if(ImGui::BeginTable("##weyve-members", running ? 3 : 2,
+                       ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
     ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 1.5f);
-    ImGui::TableSetupColumn("Role", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+    ImGui::TableSetupColumn("Role", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+    if(running) ImGui::TableSetupColumn("Ping", ImGuiTableColumnFlags_WidthFixed, 58.0f);
     ImGui::TableHeadersRow();
     for(uint32_t i = 0; i < count; i++) {
       const uint32_t memberId = members[i];
@@ -291,6 +294,23 @@ void drawRoomMembers(App& app) {
       if(ImGui::IsItemHovered()) ImGui::SetTooltip("%s", label.c_str());
       ImGui::TableNextColumn();
       ImGui::TextUnformatted(app.weyveRoleLabel(app.weyveRoleOf(memberId)).c_str());
+      if(running) {
+        ImGui::TableNextColumn();
+        const NetplayPeer* found = nullptr;
+        for(const NetplayPeer& peer : app.netplay.peers) {
+          if(peer.weyveId == memberId && peer.type != GekkoLocalPlayer) { found = &peer; break; }
+        }
+        if(found && found->connected) {
+          ImGui::Text("%u ms", found->stats.last_ping);
+          if(ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Average %.0f ms\nJitter %.1f ms\nSent %.1f KB/s\nReceived %.1f KB/s",
+                              found->stats.avg_ping, found->stats.jitter,
+                              found->stats.kb_sent, found->stats.kb_received);
+          }
+        } else {
+          ImGui::TextUnformatted(memberId == selfId ? "local" : "--");
+        }
+      }
       ImGui::PopID();
     }
     ImGui::EndTable();
@@ -345,60 +365,105 @@ void drawRoomFeed(App& app) {
 }
 
 void drawWeyveHostSettings(App& app) {
-  ImGui::SetNextWindowSize(ImVec2(440.0f, 0.0f), ImGuiCond_Appearing);
+  const ImVec2 parentPos = ImGui::GetWindowPos();
+  const ImVec2 parentSize = ImGui::GetWindowSize();
+  ImGui::SetNextWindowPos(ImVec2(parentPos.x + parentSize.x * 0.5f,
+                                 parentPos.y + parentSize.y * 0.5f),
+                          ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  ImGui::SetNextWindowSize(ImVec2(480.0f, 0.0f), ImGuiCond_Appearing);
   if(!ImGui::BeginPopup("Host settings")) return;
 
   const bool running = app.weyveSessionActive();
-  bool listed = weyve_room_listed(app.weyve.client);
-  if(ImGui::Checkbox("Listed", &listed)) weyve_set_room_listed(app.weyve.client, listed);
-  app.tip("Show the room in the public browser; private rooms remain joinable by code.");
-  ImGui::SameLine();
-  bool open = weyve_room_joinable(app.weyve.client);
-  ImGui::BeginDisabled(running);
-  if(ImGui::Checkbox("Open", &open)) weyve_set_room_joinable(app.weyve.client, open);
-  ImGui::EndDisabled();
-  app.tip("Allow new members to join. A running session is closed automatically.");
-  ImGui::SameLine();
-  bool desync = app.weyveRoomData("desync") == "1";
-  ImGui::BeginDisabled(running);
-  if(ImGui::Checkbox("Desync detection", &desync)) {
-    weyve_set_room_data(app.weyve.client, "desync", desync ? "1" : "0");
-  }
-  ImGui::EndDisabled();
+  if(ImGui::BeginTable("##weyve-room-settings", 2, ImGuiTableFlags_SizingStretchProp)) {
+    ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 135.0f);
+    ImGui::TableSetupColumn("##control", ImGuiTableColumnFlags_WidthStretch);
 
-  const float setWidth = ImGui::CalcTextSize("Set").x + ImGui::GetStyle().FramePadding.x * 2.0f;
-  ImGui::SetNextItemWidth(-(setWidth + ImGui::GetStyle().ItemSpacing.x));
-  ImGui::InputTextWithHint("##room-password", "Room password (empty removes it)",
-                           app.weyveRoomPassword, sizeof(app.weyveRoomPassword),
-                           ImGuiInputTextFlags_Password);
-  ImGui::SameLine();
-  if(ImGui::Button("Set")) {
-    weyve_set_room_password(app.weyve.client, app.weyveRoomPassword);
-    app.weyveRoomPassword[0] = '\0';
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Public listing");
+    ImGui::TableNextColumn();
+    bool listed = weyve_room_listed(app.weyve.client);
+    if(ImGui::Checkbox("Listed##room", &listed)) weyve_set_room_listed(app.weyve.client, listed);
+    app.tip("Show the room in the public browser; private rooms remain joinable by code.");
+
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Joining");
+    ImGui::TableNextColumn();
+    bool open = weyve_room_joinable(app.weyve.client);
+    ImGui::BeginDisabled(running);
+    if(ImGui::Checkbox("Open##room", &open)) weyve_set_room_joinable(app.weyve.client, open);
+    ImGui::EndDisabled();
+    app.tip("Allow new members to join. A running session is closed automatically.");
+
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("State checks");
+    ImGui::TableNextColumn();
+    bool desync = app.weyveRoomData("desync") == "1";
+    ImGui::BeginDisabled(running);
+    if(ImGui::Checkbox("Desync detection##room", &desync)) {
+      weyve_set_room_data(app.weyve.client, "desync", desync ? "1" : "0");
+    }
+    ImGui::EndDisabled();
+    app.tip("Compare state checksums between players; enable only when investigating desyncs.");
+
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Password");
+    ImGui::TableNextColumn();
+    ImGui::BeginDisabled(running);
+    const float setWidth = ImGui::CalcTextSize("Set").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+    ImGui::SetNextItemWidth(-(setWidth + ImGui::GetStyle().ItemSpacing.x));
+    ImGui::InputTextWithHint("##room-password", "Empty removes it", app.weyveRoomPassword,
+                             sizeof(app.weyveRoomPassword), ImGuiInputTextFlags_Password);
+    app.tip("Set a join password, or leave this empty and press Set to remove it.");
+    ImGui::SameLine();
+    if(ImGui::Button("Set##room-password")) {
+      weyve_set_room_password(app.weyve.client, app.weyveRoomPassword);
+      app.weyveRoomPassword[0] = '\0';
+    }
+    ImGui::EndDisabled();
+    ImGui::EndTable();
   }
 
   ImGui::SeparatorText("Session floors");
   ImGui::BeginDisabled(running);
-  if(ImGui::BeginTable("##weyve-baselines", 3, ImGuiTableFlags_SizingStretchSame)) {
+  if(ImGui::BeginTable("##weyve-baselines", 2, ImGuiTableFlags_SizingStretchProp)) {
+    ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 135.0f);
+    ImGui::TableSetupColumn("##control", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableNextRow();
     ImGui::TableNextColumn();
-    ImGui::TextUnformatted("Rollback floor");
-    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Rollback");
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth(180.0f);
     int rollback = app.weyve.rollbackBaseline;
     if(ImGui::InputInt("##rollback-floor", &rollback, 1, 4)) {
       app.weyveSetBaseline(rollback, app.weyve.delayBaseline);
     }
     app.tip("Minimum rollback frames each player must use.");
+    ImGui::TableNextRow();
     ImGui::TableNextColumn();
-    ImGui::TextUnformatted("Delay floor");
-    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Input delay");
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth(180.0f);
     int delay = app.weyve.delayBaseline;
     if(ImGui::InputInt("##delay-floor", &delay, 1, 2)) {
       app.weyveSetBaseline(app.weyve.rollbackBaseline, delay);
     }
     app.tip("Minimum input delay each player must use.");
+    ImGui::TableNextRow();
     ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Spectator delay");
-    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth(180.0f);
     int spectatorDelay = app.weyve.spectatorDelay;
     if(ImGui::InputInt("##spectator-delay", &spectatorDelay, 60, 300)) {
       app.weyve.spectatorDelay = SDL_clamp(spectatorDelay, 0, 3600);
@@ -455,6 +520,9 @@ void drawRoomLobby(App& app) {
   ImGui::Text("Room %s", std::string(id, idLen).c_str());
   ImGui::SameLine();
   if(ImGui::Button("Copy code")) app.weyveCopyRoomCode();
+  ImGui::SameLine();
+  if(ImGui::Button("Rescan games")) app.weyveRescanGames();
+  app.tip("Rescan the Games folder and immediately report whether you now have the selected game.");
 
   const bool host = weyve_is_host(app.weyve.client);
   if(host) {
@@ -469,18 +537,23 @@ void drawRoomLobby(App& app) {
       ImGui::TextUnformatted("Game");
       ImGui::TableNextColumn();
       ImGui::SetNextItemWidth(-1.0f);
+      ImGui::BeginDisabled(app.weyveSessionActive());
       if(ImGui::BeginCombo("##weyve-game", current.empty() ? "(none)" : current.c_str())) {
         for(uint32_t i = 0; i < app.games.size(); i++) {
           if(ImGui::Selectable(app.games[i].first.c_str())) app.weyveSelectGame(i);
         }
         ImGui::EndCombo();
       }
+      ImGui::EndDisabled();
       app.tip("Every player auto-loads this by content hash from their own Games folder.");
       ImGui::TableNextColumn();
-      if(ImGui::Button("Host settings")) ImGui::OpenPopup("Host settings");
+      if(ImGui::Button("Host settings") || app.weyve.openHostSettings) {
+        app.weyve.openHostSettings = false;
+        ImGui::OpenPopup("Host settings");
+      }
+      drawWeyveHostSettings(app);
       ImGui::EndTable();
     }
-    drawWeyveHostSettings(app);
   } else {
     const std::string game = app.weyveRoomData("game");
     ImGui::TextWrapped("Game: %s", game.empty() ? "(none)" : game.c_str());
@@ -510,13 +583,17 @@ void drawRoomLobby(App& app) {
     ImGui::TableSetupColumn("##leave", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableNextColumn();
     if(host) {
-      ImGui::BeginDisabled(!blocked.empty());
-      if(ImGui::Button(app.netplayActive() ? "Restart" : "Start")) app.weyveStartGame();
-      ImGui::EndDisabled();
-      if(app.netplayActive()) { ImGui::SameLine(); if(ImGui::Button("Stop")) app.weyveStopGame(); }
+      if(app.weyveSessionActive()) {
+        if(ImGui::Button("Stop")) app.weyveStopGame();
+      } else {
+        ImGui::BeginDisabled(!blocked.empty());
+        if(ImGui::Button("Start")) app.weyveStartGame();
+        ImGui::EndDisabled();
+      }
     }
     ImGui::TableNextColumn();
-    if(host && !blocked.empty()) ImGui::TextDisabled("%s", blocked.c_str());
+    if(app.weyveSessionActive()) ImGui::TextDisabled("Session running");
+    else if(host && !blocked.empty()) ImGui::TextDisabled("%s", blocked.c_str());
     ImGui::TableNextColumn();
     if(ImGui::Button("Leave room")) app.weyveLeaveRoom();
     ImGui::EndTable();
@@ -545,6 +622,14 @@ void drawWeyveTab(App& app) {
   }
 
   if(!app.weyveInRoom()) {
+    ImGui::SetNextItemWidth(220.0f);
+    ImGui::InputText("Nickname", app.weyveNicknameInput, sizeof(app.weyveNicknameInput));
+    if(ImGui::IsItemDeactivatedAfterEdit()) {
+      app.settings.weyveNickname = app.weyveNicknameInput;
+      weyve_set_name(app.weyve.client, app.settings.weyveNickname.c_str());
+      app.settings.save(app.settingsCfg);
+    }
+    app.tip("The name shown to other people in rooms and in your hosted room listing.");
     if(ImGui::Button("Create room")) app.weyveCreateRoom(true);
     ImGui::Separator();
     ImGui::InputText("Room code", app.weyveJoinCode, sizeof(app.weyveJoinCode));
@@ -557,32 +642,37 @@ void drawWeyveTab(App& app) {
     if(ImGui::Button("Refresh room list")) app.weyveListRooms();
     if(ImGui::BeginTable("##weyve-rooms", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                          ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp)) {
-      ImGui::TableSetupColumn("Host", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Game Name", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Host name", ImGuiTableColumnFlags_WidthStretch);
       ImGui::TableSetupColumn("Players", ImGuiTableColumnFlags_WidthFixed, 60.0f);
       ImGui::TableSetupColumn("Locked", ImGuiTableColumnFlags_WidthFixed, 55.0f);
-      ImGui::TableSetupColumn("##join", ImGuiTableColumnFlags_WidthFixed, 60.0f);
       ImGui::TableHeadersRow();
       for(size_t i = 0; i < app.weyve.roomList.size(); i++) {
         const WeyveRoomListing& room = app.weyve.roomList[i];
         ImGui::PushID((int)i);
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
+        const std::string game = room.game.empty() ? "(no game selected)" : room.game;
+        const bool selected = room.id == app.weyveJoinCode;
+        if(ImGui::Selectable(game.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns |
+                            ImGuiSelectableFlags_AllowDoubleClick)) {
+          SDL_strlcpy(app.weyveJoinCode, room.id.c_str(), sizeof(app.weyveJoinCode));
+          if(ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !room.passworded) {
+            app.weyveJoinRoom(room.id, "");
+          }
+        }
+        ImGui::TableSetColumnIndex(1);
         const std::string host = room.host.empty() ? "(unknown host)" : room.host;
         ImGui::TextUnformatted(host.c_str());
-        ImGui::TableSetColumnIndex(1);
-        ImGui::Text("%u", room.members);
         ImGui::TableSetColumnIndex(2);
-        ImGui::TextUnformatted(room.passworded ? "yes" : "no");
+        ImGui::Text("%u", room.members);
         ImGui::TableSetColumnIndex(3);
-        if(ImGui::Button("Join")) {
-          SDL_strlcpy(app.weyveJoinCode, room.id.c_str(), sizeof(app.weyveJoinCode));
-          if(!room.passworded) app.weyveJoinRoom(room.id, "");
-        }
-        if(room.passworded) app.tip("Locked; fills the code above so you can enter its password.");
+        ImGui::TextUnformatted(room.passworded ? "yes" : "no");
         ImGui::PopID();
       }
       ImGui::EndTable();
     }
+    app.tip("Select a room to fill its code; double-click an unlocked room to join it.");
     return;
   }
 
@@ -594,9 +684,23 @@ void drawWeyveTab(App& app) {
 void App::drawNetplayWindow() {
   if(!showNetplay) return;
   placeFloating(560.0f, 480.0f);
-  if(!ImGui::Begin("Netplay", &showNetplay)) { ImGui::End(); return; }
+  const bool visible = ImGui::Begin("Netplay", &showNetplay);
+  if(!showNetplay) {
+    ImGui::End();
+    weyveDisconnect();
+    weyve.connectAttempted = false;
+    return;
+  }
+  if(!weyve.client && !weyve.connectAttempted) {
+    weyve.focusTab = true;
+    connectWeyveFromSettings(*this);
+  }
+  if(!weyve.client && !weyve.lastError.empty()) weyve.focusTab = true;
+  if(!visible) { ImGui::End(); return; }
 
-  if(netplayActive()) {
+  const bool weyveRoomSession = netplayActive() && netplay.transport == Netplay::Weyvelength
+                              && weyveInRoom();
+  if(netplayActive() && !weyveRoomSession) {
     ImGui::Text("%s session active, instance %s", netplay.transport == Netplay::Direct ? "Direct" : "Weyvelength",
                netplay.instance.c_str());
     if(netplay.localPlayer < 0) {
@@ -686,8 +790,12 @@ void App::drawNetplayWindow() {
   }
 
   if(ImGui::BeginTabBar("##netplay-tabs")) {
-    if(ImGui::BeginTabItem("Direct P2P")) { drawDirectTab(*this); ImGui::EndTabItem(); }
-    const ImGuiTabItemFlags flags = weyve.focusTab ? ImGuiTabItemFlags_SetSelected : 0;
+    const bool inWeyveRoom = weyveInRoom();
+    if(!inWeyveRoom && ImGui::BeginTabItem("Direct P2P")) {
+      drawDirectTab(*this);
+      ImGui::EndTabItem();
+    }
+    const ImGuiTabItemFlags flags = weyve.focusTab || inWeyveRoom ? ImGuiTabItemFlags_SetSelected : 0;
     if(ImGui::BeginTabItem("Weyvelength Rooms", nullptr, flags)) {
       weyve.focusTab = false;
       drawWeyveTab(*this);

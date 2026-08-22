@@ -454,6 +454,9 @@ auto Program::weyvePoll() -> void {
         case WEYVE_EVENT_HOST_CHANGED:
             weyve.rolesDirty = true;
             weyveLogIdentity(event.data.host_changed.id, " is now the host");
+            if(event.data.host_changed.id == weyve_id(weyve.client)) {
+                weyve_set_room_listing(weyve.client, "host", settings.weyvelength.nickname.data());
+            }
             break;
         case WEYVE_EVENT_ROOM_DATA_CHANGED: {
             string key{string_view{event.data.room_data.key, event.data.room_data.key_len}};
