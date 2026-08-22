@@ -277,12 +277,10 @@ void drawRoomMembers(App& app) {
     ImGui::TableHeadersRow();
     for(uint32_t i = 0; i < count; i++) {
       const uint32_t memberId = members[i];
-      uint32_t nameLen = 0;
-      const char* name = weyve_peer_name(app.weyve.client, memberId, &nameLen);
       std::string label;
       if(memberId == hostId) label += "[host] ";
       if(memberId == selfId) label += "[you] ";
-      label += name ? std::string(name, nameLen) : "?";
+      label += app.weyveNameOf(memberId);
       if(roomHasGame && app.weyveMemberData(memberId, "hasGame") != "1") label += " (no game)";
 
       ImGui::PushID((int)memberId);
@@ -752,11 +750,9 @@ void App::drawNetplayWindow() {
         ImGui::TableSetColumnIndex(0);
         std::string label = peer.addr;
         if(netplay.transport == Netplay::Weyvelength && weyve.client) {
-          uint32_t length = 0;
-          const char* name = weyve_peer_name(weyve.client, peer.weyveId, &length);
-          label = name ? std::string(name, length) : std::to_string(peer.weyveId);
+          label = weyveNameOf(peer.weyveId);
         }
-        ImGui::TextUnformatted(label.empty() ? ("Peer " + std::to_string(peer.id)).c_str() : label.c_str());
+        ImGui::TextUnformatted(label.empty() ? "Peer" : label.c_str());
         ImGui::TableSetColumnIndex(1);
         ImGui::TextUnformatted(peer.type == GekkoSpectator ? "Spectator" : "Player");
         ImGui::TableSetColumnIndex(2);

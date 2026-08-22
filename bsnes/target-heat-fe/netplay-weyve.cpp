@@ -133,6 +133,7 @@ void App::weyveResetRoomState() {
   weyve.lastStartToken = 0;
   weyve.lastStopToken = 0;
   weyve.selectedMember = 0;
+  weyve.knownNames.clear();
   weyve.log.clear();
   weyve.rolesDirty = true;
 }
@@ -228,6 +229,30 @@ void App::weyveSetRole(uint32_t memberId, const std::string& role) {
   weyve_set_room_data(weyve.client, ("role:" + std::to_string(memberId)).c_str(), role.c_str());
 }
 
+void App::weyveRememberName(uint32_t memberId, const std::string& name) {
+  if(name.empty()) return;
+  for(WeyveKnownName& known : weyve.knownNames) {
+    if(known.id != memberId) continue;
+    known.name = name;
+    return;
+  }
+  weyve.knownNames.push_back({memberId, name});
+}
+
+std::string App::weyveNameOf(uint32_t memberId) const {
+  if(weyve.client) {
+    uint32_t length = 0;
+    const char* name = memberId == weyve_id(weyve.client)
+                     ? weyve_name(weyve.client, &length)
+                     : weyve_peer_name(weyve.client, memberId, &length);
+    if(name && length) return std::string(name, length);
+  }
+  for(const WeyveKnownName& known : weyve.knownNames) {
+    if(known.id == memberId) return known.name;
+  }
+  return "Player";
+}
+
 void App::weyveSetBaseline(int rollback, int delay) {
   if(!weyve.client || !weyve_is_host(weyve.client) || weyveSessionActive()) return;
   weyve.rollbackBaseline = SDL_clamp(rollback, 0, 32);
@@ -274,9 +299,7 @@ std::string App::weyveStartBlockedReason() const {
   const uint32_t* members = weyve_members(weyve.client, &count);
   for(uint32_t i = 0; i < count; i++) {
     if(weyveMemberData(members[i], "hasGame") != "1") {
-      uint32_t nameLen = 0;
-      const char* name = weyve_peer_name(weyve.client, members[i], &nameLen);
-      return bytes(name, nameLen) + " doesn't have this game yet";
+      return weyveNameOf(members[i]) + " doesn't have this game yet";
     }
   }
   if(weyvePlayerOrder().empty()) return "need at least 1 player";
@@ -379,6 +402,16 @@ void App::weyveCopyRoomCode() const {
 void App::weyvePoll() {
   if(!weyve.client) return;
 
+  if(weyveInRoom()) {
+    uint32_t count = 0;
+    const uint32_t* members = weyve_members(weyve.client, &count);
+    for(uint32_t i = 0; i < count; i++) {
+      uint32_t length = 0;
+      const char* name = weyve_peer_name(weyve.client, members[i], &length);
+      weyveRememberName(members[i], bytes(name, length));
+    }
+  }
+
   if(!weyve_poll(weyve.client)) {
     if(weyveSessionActive()) netplayStop();
     weyve_client_destroy(weyve.client);
@@ -402,28 +435,26 @@ void App::weyvePoll() {
       weyveLog(weyve.lastError);
       break;
     case WEYVE_EVENT_CHAT: {
-      uint32_t nameLen = 0;
-      const char* name = weyve_peer_name(weyve.client, event.data.chat.from, &nameLen);
-      weyveLog(bytes(name, nameLen) + ": " + bytes(event.data.chat.text, event.data.chat.text_len));
+      weyveLog(weyveNameOf(event.data.chat.from) + ": "
+             + bytes(event.data.chat.text, event.data.chat.text_len));
       break;
     }
-    case WEYVE_EVENT_PEER_JOINED:
+    case WEYVE_EVENT_PEER_JOINED: {
       weyve.rolesDirty = true;
-      weyveLog(bytes(event.data.peer_joined.name, event.data.peer_joined.name_len) + " joined");
+      const std::string name = bytes(event.data.peer_joined.name, event.data.peer_joined.name_len);
+      weyveRememberName(event.data.peer_joined.id, name);
+      weyveLog(weyveNameOf(event.data.peer_joined.id) + " joined");
       break;
+    }
     case WEYVE_EVENT_PEER_LEFT: {
       weyve.rolesDirty = true;
       if(weyve.selectedMember == event.data.peer_left.id) weyve.selectedMember = 0;
-      uint32_t nameLen = 0;
-      const char* name = weyve_peer_name(weyve.client, event.data.peer_left.id, &nameLen);
-      weyveLog(bytes(name, nameLen) + " left");
+      weyveLog(weyveNameOf(event.data.peer_left.id) + " left");
       break;
     }
     case WEYVE_EVENT_HOST_CHANGED: {
       weyve.rolesDirty = true;
-      uint32_t nameLen = 0;
-      const char* name = weyve_peer_name(weyve.client, event.data.host_changed.id, &nameLen);
-      weyveLog(bytes(name, nameLen) + " is now the host");
+      weyveLog(weyveNameOf(event.data.host_changed.id) + " is now the host");
       if(event.data.host_changed.id == weyve_id(weyve.client)) {
         weyvePublishHostListing();
         if(weyve.pendingCreate) {
@@ -463,13 +494,10 @@ void App::weyvePoll() {
       if(event.data.member_data.id == weyve_id(weyve.client)) break;  // our own echo
       const std::string value = bytes(event.data.member_data.value, event.data.member_data.value_len);
       if(key == "hasGame") {
-        uint32_t nameLen = 0;
-        const char* name = weyve_peer_name(weyve.client, event.data.member_data.id, &nameLen);
-        weyveLog(bytes(name, nameLen) + (value == "1" ? " has this game" : " doesn't have this game"));
+        weyveLog(weyveNameOf(event.data.member_data.id)
+               + (value == "1" ? " has this game" : " doesn't have this game"));
       } else if(key == "rollback" || key == "delay") {
-        uint32_t nameLen = 0;
-        const char* name = weyve_peer_name(weyve.client, event.data.member_data.id, &nameLen);
-        weyveLog(bytes(name, nameLen) + " set " + key + " to " + value);
+        weyveLog(weyveNameOf(event.data.member_data.id) + " set " + key + " to " + value);
       }
       break;
     }

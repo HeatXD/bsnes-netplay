@@ -453,6 +453,8 @@ struct App {
   void weyvePoll();
   void netplayStartWeyve();
   void weyveLog(std::string line);
+  void weyveRememberName(uint32_t memberId, const std::string& name);
+  std::string weyveNameOf(uint32_t memberId) const;
   std::string weyveRoomData(const std::string& key) const;
   std::string weyveMemberData(uint32_t memberId, const std::string& key) const;
   std::string weyveRoleOf(uint32_t memberId) const;
