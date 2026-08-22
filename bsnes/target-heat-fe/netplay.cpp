@@ -103,7 +103,8 @@ void App::netplayLog(std::string line) {
 // connection-agnostic bring-up; the caller has already set the adapter and
 // still has to add actors and call netplayMode-equivalent (set netplay.mode)
 void App::netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectators,
-                              bool localSpectating, int spectatorDelay) {
+                              bool localSpectating, int spectatorDelay, int rollbackFrames,
+                              int localDelay) {
   if(scripting.running()) scripting.stop();
   // GekkoNet owns rollback/runahead for the session; HeatFE's own offline
   // run-ahead would resimulate a second time on top of it, so it is parked
@@ -127,7 +128,7 @@ void App::netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectat
   netplay.spectatorPaused = false;
   netplay.desyncCount = 0;
   netplay.speedScale = 1.0;
-  netplay.localDelay = settings.netplayDelay;
+  netplay.localDelay = localDelay >= 0 ? localDelay : settings.netplayDelay;
   netplay.localRunAhead = settings.netplayRunAhead;
   netplay.stateCache.clear();
   netplay.log.clear();
@@ -136,14 +137,15 @@ void App::netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectat
   netplay.config.num_players = (unsigned char)numPlayers;
   netplay.config.input_size = sizeof(uint16_t);
   netplay.config.state_size = stateSize;
-  netplay.config.input_prediction_window = (unsigned char)settings.netplayRollback;
+  const int rollback = rollbackFrames >= 0 ? rollbackFrames : settings.netplayRollback;
+  netplay.config.input_prediction_window = (unsigned char)SDL_clamp(rollback, 0, 32);
   netplay.config.desync_detection = detectDesyncs;
   netplay.config.max_spectators = (unsigned char)maxSpectators;
   netplay.config.spectator_delay = (unsigned)(spectatorDelay >= 0
       ? spectatorDelay : settings.netplaySpectatorDelay);
 
   netplayLog("session: " + gameTitle + " players " + std::to_string(numPlayers)
-           + " rollback " + std::to_string(settings.netplayRollback)
+           + " rollback " + std::to_string(netplay.config.input_prediction_window)
            + " delay " + std::to_string(netplay.localDelay)
            + " runahead " + std::to_string(netplay.localRunAhead) + " state "
            + std::to_string(stateSize) + " bytes"

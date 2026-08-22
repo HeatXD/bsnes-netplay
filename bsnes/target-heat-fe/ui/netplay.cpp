@@ -42,7 +42,19 @@ void App::drawNetplayTab() {
 
   ImGui::Separator();
   ImGui::TextUnformatted("Weyvelength");
-  ImGui::TextDisabled("Server and room actions are in the Netplay window.");
+  ImGui::InputText("Server", weyveHostInput, sizeof(weyveHostInput));
+  if(ImGui::IsItemDeactivatedAfterEdit()) {
+    settings.weyveHost = weyveHostInput;
+    if(!weyve.client) weyve.connectAttempted = false;
+    dirty = true;
+  }
+  ImGui::InputText("Port", weyvePortInput, sizeof(weyvePortInput), ImGuiInputTextFlags_CharsDecimal);
+  if(ImGui::IsItemDeactivatedAfterEdit()) {
+    settings.weyvePort = SDL_clamp(SDL_atoi(weyvePortInput), 1, 65535);
+    SDL_snprintf(weyvePortInput, sizeof(weyvePortInput), "%d", settings.weyvePort);
+    if(!weyve.client) weyve.connectAttempted = false;
+    dirty = true;
+  }
   ImGui::InputText("Nickname", weyveNicknameInput, sizeof(weyveNicknameInput));
   if(ImGui::IsItemDeactivatedAfterEdit()) {
     settings.weyveNickname = weyveNicknameInput;
@@ -52,6 +64,7 @@ void App::drawNetplayTab() {
     }
     dirty = true;
   }
+  ImGui::TextDisabled("The room browser connects automatically with these settings.");
   ImGui::TextDisabled("A room's game list is the Games tab's own library (Settings > Paths);\n"
                       "each player auto-loads their own copy by content hash.");
 
@@ -60,6 +73,10 @@ void App::drawNetplayTab() {
     restoreNetplayDefaults();
     netplaySetLocalDelay(settings.netplayDelay);
     netplaySetRunAhead(settings.netplayRunAhead);
+    SDL_strlcpy(weyveHostInput, settings.weyveHost.c_str(), sizeof(weyveHostInput));
+    SDL_snprintf(weyvePortInput, sizeof(weyvePortInput), "%d", settings.weyvePort);
+    SDL_strlcpy(weyveNicknameInput, settings.weyveNickname.c_str(), sizeof(weyveNicknameInput));
+    if(!weyve.client) weyve.connectAttempted = false;
     dirty = true;
   }
   if(dirty) settings.save(settingsCfg);
@@ -168,16 +185,41 @@ void drawDirectTab(App& app) {
   ImGui::Checkbox("Spectate a session", &app.netplayDirectSpectator);
   app.tip("Watch instead of playing; connects to one player's address below.");
 
+  bool saveSettings = false;
+  if(ImGui::BeginTable("##direct-tuning", 3, ImGuiTableFlags_SizingStretchSame)) {
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth(82.0f);
+    ImGui::SliderInt("Rollback", &app.settings.netplayRollback, 0, 32);
+    saveSettings |= ImGui::IsItemDeactivatedAfterEdit();
+    app.tip("Frames the session may roll back to correct late input.");
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth(72.0f);
+    ImGui::SliderInt("Input delay", &app.settings.netplayDelay, 0, 10);
+    saveSettings |= ImGui::IsItemDeactivatedAfterEdit();
+    app.tip("Frames of local input delay.");
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth(62.0f);
+    ImGui::SliderInt("Runahead", &app.settings.netplayRunAhead, 0, 4);
+    saveSettings |= ImGui::IsItemDeactivatedAfterEdit();
+    app.tip("Local speculative frames used to reduce perceived input latency.");
+    ImGui::EndTable();
+  }
+  saveSettings |= ImGui::Checkbox("Desync detection", &app.settings.netplayDesyncDetection);
+  app.tip("Compare state checksums with peers; enable when diagnosing a desync.");
+
   bool hasSpectator = false;
   for(const NetplayRemoteEntry& entry : app.netplayRemotes) {
     hasSpectator |= entry.role == NetplayEntryRole::Spectator;
   }
   if(!app.netplayDirectSpectator && hasSpectator) {
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90.0f);
     ImGui::InputInt("Spectator delay", &app.settings.netplaySpectatorDelay, 60, 300);
     app.settings.netplaySpectatorDelay = SDL_clamp(app.settings.netplaySpectatorDelay, 0, 3600);
     app.tip("Frames spectators watch behind live play; 0 follows it live.");
-    if(ImGui::IsItemDeactivatedAfterEdit()) app.settings.save(app.settingsCfg);
+    saveSettings |= ImGui::IsItemDeactivatedAfterEdit();
   }
+  if(saveSettings) app.settings.save(app.settingsCfg);
 
   if(app.netplayDirectSpectator) drawSpectateFields(app);
   else drawHostFields(app);
@@ -302,6 +344,111 @@ void drawRoomFeed(App& app) {
   }
 }
 
+void drawWeyveHostSettings(App& app) {
+  ImGui::SetNextWindowSize(ImVec2(440.0f, 0.0f), ImGuiCond_Appearing);
+  if(!ImGui::BeginPopup("Host settings")) return;
+
+  const bool running = app.weyveSessionActive();
+  bool listed = weyve_room_listed(app.weyve.client);
+  if(ImGui::Checkbox("Listed", &listed)) weyve_set_room_listed(app.weyve.client, listed);
+  app.tip("Show the room in the public browser; private rooms remain joinable by code.");
+  ImGui::SameLine();
+  bool open = weyve_room_joinable(app.weyve.client);
+  ImGui::BeginDisabled(running);
+  if(ImGui::Checkbox("Open", &open)) weyve_set_room_joinable(app.weyve.client, open);
+  ImGui::EndDisabled();
+  app.tip("Allow new members to join. A running session is closed automatically.");
+  ImGui::SameLine();
+  bool desync = app.weyveRoomData("desync") == "1";
+  ImGui::BeginDisabled(running);
+  if(ImGui::Checkbox("Desync detection", &desync)) {
+    weyve_set_room_data(app.weyve.client, "desync", desync ? "1" : "0");
+  }
+  ImGui::EndDisabled();
+
+  const float setWidth = ImGui::CalcTextSize("Set").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+  ImGui::SetNextItemWidth(-(setWidth + ImGui::GetStyle().ItemSpacing.x));
+  ImGui::InputTextWithHint("##room-password", "Room password (empty removes it)",
+                           app.weyveRoomPassword, sizeof(app.weyveRoomPassword),
+                           ImGuiInputTextFlags_Password);
+  ImGui::SameLine();
+  if(ImGui::Button("Set")) {
+    weyve_set_room_password(app.weyve.client, app.weyveRoomPassword);
+    app.weyveRoomPassword[0] = '\0';
+  }
+
+  ImGui::SeparatorText("Session floors");
+  ImGui::BeginDisabled(running);
+  if(ImGui::BeginTable("##weyve-baselines", 3, ImGuiTableFlags_SizingStretchSame)) {
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted("Rollback floor");
+    ImGui::SetNextItemWidth(-1.0f);
+    int rollback = app.weyve.rollbackBaseline;
+    if(ImGui::InputInt("##rollback-floor", &rollback, 1, 4)) {
+      app.weyveSetBaseline(rollback, app.weyve.delayBaseline);
+    }
+    app.tip("Minimum rollback frames each player must use.");
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted("Delay floor");
+    ImGui::SetNextItemWidth(-1.0f);
+    int delay = app.weyve.delayBaseline;
+    if(ImGui::InputInt("##delay-floor", &delay, 1, 2)) {
+      app.weyveSetBaseline(app.weyve.rollbackBaseline, delay);
+    }
+    app.tip("Minimum input delay each player must use.");
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted("Spectator delay");
+    ImGui::SetNextItemWidth(-1.0f);
+    int spectatorDelay = app.weyve.spectatorDelay;
+    if(ImGui::InputInt("##spectator-delay", &spectatorDelay, 60, 300)) {
+      app.weyve.spectatorDelay = SDL_clamp(spectatorDelay, 0, 3600);
+      app.settings.netplaySpectatorDelay = app.weyve.spectatorDelay;
+      app.settings.save(app.settingsCfg);
+      weyve_set_room_data(app.weyve.client, "spectator_delay",
+                          std::to_string(app.weyve.spectatorDelay).c_str());
+    }
+    app.tip("Frames spectators remain behind live play; 0 follows it live.");
+    ImGui::EndTable();
+  }
+  ImGui::EndDisabled();
+  ImGui::EndPopup();
+}
+
+void drawWeyveLocalSettings(App& app) {
+  if(ImGui::BeginTable("##weyve-local-settings", 3, ImGuiTableFlags_SizingStretchSame)) {
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Rollback");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-1.0f);
+    int rollback = app.weyve.localRollback;
+    ImGui::BeginDisabled(app.weyveSessionActive());
+    if(ImGui::InputInt("##local-rollback", &rollback, 1, 4)) app.weyveSetLocalRollback(rollback);
+    ImGui::EndDisabled();
+    app.tip("Your rollback frames; cannot go below the host's floor.");
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Delay");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-1.0f);
+    int delay = app.weyve.localDelay;
+    if(ImGui::InputInt("##local-delay", &delay, 1, 2)) app.weyveSetLocalDelay(delay);
+    app.tip("Your input delay; applies live and cannot go below the host's floor.");
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Runahead");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-1.0f);
+    if(ImGui::InputInt("##local-runahead", &app.settings.netplayRunAhead, 1, 2)) {
+      app.settings.netplayRunAhead = SDL_clamp(app.settings.netplayRunAhead, 0, 4);
+      app.netplaySetRunAhead(app.settings.netplayRunAhead);
+      app.settings.save(app.settingsCfg);
+    }
+    app.tip("Local speculative frames; applies live and is not shared.");
+    ImGui::EndTable();
+  }
+}
+
 void drawRoomLobby(App& app) {
   uint32_t idLen = 0;
   const char* id = weyve_room_id(app.weyve.client, &idLen);
@@ -313,43 +460,32 @@ void drawRoomLobby(App& app) {
   if(host) {
     if(app.games.empty()) ImGui::TextDisabled("(no games found; check the Games tab's folder)");
     const std::string current = app.weyveRoomData("game");
-    ImGui::TextUnformatted("Game");
-    ImGui::SetNextItemWidth(-1.0f);
-    if(ImGui::BeginCombo("##weyve-game", current.empty() ? "(none)" : current.c_str())) {
-      for(uint32_t i = 0; i < app.games.size(); i++) {
-        if(ImGui::Selectable(app.games[i].first.c_str())) app.weyveSelectGame(i);
-      }
-      ImGui::EndCombo();
-    }
-    app.tip("Every player auto-loads this by content hash from their own Games folder.");
-    if(ImGui::BeginTable("##weyve-room-settings", 2, ImGuiTableFlags_SizingStretchSame)) {
+    if(ImGui::BeginTable("##weyve-game-row", 3, ImGuiTableFlags_SizingFixedFit)) {
+      ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed);
+      ImGui::TableSetupColumn("##game", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("##settings", ImGuiTableColumnFlags_WidthFixed);
       ImGui::TableNextColumn();
-      bool desync = app.weyveRoomData("desync") == "1";
-      if(ImGui::Checkbox("Desync detection", &desync)) {
-        weyve_set_room_data(app.weyve.client, "desync", desync ? "1" : "0");
-      }
+      ImGui::AlignTextToFramePadding();
+      ImGui::TextUnformatted("Game");
       ImGui::TableNextColumn();
-      ImGui::SetNextItemWidth(120.0f);
-      ImGui::InputInt("Spectator delay", &app.settings.netplaySpectatorDelay, 60, 300);
-      app.settings.netplaySpectatorDelay = SDL_clamp(app.settings.netplaySpectatorDelay, 0, 3600);
-      app.tip("Frames spectators watch behind live play, shared when the room starts; 0 follows it live.");
-      if(ImGui::IsItemDeactivatedAfterEdit()) {
-        app.settings.save(app.settingsCfg);
-        weyve_set_room_data(app.weyve.client, "spectator_delay",
-                            std::to_string(app.settings.netplaySpectatorDelay).c_str());
+      ImGui::SetNextItemWidth(-1.0f);
+      if(ImGui::BeginCombo("##weyve-game", current.empty() ? "(none)" : current.c_str())) {
+        for(uint32_t i = 0; i < app.games.size(); i++) {
+          if(ImGui::Selectable(app.games[i].first.c_str())) app.weyveSelectGame(i);
+        }
+        ImGui::EndCombo();
       }
+      app.tip("Every player auto-loads this by content hash from their own Games folder.");
+      ImGui::TableNextColumn();
+      if(ImGui::Button("Host settings")) ImGui::OpenPopup("Host settings");
       ImGui::EndTable();
     }
-    if(app.weyveRoomData("spectator_delay").empty()) {
-      weyve_set_room_data(app.weyve.client, "spectator_delay",
-                          std::to_string(app.settings.netplaySpectatorDelay).c_str());
-    }
+    drawWeyveHostSettings(app);
   } else {
     const std::string game = app.weyveRoomData("game");
     ImGui::TextWrapped("Game: %s", game.empty() ? "(none)" : game.c_str());
-    const std::string delay = app.weyveRoomData("spectator_delay");
-    ImGui::Text("Spectator delay: %s frames", delay.empty() ? "0" : delay.c_str());
   }
+  drawWeyveLocalSettings(app);
 
   const float footerHeight = ImGui::GetFrameHeightWithSpacing();
   const float bodyHeight = SDL_max(140.0f, ImGui::GetContentRegionAvail().y
@@ -387,25 +523,29 @@ void drawRoomLobby(App& app) {
   }
 }
 
+void connectWeyveFromSettings(App& app) {
+  app.weyve.connectAttempted = true;
+  if(app.settings.weyveHost.empty()) {
+    app.weyve.lastError = "Set a server in Settings > Netplay";
+    return;
+  }
+  if(app.weyveConnect(app.settings.weyveHost, (uint16_t)app.settings.weyvePort)) {
+    app.weyveListRooms();
+  }
+}
+
 void drawWeyveTab(App& app) {
   if(!app.weyve.client) {
-    ImGui::InputText("Server", app.weyveHostInput, sizeof(app.weyveHostInput));
-    app.tip("Address of the Weyvelength room server.");
-    ImGui::InputText("Port", app.weyvePortInput, sizeof(app.weyvePortInput), ImGuiInputTextFlags_CharsDecimal);
-    if(ImGui::Button("Connect")) {
-      app.settings.weyveHost = app.weyveHostInput;
-      app.settings.weyvePort = SDL_atoi(app.weyvePortInput);
-      app.settings.save(app.settingsCfg);
-      app.weyveConnect(app.weyveHostInput, (uint16_t)SDL_atoi(app.weyvePortInput));
-    }
-    if(!app.weyve.lastError.empty()) ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.4f, 1.0f), "%s", app.weyve.lastError.c_str());
+    if(!app.weyve.connectAttempted) connectWeyveFromSettings(app);
+    if(app.weyve.client) return;
+    ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.4f, 1.0f), "%s",
+                       app.weyve.lastError.empty() ? "Could not connect" : app.weyve.lastError.c_str());
+    if(ImGui::Button("Reconnect")) connectWeyveFromSettings(app);
     return;
   }
 
   if(!app.weyveInRoom()) {
     if(ImGui::Button("Create room")) app.weyveCreateRoom(true);
-    ImGui::SameLine();
-    if(ImGui::Button("Disconnect")) app.weyveDisconnect();
     ImGui::Separator();
     ImGui::InputText("Room code", app.weyveJoinCode, sizeof(app.weyveJoinCode));
     ImGui::InputText("Password", app.weyveJoinPassword, sizeof(app.weyveJoinPassword), ImGuiInputTextFlags_Password);
@@ -417,7 +557,7 @@ void drawWeyveTab(App& app) {
     if(ImGui::Button("Refresh room list")) app.weyveListRooms();
     if(ImGui::BeginTable("##weyve-rooms", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                          ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp)) {
-      ImGui::TableSetupColumn("Room", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Host", ImGuiTableColumnFlags_WidthStretch);
       ImGui::TableSetupColumn("Players", ImGuiTableColumnFlags_WidthFixed, 60.0f);
       ImGui::TableSetupColumn("Locked", ImGuiTableColumnFlags_WidthFixed, 55.0f);
       ImGui::TableSetupColumn("##join", ImGuiTableColumnFlags_WidthFixed, 60.0f);
@@ -427,10 +567,8 @@ void drawWeyveTab(App& app) {
         ImGui::PushID((int)i);
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
-        // the host name comes from Weyvelength's own identity, not a guess of ours
         const std::string host = room.host.empty() ? "(unknown host)" : room.host;
-        const std::string game = room.game.empty() ? "(no game selected)" : room.game;
-        ImGui::TextWrapped("%s - hosted by %s", game.c_str(), host.c_str());
+        ImGui::TextUnformatted(host.c_str());
         ImGui::TableSetColumnIndex(1);
         ImGui::Text("%u", room.members);
         ImGui::TableSetColumnIndex(2);
@@ -473,9 +611,14 @@ void App::drawNetplayWindow() {
                netplay.config.input_prediction_window, netplay.config.spectator_delay,
                netplay.desyncCount);
     if(netplay.localPlayer >= 0) {
+      int delay = netplay.transport == Netplay::Weyvelength ? weyve.localDelay : settings.netplayDelay;
       ImGui::SetNextItemWidth(180.0f);
-      if(ImGui::SliderInt("Input delay##live", &settings.netplayDelay, 0, 10)) {
-        netplaySetLocalDelay(settings.netplayDelay);
+      if(ImGui::SliderInt("Input delay##live", &delay, 0, 10)) {
+        if(netplay.transport == Netplay::Weyvelength) weyveSetLocalDelay(delay);
+        else {
+          settings.netplayDelay = delay;
+          netplaySetLocalDelay(delay);
+        }
       }
       bool saveTuning = ImGui::IsItemDeactivatedAfterEdit();
       tip("Applies immediately to your local player.");
@@ -486,6 +629,10 @@ void App::drawNetplayWindow() {
       saveTuning |= ImGui::IsItemDeactivatedAfterEdit();
       tip("Applies immediately to the active netplay session.");
       if(saveTuning) settings.save(settingsCfg);
+    }
+    if(netplay.transport == Netplay::Weyvelength && weyve.client && weyve_is_host(weyve.client)) {
+      if(ImGui::Button("Host settings")) ImGui::OpenPopup("Host settings");
+      drawWeyveHostSettings(*this);
     }
     if(ImGui::BeginTable("##netplay-peers", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
       ImGui::TableSetupColumn("Peer", ImGuiTableColumnFlags_WidthStretch);
@@ -523,7 +670,13 @@ void App::drawNetplayWindow() {
       ImGui::EndTable();
     }
     tip("Ping shows the latest and average RTT; traffic is sent and received kilobytes per second.");
-    if(ImGui::Button("Stop session")) netplayStop();
+    if(ImGui::Button("Stop session")) {
+      if(netplay.transport == Netplay::Weyvelength && weyve.client && weyve_is_host(weyve.client)) {
+        weyveStopGame();
+      } else {
+        netplayStop();
+      }
+    }
     ImGui::Separator();
     ImGui::BeginChild("##netplay-log", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders);
     for(const std::string& line : netplay.log) ImGui::TextWrapped("%s", line.c_str());

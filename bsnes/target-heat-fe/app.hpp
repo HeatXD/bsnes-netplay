@@ -131,11 +131,18 @@ struct Weyve {
   static constexpr uint64_t IdleTimeoutMs = 5 * 60 * 1000;
 
   bool pendingListed = false;
+  bool pendingCreate = false;
+  bool connectAttempted = false;
   bool focusTab = false;
   bool rolesDirty = true;  // host reassigns roles on the next poll
   uint32_t lastStartToken = 0;
   uint32_t lastStopToken = 0;
   uint32_t selectedMember = 0;
+  int localRollback = 8;
+  int localDelay = 2;
+  int rollbackBaseline = 8;
+  int delayBaseline = 2;
+  int spectatorDelay = 0;
   std::string lastGameHash;
 
   std::vector<WeyveKnownName> knownNames;  // remembered after a member leaves
@@ -263,6 +270,7 @@ struct App {
   char weyvePortInput[8] = "5555";
   char weyveJoinCode[32] = {};
   char weyveJoinPassword[64] = {};
+  char weyveRoomPassword[64] = {};
   char weyveNicknameInput[32] = {};
 
   void scanGames();
@@ -410,7 +418,8 @@ struct App {
   bool netplayActive() const { return netplay.mode == Netplay::Running; }
   void netplayApplyDeterministicSettings();
   void netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectators = 0,
-                           bool localSpectating = false, int spectatorDelay = -1);
+                           bool localSpectating = false, int spectatorDelay = -1,
+                           int rollbackFrames = -1, int localDelay = -1);
   void netplayStart(int port, int local, const std::vector<std::string>& remotes,
                     const std::vector<std::string>& spectators = {}, int spectatorPlayers = 2);
   void netplayStop();
@@ -447,6 +456,9 @@ struct App {
   std::vector<uint32_t> weyvePlayerOrder() const;
   void weyveAutoAssignRoles();
   void weyveSetRole(uint32_t memberId, const std::string& role);
+  void weyveSetBaseline(int rollback, int delay);
+  void weyveSetLocalRollback(int frames);
+  void weyveSetLocalDelay(int frames);
   void weyveKick(uint32_t memberId);
   void weyveTransferHost(uint32_t memberId);
   void weyveStartGame();

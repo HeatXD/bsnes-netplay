@@ -73,6 +73,7 @@ std::string hashFile(const std::string& path) {
 bool App::weyveConnect(const std::string& host, uint16_t port) {
   if(weyve.client) weyveDisconnect();
 
+  weyve.connectAttempted = true;
   weyve.lastError.clear();
   weyve.idleSince = SDL_GetTicks();
   weyve.client = weyve_client_create();
@@ -84,6 +85,11 @@ bool App::weyveConnect(const std::string& host, uint16_t port) {
   }
   weyve_set_name(weyve.client, settings.weyveNickname.c_str());
   weyve.focusTab = true;
+  weyve.localRollback = settings.netplayRollback;
+  weyve.localDelay = settings.netplayDelay;
+  weyve.rollbackBaseline = 0;
+  weyve.delayBaseline = 0;
+  weyve.spectatorDelay = settings.netplaySpectatorDelay;
   weyve.log.clear();
   weyve.lastStartToken = 0;
   weyve.lastStopToken = 0;
@@ -109,12 +115,14 @@ void App::weyveCreateRoom(bool listed) {
   if(!weyve.client) return;
   weyve.idleSince = SDL_GetTicks();
   weyve.pendingListed = listed;
+  weyve.pendingCreate = true;
   weyve_create_room(weyve.client);
 }
 
 void App::weyveJoinRoom(const std::string& id, const std::string& password) {
   if(!weyve.client) return;
   weyve.idleSince = SDL_GetTicks();
+  weyve.pendingCreate = false;
   weyve.lastError.clear();
   weyve_join_room(weyve.client, id.c_str(), password.empty() ? nullptr : password.c_str());
 }
@@ -219,6 +227,33 @@ void App::weyveSetRole(uint32_t memberId, const std::string& role) {
   weyve_set_room_data(weyve.client, ("role:" + std::to_string(memberId)).c_str(), role.c_str());
 }
 
+void App::weyveSetBaseline(int rollback, int delay) {
+  if(!weyve.client || !weyve_is_host(weyve.client) || weyveSessionActive()) return;
+  weyve.rollbackBaseline = SDL_clamp(rollback, 0, 32);
+  weyve.delayBaseline = SDL_clamp(delay, 0, 10);
+  weyve_set_room_data(weyve.client, "rollback_min", std::to_string(weyve.rollbackBaseline).c_str());
+  weyve_set_room_data(weyve.client, "delay_min", std::to_string(weyve.delayBaseline).c_str());
+  weyveSetLocalRollback(weyve.localRollback);
+  weyveSetLocalDelay(weyve.localDelay);
+}
+
+void App::weyveSetLocalRollback(int frames) {
+  const int floor = SDL_max(weyve.rollbackBaseline, SDL_atoi(weyveRoomData("rollback_min").c_str()));
+  weyve.localRollback = SDL_clamp(SDL_max(frames, floor), 0, 32);
+  if(weyve.client) {
+    weyve_set_member_data(weyve.client, "rollback", std::to_string(weyve.localRollback).c_str());
+  }
+}
+
+void App::weyveSetLocalDelay(int frames) {
+  const int floor = SDL_max(weyve.delayBaseline, SDL_atoi(weyveRoomData("delay_min").c_str()));
+  weyve.localDelay = SDL_clamp(SDL_max(frames, floor), 0, 10);
+  if(weyve.client) {
+    weyve_set_member_data(weyve.client, "delay", std::to_string(weyve.localDelay).c_str());
+  }
+  if(weyveSessionActive()) netplaySetLocalDelay(weyve.localDelay);
+}
+
 void App::weyveKick(uint32_t memberId) {
   if(weyve.client && weyve_is_host(weyve.client)) weyve_kick_member(weyve.client, memberId);
 }
@@ -253,7 +288,7 @@ void App::weyveStartGame() {
   if(!reason.empty()) { showMessage("Cannot start: " + reason); return; }
 
   weyve_set_room_data(weyve.client, "spectator_delay",
-                      std::to_string(settings.netplaySpectatorDelay).c_str());
+                      std::to_string(weyve.spectatorDelay).c_str());
   const uint32_t token = (uint32_t)SDL_atoi(weyveRoomData("start_token").c_str()) + 1;
   weyve_set_room_data(weyve.client, "start_token", std::to_string(token).c_str());
   weyve_set_room_joinable(weyve.client, false);
@@ -334,12 +369,20 @@ void App::weyvePoll() {
       weyveResetRoomState();
       weyveLog("You joined the room");
       weyvePublishHostListing();  // a no-op unless we're the (new room's) host
+      if(weyve.pendingCreate && weyve_is_host(weyve.client)) {
+        weyveSetBaseline(settings.netplayRollback, settings.netplayDelay);
+        weyve_set_room_data(weyve.client, "spectator_delay",
+                            std::to_string(weyve.spectatorDelay).c_str());
+        weyve_set_room_data(weyve.client, "desync", settings.netplayDesyncDetection ? "1" : "0");
+      }
+      weyve.pendingCreate = false;
       if(weyve.pendingListed) {
         weyve.pendingListed = false;
         weyve_set_room_listed(weyve.client, true);
       }
       break;
     case WEYVE_EVENT_ROOM_ERROR:
+      weyve.pendingCreate = false;
       weyve.lastError = weyveRoomErrorText(event.data.room_error.code);
       weyveLog(weyve.lastError);
       break;
@@ -373,6 +416,9 @@ void App::weyvePoll() {
       const std::string key = bytes(event.data.room_data.key, event.data.room_data.key_len);
       const std::string value = bytes(event.data.room_data.value, event.data.room_data.value_len);
       if(key == "game") weyveLog("Game: " + value);
+      else if(key == "rollback_min") weyve.rollbackBaseline = SDL_atoi(value.c_str());
+      else if(key == "delay_min") weyve.delayBaseline = SDL_atoi(value.c_str());
+      else if(key == "spectator_delay") weyve.spectatorDelay = SDL_atoi(value.c_str());
       else if(key.rfind("role:", 0) == 0) weyve.rolesDirty = true;
       break;
     }
@@ -447,8 +493,20 @@ void App::weyvePoll() {
     const bool hasGame = !weyveHasGame(targetHash).empty();
     weyve_set_member_data(weyve.client, "hasGame", hasGame ? "1" : "0");
   }
-  weyve_set_member_data(weyve.client, "rollback", std::to_string(settings.netplayRollback).c_str());
-  weyve_set_member_data(weyve.client, "delay", std::to_string(settings.netplayDelay).c_str());
+  const std::string rollbackFloor = weyveRoomData("rollback_min");
+  const std::string delayFloor = weyveRoomData("delay_min");
+  const std::string spectatorDelay = weyveRoomData("spectator_delay");
+  if(!rollbackFloor.empty()) weyve.rollbackBaseline = SDL_atoi(rollbackFloor.c_str());
+  if(!delayFloor.empty()) weyve.delayBaseline = SDL_atoi(delayFloor.c_str());
+  if(!spectatorDelay.empty()) weyve.spectatorDelay = SDL_atoi(spectatorDelay.c_str());
+  if(weyve.localRollback < weyve.rollbackBaseline) {
+    weyveSetLocalRollback(weyve.localRollback);
+  }
+  if(weyve.localDelay < weyve.delayBaseline) {
+    weyveSetLocalDelay(weyve.localDelay);
+  }
+  weyve_set_member_data(weyve.client, "rollback", std::to_string(weyve.localRollback).c_str());
+  weyve_set_member_data(weyve.client, "delay", std::to_string(weyve.localDelay).c_str());
 
   const uint32_t startToken = (uint32_t)SDL_atoi(weyveRoomData("start_token").c_str());
   if(startToken != weyve.lastStartToken) {
@@ -510,7 +568,8 @@ void App::netplayStartWeyve() {
   const std::string spectatorDelayText = weyveRoomData("spectator_delay");
   const int spectatorDelay = spectatorDelayText.empty() ? settings.netplaySpectatorDelay
                                                         : SDL_atoi(spectatorDelayText.c_str());
-  netplayBeginSession(numPlayers, detectDesyncs, localSpectators, spectating, spectatorDelay);
+  netplayBeginSession(numPlayers, detectDesyncs, localSpectators, spectating, spectatorDelay,
+                      weyve.localRollback, weyve.localDelay);
   gekko_net_adapter_set(netplay.session, &weyveAdapter);
 
   netplay.peers.clear();
@@ -546,7 +605,7 @@ void App::netplayStartWeyve() {
     }
     netplay.peers.push_back(peer);
   }
-  netplaySetLocalDelay(settings.netplayDelay);
+  netplaySetLocalDelay(weyve.localDelay);
 
   for(size_t s = 0; s < spectatorIds.size(); s++) {
     if((int)(s % numPlayers) != local) continue;

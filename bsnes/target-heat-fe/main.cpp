@@ -712,7 +712,8 @@ void openRequestedPanel(App& app, const Options& opt) {
   // cartridge is the old name for the same window
   app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
   app.showScripting = opt.uiScreen == "scripting";
-  app.showNetplay = opt.uiScreen == "netplay";
+  app.showNetplay = opt.uiScreen == "netplay" || opt.uiScreen == "weyve";
+  if(opt.uiScreen == "weyve") app.weyve.focusTab = true;
   app.showStateManager = opt.uiScreen == "state-manager";
   app.showCheats = opt.uiScreen == "cheats";
   app.showCheatFinder = opt.uiScreen == "cheat-finder";
