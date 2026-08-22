@@ -116,6 +116,7 @@ void App::netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectat
   core.connect(1, numPlayers > 2 ? EmuCore::SuperMultitap
                   : numPlayers > 1 ? EmuCore::Gamepad : EmuCore::None);
 
+  core.setCheats({});
   netplayApplyDeterministicSettings();
   core.power();
 
@@ -261,6 +262,7 @@ void App::netplayStop() {
   netplay.stateCache.clear();
   netplay.config = {};
   netplay.rollback = false;
+  core.setRollback(false);
   netplay.recordInput = false;
   netplay.spectatorPaused = false;
 
@@ -268,6 +270,7 @@ void App::netplayStop() {
   core.connect(0, settings.devices[0]);
   core.connect(1, settings.devices[1]);
   pushEnhancements();
+  applyCheats();
   settings.runAheadFrames = netplay.savedRunAheadFrames;
   core.setSpeedScale(1.0);
   applySpeed();
@@ -311,7 +314,7 @@ void App::netplayTimesync() {
 void App::netplayRun() {
   if(!netplayActive()) return;
 
-  if(netplay.transport == Netplay::Direct) gekko_network_poll(netplay.session);
+  gekko_network_poll(netplay.session);
   netplayTimesync();
   netplayPollLocalInput();
 
