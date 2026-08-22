@@ -79,6 +79,8 @@ public:
   void reset();
   void runFrame();
   void setRunAhead(bool enabled);
+  // gates audio/video output the same way run-ahead does, for rollback resimulation
+  void setRollback(bool enabled);
 
   // the whole machine; false is the deterministic capture rollback needs
   std::vector<uint8_t> serialize(bool synchronize = true);

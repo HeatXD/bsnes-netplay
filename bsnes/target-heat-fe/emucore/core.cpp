@@ -250,6 +250,10 @@ void EmuCore::setRunAhead(bool enabled) {
   if(loaded()) impl->emulator->setRunAhead(enabled);
 }
 
+void EmuCore::setRollback(bool enabled) {
+  if(loaded()) impl->emulator->setRollback(enabled);
+}
+
 void EmuCore::setCheats(const std::vector<std::string>& codes) {
   if(!loaded()) return;
   vector<string> list;

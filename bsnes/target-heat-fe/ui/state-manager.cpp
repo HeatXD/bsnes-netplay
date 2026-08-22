@@ -30,6 +30,10 @@ void App::drawStateManagerWindow() {
     ImGui::End();
     return;
   }
+  if(netplayActive()) {
+    ImGui::TextDisabled("Loading or saving over the live machine is disabled during netplay;");
+    ImGui::TextDisabled("removing or renaming a state file is still fine.");
+  }
 
   if(ImGui::RadioButton("Managed", stateManagerManaged)) {
     stateManagerManaged = true;
@@ -56,7 +60,7 @@ void App::drawStateManagerWindow() {
                            ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick)) {
         stateManagerSelection = state.name;
         SDL_strlcpy(stateManagerName, state.label.c_str(), sizeof(stateManagerName));
-        if(ImGui::IsMouseDoubleClicked(0) && state.time) loadState(state.name);
+        if(ImGui::IsMouseDoubleClicked(0) && state.time && !netplayActive()) loadState(state.name);
       }
       ImGui::TableSetColumnIndex(1);
       ImGui::TextUnformatted(stateDate(state.time).c_str());
@@ -68,13 +72,15 @@ void App::drawStateManagerWindow() {
   for(const StateEntry& state : states) {
     if(state.name == stateManagerSelection) { selected = &state; break; }
   }
-  ImGui::BeginDisabled(!selected || selected->time == 0);
+  ImGui::BeginDisabled(!selected || selected->time == 0 || netplayActive());
   if(ImGui::Button("Load")) loadState(selected->name);
-  ImGui::SameLine();
-  if(ImGui::Button("Remove")) confirmRemoveState = true;
   ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::BeginDisabled(!selected);
+  if(ImGui::Button("Remove")) confirmRemoveState = true;
+  ImGui::EndDisabled();
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!selected || netplayActive());
   if(ImGui::Button("Save")) saveState(selected->name);
   ImGui::EndDisabled();
 
@@ -85,7 +91,7 @@ void App::drawStateManagerWindow() {
     const bool valid = validStateName(stateManagerName);
     const std::string target = valid ? "Managed/" + std::string(stateManagerName) : std::string();
     const bool duplicate = valid && hasState(target) && target != stateManagerSelection;
-    ImGui::BeginDisabled(!valid || duplicate);
+    ImGui::BeginDisabled(!valid || duplicate || netplayActive());
     if(ImGui::Button("Add current")) {
       if(saveState(target)) stateManagerSelection = target;
     }

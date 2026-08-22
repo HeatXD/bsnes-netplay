@@ -175,6 +175,13 @@ struct Settings {
                                                             -1, -1, -1, -1};
   int turboRate = 8;  // Hz
 
+  // netplay
+  int netplayRollback = 8;   // frames
+  int netplayDelay = 2;      // frames
+  int netplayRunAhead = 0;   // frames
+  int netplaySpectatorDelay = 0;  // frames
+  bool netplayDesyncDetection = false;
+
   void applyKey(const std::string& key, const std::string& value);
   void load(const std::string& path);
   void save(const std::string& path) const;

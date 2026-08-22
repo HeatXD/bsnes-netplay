@@ -11,6 +11,10 @@ void App::restoreCompatibilityDefaults() {
 void App::drawCompatibilityTab() {
   bool dirty = false;
 
+  if(netplayActive()) {
+    ImGui::TextDisabled("Changes here are queued; netplay holds these hacks at their");
+    ImGui::TextDisabled("deterministic values until the session ends.");
+  }
   ImGui::TextDisabled("Entropy (randomization)");
   dirty |= ImGui::Combo("Startup state", &settings.hackEntropy, EntropyNames, EntropyCount);
   tip("None suits old homebrew, Low matches a real SNES, High stresses new software.");

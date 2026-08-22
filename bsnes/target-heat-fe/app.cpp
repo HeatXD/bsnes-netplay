@@ -88,6 +88,10 @@ void App::scanGames() {
 }
 
 bool App::loadRom(const std::string& entry) {
+  if(netplayActive()) {
+    showMessage("cannot change games during netplay");
+    return false;
+  }
   if(movieActive()) {
     showMessage("stop the movie before changing games");
     return false;
@@ -199,7 +203,7 @@ void App::setRewinding(bool enabled) {
     rewindCounter = 0;
     return;
   }
-  if(!core.loaded() || fastForward || movieActive()) {
+  if(!core.loaded() || fastForward || movieActive() || netplayActive()) {
     return;
   }
   if(settings.rewindFrequency == 0) {
@@ -251,6 +255,8 @@ void App::stepRewind() {
 }
 
 void App::advanceEmulation() {
+  if(netplayActive()) { netplayRun(); return; }
+
   captureRewind();
   stepRewind();
 
@@ -284,6 +290,11 @@ void App::advanceEmulation() {
 }
 
 void App::pushEnhancements() {
+  // this set includes every hack netplayApplyDeterministicSettings() forces
+  // (entropy, overclocks, PPU/DSP fast paths, ...); pushing it mid-session
+  // would silently replace the agreed-on values with the user's own and
+  // desync every peer. netplayStop() clears netplay.mode before calling this.
+  if(netplayActive()) return;
   core.setOption("Frontend/Hotfixes", flag(settings.hackHotfixes));
   core.setOption("Hacks/Entropy", EntropyNames[settings.hackEntropy]);
   core.setOption("Hacks/CPU/Overclock", std::to_string(settings.hackCpuOverclock));
@@ -306,6 +317,7 @@ void App::pushEnhancements() {
 }
 
 void App::unloadRom() {
+  if(netplayActive()) netplayStop();
   if(movieActive()) {
     showMessage("stop the movie before closing the game");
     return;
@@ -455,13 +467,13 @@ void App::triggerHotkey(int index) {
   bool enhanced = false;  // set by the cases that change an enhancement setting
 
   switch(index) {
-  case HkPause: if(core.loaded()) paused = !paused; break;
+  case HkPause: if(core.loaded() && !netplayActive()) paused = !paused; break;
   case HkReset: if(core.loaded()) reset(); break;
   case HkFastForward: if(!rewinding) toggleFastForward(); break;
   case HkFullscreen: toggleFullscreen(); break;
   case HkScreenshot: takeScreenshot(); break;
   case HkFrameAdvance:
-    if(core.loaded()) { paused = true; advanceOneFrame(); }
+    if(core.loaded() && !netplayActive()) { paused = true; advanceOneFrame(); }
     break;
   case HkPowerCycle: if(core.loaded()) powerCycle(); break;
   case HkMute:

@@ -276,6 +276,27 @@ void InputMap::apply(EmuCore& core, const std::vector<Controller>& pads,
   }
 }
 
+uint16_t InputMap::pollButtons(int port, int player, const std::vector<Controller>& pads,
+                               const Settings& settings, const InputSample& sample,
+                               long long frame, double refreshRate) const {
+  const long long period = SDL_max(2, (long long)(refreshRate / SDL_max(1, settings.turboRate) + 0.5));
+  const bool turboPhaseOff = (frame % period) >= period / 2;
+  const Controller* pad = resolvePad(pads, settings.padIndex[padSlot(port, player)]);
+
+  uint16_t mask = 0;
+  for(int button = 0; button < EmuCore::ButtonCount; button++) {
+    bool pressed = false, turbo = false;
+    const Slotted& slots = bindings[port][EmuCore::Gamepad][button];
+    for(int slot = 0; slot < Slots; slot++) {
+      pressed = pressed || bindingActive(slots[slot], sample, pad);
+      turbo = turbo || bindingActive(slots[TurboSlot + slot], sample, pad);
+    }
+    if(turbo) pressed = !turboPhaseOff;
+    if(pressed) mask |= (uint16_t)(1u << button);
+  }
+  return mask;
+}
+
 // the buttons sit past the axes, in the core's order: trigger first
 void InputMap::loadPointerDefaults(const EmuCore& core) {
   constexpr int Buttons[] = {SDL_BUTTON_LEFT, SDL_BUTTON_RIGHT, SDL_BUTTON_MIDDLE};

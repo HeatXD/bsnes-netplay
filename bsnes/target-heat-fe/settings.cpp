@@ -90,6 +90,10 @@ const IntField IntFields[] = {
   {"audiobalance", &Settings::audioBalance,    0,              100},
   {"autosaveinterval", &Settings::autoSaveInterval, 5,         600},
   {"serialization", &Settings::serialization,  0,              SerialCount - 1},
+  {"netplayrollback", &Settings::netplayRollback, 0,           32},
+  {"netplaydelay",  &Settings::netplayDelay,     0,             10},
+  {"netplayrunahead", &Settings::netplayRunAhead, 0,             4},
+  {"netplayspectatordelay", &Settings::netplaySpectatorDelay, 0, 3600},
 };
 
 const BoolField BoolFields[] = {
@@ -126,6 +130,7 @@ const BoolField BoolFields[] = {
   {"autostateunload", &Settings::autoStateOnUnload},
   {"autostateload",  &Settings::autoStateOnLoad},
   {"cheatsenabled",  &Settings::cheatsEnabled},
+  {"netplaydesync",  &Settings::netplayDesyncDetection},
 };
 
 const StrField StrFields[] = {

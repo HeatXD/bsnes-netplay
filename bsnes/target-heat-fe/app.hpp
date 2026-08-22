@@ -9,6 +9,8 @@
 
 #include "imgui.h"
 
+#include <gekkonet.h>
+
 #include <deque>
 #include <string>
 #include <utility>
@@ -47,6 +49,62 @@ struct CheatCandidate {
 };
 
 enum class MovieMode { Inactive, Playing, Recording };
+
+// SNES buttons, in EmuCore::Button order; one player's worth per network packet
+constexpr int NetplayButtonCount = EmuCore::ButtonCount;
+
+struct NetplayPeer {
+  int id = 0;
+  GekkoPlayerType type = GekkoLocalPlayer;
+  bool connected = false;
+  GekkoNetworkStats stats{};
+  std::string addr;  // "ip:port"
+};
+
+struct NetplayStateSnapshot {
+  bool valid = false;
+  int frame = 0;
+  uint32_t checksum = 0;
+  std::vector<uint8_t> data;
+};
+
+struct Netplay {
+  enum Mode { Inactive, Running } mode = Inactive;
+  enum Transport { Direct } transport = Direct;
+
+  std::vector<NetplayPeer> peers;
+  std::vector<uint16_t> inputs;  // this tick's confirmed buttons, one mask per port
+  // Recent saves used for desync dumps.
+  std::deque<NetplayStateSnapshot> stateCache;
+  static constexpr int StateCacheFrames = 32;
+
+  GekkoConfig config{};
+  GekkoSession* session = nullptr;
+  std::string instance;  // "p<port>" or "w<room>", for log lines and dump filenames
+  int localPlayer = 0;   // this peer's player index, 0..numPlayers-1
+  int localActorId = 0;  // the GekkoNet actor handle for that player
+  bool detectDesyncs = false;
+  // Offline runahead is restored when the session ends.
+  int savedRunAheadFrames = 0;
+  bool rollback = false;
+  bool spectatorPaused = false;
+  bool recordInput = false;
+  int localDelay = 0;
+  int localRunAhead = 0;
+  double speedScale = 1.0;
+  uint32_t desyncCount = 0;
+  std::deque<std::string> log;
+  static constexpr int LogLimit = 200;
+};
+
+enum class NetplayEntryRole { Player, Spectator };
+
+struct NetplayRemoteEntry {
+  NetplayEntryRole role = NetplayEntryRole::Player;
+  int playerNumber = 1;  // Player role only; 1-based, never equal to App::netplayLocalPlayer
+  char ip[64] = "127.0.0.1";
+  char port[8] = "7000";
+};
 
 // shared by the Paths tab and the pick draining, so the two cannot drift
 struct BiosSlot {
@@ -145,6 +203,17 @@ struct App {
   std::vector<int16_t> movieInput;
   size_t moviePosition = 0;
   bool movieSavePending = false;
+  int movieDevices[EmuCore::PortCount] = {EmuCore::Gamepad, EmuCore::Gamepad};
+  int moviePreviousDevices[EmuCore::PortCount] = {};
+  bool movieDevicesChanged = false;
+  bool movieDeterministic = false;
+  Netplay netplay;
+  bool showNetplay = false;
+  char netplayPortInput[8] = "7000";
+  int netplayLocalPlayer = 1;  // 1-based; which slot *this* peer occupies, picked by the user
+  bool netplayDirectSpectator = false;
+  int netplaySpectatorPlayers = 2;
+  std::vector<NetplayRemoteEntry> netplayRemotes;
 
   void scanGames();
   // a path, or a Sufami Turbo pair joined by '|', as the recent list stores it
@@ -162,7 +231,8 @@ struct App {
   bool muted() const {
     return settings.mute || (settings.muteUnfocused && !focused())
         || (fastForward && settings.fastForwardMute)
-        || (rewinding && settings.rewindMute);
+        || (rewinding && settings.rewindMute)
+        || netplay.rollback;
   }
   // a limited fast forward plays at 65%: decimated audio is harsh
   float audioGain() const {
@@ -171,19 +241,24 @@ struct App {
     return settings.volume / 100.0f * (limited || rewinding ? 0.65f : 1.0f);
   }
   void setSpeed(int index) {
+    if(netplayActive()) return;  // GekkoNet's timesync owns the speed scale
     speedIndex = SDL_clamp(index, 0, SpeedCount - 1);
     applySpeed();
     showMessage(std::string("speed ") + SpeedNames[speedIndex]);
   }
-  void toggleFastForward() { fastForward = !fastForward; applySpeed(); }
+  void toggleFastForward() {
+    if(netplayActive()) return;
+    fastForward = !fastForward;
+    applySpeed();
+  }
   // skew trims a card that runs fast or slow until the backlog stops drifting
   void applyAudioTuning() {
     core.setAudioFrequency(AudioRate + settings.audioSkew);
     core.setAudioBalance(SDL_clamp((settings.audioBalance - 50) / 50.0, -1.0, 1.0));
   }
   void reset() {
-    if(movieActive()) {
-      showMessage("stop the movie before resetting");
+    if(movieActive() || netplayActive()) {
+      showMessage("reset is not available while a movie or netplay session is active");
       return;
     }
     core.reset();
@@ -191,8 +266,8 @@ struct App {
     paused = false;
   }
   void powerCycle() {
-    if(movieActive()) {
-      showMessage("stop the movie before power cycling");
+    if(movieActive() || netplayActive()) {
+      showMessage("power cycle is not available while a movie or netplay session is active");
       return;
     }
     core.power();
@@ -275,10 +350,30 @@ struct App {
   bool writeMovieFile(std::string path);
   void stopMovie();
   void clearMovie();
+  void restoreMovieDevices();
   int16_t pollMovieInput(int port, int device, int input, int16_t physical);
   bool movieActive() const {
     return movieMode != MovieMode::Inactive || movieSavePending;
   }
+
+  //netplay.cpp
+  bool netplayActive() const { return netplay.mode == Netplay::Running; }
+  void netplayApplyDeterministicSettings();
+  void netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectators = 0,
+                           bool localSpectating = false, int spectatorDelay = -1);
+  void netplayStart(int port, int local, const std::vector<std::string>& remotes,
+                    const std::vector<std::string>& spectators = {}, int spectatorPlayers = 2);
+  void netplayStop();
+  void netplayRun();
+  void netplaySetLocalDelay(int frames);
+  void netplaySetRunAhead(int frames);
+  void netplayPollLocalInput();
+  int16_t netplayGetInput(int port, int device, int input);
+  void netplayTimesync();
+  void netplayLog(std::string line);
+  uint32_t netplayChecksum(const std::vector<uint8_t>& state);
+  void netplayCacheState(int frame, uint32_t checksum, const std::vector<uint8_t>& state);
+  void netplayDumpState(int frame, const char* tag, uint32_t checksum, const std::vector<uint8_t>& data);
 
   //states.cpp
   // resolved states folder, and the per-game folder holding the slots
@@ -362,13 +457,15 @@ struct App {
   void drawEnhancementsTab();
   void restoreCompatibilityDefaults();
   void drawCompatibilityTab();
+  void restoreNetplayDefaults();
+  void drawNetplayTab();
   // cartridge summary plus every loaded medium's manifest
   void drawManifestWindow();
   void drawUnverifiedPrompt();
   // one definition of "not emulating", for the frame loop and the dimming alike
   bool emulationIdle() const {
-    return !core.loaded() || (paused && !frameAdvance) || unverifiedPrompt
-        || (settings.defocusPolicy == DefocusPause && !focused());
+    return !core.loaded() || (!netplayActive() && paused && !frameAdvance) || unverifiedPrompt
+        || (!netplayActive() && settings.defocusPolicy == DefocusPause && !focused());
   }
   bool drawColourSection();
   bool drawFontSection();
@@ -380,6 +477,7 @@ struct App {
   void drawGamesWindow();
   void drawGamesHome();
   void drawAboutWindow();
+  void drawNetplayWindow();
 
   std::string cheatPath() const;
   void loadCheats();

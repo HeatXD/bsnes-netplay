@@ -22,6 +22,10 @@ void App::restoreEnhancementDefaults() {
 void App::drawEnhancementsTab() {
   bool dirty = false;
 
+  if(netplayActive()) {
+    ImGui::TextDisabled("Changes here are queued; netplay holds these hacks at their");
+    ImGui::TextDisabled("deterministic values until the session ends.");
+  }
   ImGui::TextDisabled("Overclocking");
   ImGui::SliderInt("CPU", &settings.hackCpuOverclock, 100, 400, "%d%%");
   dirty |= ImGui::IsItemDeactivatedAfterEdit();

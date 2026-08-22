@@ -21,6 +21,11 @@ void App::drawCheatsWindow() {
     ImGui::End();
     return;
   }
+  if(netplayActive()) {
+    ImGui::TextDisabled("Cheats cannot be changed during netplay -- a local-only");
+    ImGui::TextDisabled("memory patch would desync every other peer.");
+  }
+  ImGui::BeginDisabled(netplayActive());
 
   if(ImGui::Checkbox("Enable cheats", &settings.cheatsEnabled)) {
     settings.save(settingsCfg);
@@ -184,6 +189,7 @@ void App::drawCheatsWindow() {
     ImGui::EndPopup();
   }
 
+  ImGui::EndDisabled();
   ImGui::End();
 }
 

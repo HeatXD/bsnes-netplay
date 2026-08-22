@@ -30,11 +30,23 @@ struct Options {
   bool fast = false;
   bool uiFullscreen = false;
 
+  // manual verification only: starts a Direct P2P session right after load,
+  // so two instances can be driven headlessly with --frames as the harness
+  int netplayPort = 0;
+  int netplayLocal = -1;
+  bool netplaySpectate = false;
+  int netplaySpectatePlayers = 2;
+  std::vector<std::string> netplayRemotes;
+  std::vector<std::string> netplaySpectators;
+  // manual verification only: records from session start and writes a .bsv
+  // directly (skipping the save dialog) once --frames stops the run
+  std::string netplayRecord;
+  std::string playMovie;  // manual verification only: plays a .bsv from startup
   // the modes that drive the emulator itself; the hotkey matcher needs no game
   bool needsRom() const {
     return mode == Mode::StateTest || mode == Mode::DeterminismTest || mode == Mode::TimelineTest
         || mode == Mode::CheatTest || mode == Mode::MovieTest
-        || (mode == Mode::Run && frameLimit);
+        || (mode == Mode::Run && (frameLimit || netplayPort || !playMovie.empty()));
   }
 };
 
@@ -71,6 +83,14 @@ Options parseArgs(int argc, char** argv) {
       opt.shotH = SDL_atoi(argv[i + 2]);
       i += 2;
     }
+    else if(SDL_strcmp(arg, "--netplay-port") == 0 && hasValue) opt.netplayPort = SDL_atoi(argv[++i]);
+    else if(SDL_strcmp(arg, "--netplay-local") == 0 && hasValue) opt.netplayLocal = SDL_atoi(argv[++i]);
+    else if(SDL_strcmp(arg, "--netplay-remote") == 0 && hasValue) opt.netplayRemotes.push_back(argv[++i]);
+    else if(SDL_strcmp(arg, "--netplay-spectate") == 0) opt.netplaySpectate = true;
+    else if(SDL_strcmp(arg, "--netplay-spectate-players") == 0 && hasValue) opt.netplaySpectatePlayers = SDL_atoi(argv[++i]);
+    else if(SDL_strcmp(arg, "--netplay-spectator-remote") == 0 && hasValue) opt.netplaySpectators.push_back(argv[++i]);
+    else if(SDL_strcmp(arg, "--netplay-record") == 0 && hasValue) opt.netplayRecord = argv[++i];
+    else if(SDL_strcmp(arg, "--play-movie") == 0 && hasValue) opt.playMovie = argv[++i];
     else if(arg[0] != '-' && opt.romPath.empty()) opt.romPath = arg;
   }
   return opt;
@@ -201,7 +221,10 @@ void Frontend::renderUi() {
 void Frontend::advance() {
   const bool blockInput = app.settings.defocusPolicy == DefocusBlockInput && !app.focused();
 
-  if(ImGui::GetIO().WantCaptureKeyboard || blockInput) {
+  if(app.netplayActive()) {
+    // netplayRun() (called from advanceEmulation below) supplies every port's
+    // input straight from GekkoNet, including on resimulated frames
+  } else if(ImGui::GetIO().WantCaptureKeyboard || blockInput) {
     for(int port = 0; port < InputMap::Ports; port++) {
       for(int b = 0; b < EmuCore::MaxInputs; b++) app.core.setInput(port, b, 0);
     }
@@ -223,7 +246,6 @@ bool Frontend::stepFrame() {
   // one read a frame: the relative delta is consumed by whoever asks first
   app.sample = InputSample::poll(app.mouseCaptured);
   app.pollHotkeys();
-
   // --frames has to keep running while unfocused, or a headless run stalls
   const bool stopped = app.emulationIdle()
                     && !(opt.frameLimit && !app.paused && app.core.loaded());
@@ -485,6 +507,33 @@ int Frontend::runLoop() {
     if(stepFrame()) SDL_Delay(busy ? app.shell.displayFrameMs() : IdleDelayMs);
   }
 
+  if(app.netplay.instance.size() || app.netplay.desyncCount) {
+    SDL_Log("netplay: instance %s, %u desync event(s), stopped %s, "
+            "desync detection %s, state cache %d entries",
+            app.netplay.instance.c_str(), app.netplay.desyncCount,
+            app.netplayActive() ? "no" : "yes",
+            app.netplay.detectDesyncs ? "on" : "off",
+            (int)app.netplay.stateCache.size());
+  }
+  if(!opt.netplayRecord.empty() && app.movieMode == MovieMode::Recording) {
+    const bool wrote = app.writeMovieFile(opt.netplayRecord);
+    SDL_Log("netplay movie: %s, %d inputs -> %s",
+            wrote ? "wrote" : "FAILED", (int)app.movieInput.size(), opt.netplayRecord.c_str());
+  }
+  if(!opt.playMovie.empty()) {
+    // hostState (cothread stacks) never compares between two processes; skip
+    // it exactly as netplayChecksum does, or every run "differs" trivially
+    const std::vector<uint8_t> finalState = app.core.serialize(false);
+    uint32_t sum = 2166136261u;
+    for(const EmuCore::StateComponent& part : app.core.stateMap(false)) {
+      if(part.hostState) continue;
+      for(int i = 0; i < part.size && part.offset + i < (int)finalState.size(); i++) {
+        sum = (sum ^ finalState[part.offset + i]) * 16777619u;
+      }
+    }
+    SDL_Log("movie playback: mode %d, position %d/%d, checksum %08x",
+            (int)app.movieMode, (int)app.moviePosition, (int)app.movieInput.size(), sum);
+  }
   SDL_Log("platform viewports: %d (1 = host window only)",
           ImGui::GetPlatformIO().Viewports.Size);
   SDL_Log("ran %d frames, last frame %dx%d, %.1f samples/frame (expect %.1f)",
@@ -587,6 +636,7 @@ void openRequestedPanel(App& app, const Options& opt) {
   // cartridge is the old name for the same window
   app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
   app.showScripting = opt.uiScreen == "scripting";
+  app.showNetplay = opt.uiScreen == "netplay";
   app.showStateManager = opt.uiScreen == "state-manager";
   app.showCheats = opt.uiScreen == "cheats";
   app.showCheatFinder = opt.uiScreen == "cheat-finder";
@@ -628,6 +678,13 @@ int main(int argc, char** argv) {
 
   if(!opt.romPath.empty()) app.loadRom(opt.romPath);
   if(!opt.luaScript.empty()) app.scripting.load(opt.luaScript);
+  if(opt.netplayPort && opt.netplaySpectate) {
+    app.netplayStart(opt.netplayPort, -1, opt.netplayRemotes, {}, opt.netplaySpectatePlayers);
+  } else if(opt.netplayPort && opt.netplayLocal >= 0) {
+    app.netplayStart(opt.netplayPort, opt.netplayLocal, opt.netplayRemotes, opt.netplaySpectators);
+    if(!opt.netplayRecord.empty()) app.beginMovieRecording(false);
+  }
+  if(!opt.playMovie.empty()) app.playMovieFile(opt.playMovie);
   if(opt.needsRom() && !app.core.loaded()) {
     SDL_Log("no rom loaded");
     shutdownApp(app);

@@ -25,6 +25,7 @@ const struct { const char* name; void (App::*draw)(); } SettingsTabs[] = {
   {"Emulator",      &App::drawEmulatorTab},
   {"Enhancements",  &App::drawEnhancementsTab},
   {"Compatibility", &App::drawCompatibilityTab},
+  {"Netplay",       &App::drawNetplayTab},
   {"Appearance",    &App::drawCustomizationTab},
   {"Paths",         &App::drawPathsTab},
 };
@@ -195,37 +196,43 @@ void App::drawRemoveStatesPrompt() {
 }
 
 void App::drawEmulationMenu() {
-  if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause).c_str(), paused, core.loaded())) paused = !paused;
-  if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance).c_str(), false, core.loaded())) {
+  // every item below either alters the local machine's timeline (pause, step,
+  // reset, states) or fights GekkoNet's own speed/rollback control (fast
+  // forward, speed); all of it stays disabled for the life of a session
+  const bool live = core.loaded() && !netplayActive();
+  if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause).c_str(), paused, live)) paused = !paused;
+  if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance).c_str(), false, live)) {
     paused = true;
     advanceOneFrame();
   }
-  if(ImGui::MenuItem("Fast Forward", hotkeyShortcut(HkFastForward).c_str(), fastForward, core.loaded())) {
+  if(ImGui::MenuItem("Fast Forward", hotkeyShortcut(HkFastForward).c_str(), fastForward, live)) {
     toggleFastForward();
   }
-  if(ImGui::BeginMenu("Speed", core.loaded())) { drawSpeedMenu(); ImGui::EndMenu(); }
+  if(ImGui::BeginMenu("Speed", live)) { drawSpeedMenu(); ImGui::EndMenu(); }
   if(ImGui::MenuItem("Mute", hotkeyShortcut(HkMute).c_str(), settings.mute)) {
     settings.mute = !settings.mute;
     settings.save(settingsCfg);
   }
   ImGui::Separator();
-  if(ImGui::BeginMenu("Save State", core.loaded())) { drawStateMenu(false); ImGui::EndMenu(); }
-  if(ImGui::BeginMenu("Load State", core.loaded())) { drawStateMenu(true); ImGui::EndMenu(); }
+  if(ImGui::BeginMenu("Save State", live)) { drawStateMenu(false); ImGui::EndMenu(); }
+  if(ImGui::BeginMenu("Load State", live)) { drawStateMenu(true); ImGui::EndMenu(); }
 
   ImGui::Separator();
-  if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset).c_str(), false, core.loaded())) reset();
-  if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, core.loaded())) powerCycle();
+  if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset).c_str(), false, live)) reset();
+  if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, live)) powerCycle();
 }
 
 void App::drawMovieMenu() {
   const bool idle = !movieActive();
-  if(ImGui::MenuItem("Play...", nullptr, false, core.loaded() && idle)) {
+  // playback would inject a second, unsynchronized input stream over the
+  // live confirmed one; recording the confirmed stream itself is fine
+  if(ImGui::MenuItem("Play...", nullptr, false, core.loaded() && idle && !netplayActive())) {
     openMovieDialog();
   }
   if(ImGui::MenuItem("Record from Current State", nullptr, false, core.loaded() && idle)) {
     beginMovieRecording(false);
   }
-  if(ImGui::MenuItem("Reset and Record", nullptr, false, core.loaded() && idle)) {
+  if(ImGui::MenuItem("Reset and Record", nullptr, false, core.loaded() && idle && !netplayActive())) {
     beginMovieRecording(true);
   }
   ImGui::Separator();
@@ -300,6 +307,7 @@ void App::drawMenuBar() {
   if(ImGui::BeginMenu("File"))      { drawFileMenu();      ImGui::EndMenu(); }
   if(ImGui::BeginMenu("Emulation")) { drawEmulationMenu(); ImGui::EndMenu(); }
   if(ImGui::BeginMenu("Settings"))  { drawSettingsMenu();  ImGui::EndMenu(); }
+  if(ImGui::MenuItem("Netplay", nullptr, showNetplay)) showNetplay = !showNetplay;
 
   if(ImGui::BeginMenu("Tools")) {
     if(ImGui::BeginMenu("Movie")) {
@@ -460,7 +468,7 @@ void App::drawUi() {
 
   if(core.loaded()) {
     // frame advance is a paused game being looked at, so it stays undimmed
-    const bool dim = settings.videoDimming && emulationIdle() && !frameAdvance;
+    const bool dim = settings.videoDimming && !netplayActive() && emulationIdle() && !frameAdvance;
     shell.drawGame(settings, dim ? 0xff808080u : 0xffffffffu);
     scripting.drawOverlay();
     drawGamesWindow();
@@ -469,6 +477,7 @@ void App::drawUi() {
   }
   drawSettingsWindow();
   drawToolsWindow();
+  drawNetplayWindow();
   drawScriptingWindow();
   drawStateManagerWindow();
   drawCheatsWindow();

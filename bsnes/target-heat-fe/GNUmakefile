@@ -6,7 +6,7 @@ name := bsnes-heat-fe
 local := false
 flags := $(filter-out -march=native,$(flags))
 
-# SDL3 builds through its own cmake, the same way gekkonet and weyvelength do.
+# SDL3 builds through its own cmake, the same way gekkonet does.
 sdl3.path := ../sdl
 sdl3.build := ../sdl/build
 sdl3.flags := -I$(sdl3.path)/include
@@ -40,7 +40,24 @@ imgui.flags := -I$(imgui.path) -I$(imgui.path)/backends
 lua.path := ../lua
 lua.flags := -I$(lua.path)
 
-flags += $(sdl3.flags) $(imgui.flags) $(lua.flags)
+# gekkonet builds through its own cmake, the same as SDL3
+gekkonet.path := ../gekkonet/GekkoLib
+gekkonet.build := ../gekkonet/build
+# without this, gekkonet.h defaults to __declspec(dllimport) on Windows and the
+# static lib fails to link
+gekkonet.flags := -I$(gekkonet.path)/include -DGEKKONET_STATIC
+gekkonet.lib := $(gekkonet.build)/GekkoLib/libGekkoNet_STATIC.a
+gekkonet.options :=
+gekkonet.cmake.args :=
+
+ifeq ($(platform),windows)
+  gekkonet.cmake.args += -G "MinGW Makefiles"
+  gekkonet.options += -lws2_32
+else ifeq ($(platform),bsd)
+  gekkonet.cmake.args += -DCMAKE_MAKE_PROGRAM=gmake -DCMAKE_C_COMPILER=gcc14 -DCMAKE_CXX_COMPILER=g++14
+endif
+
+flags += $(sdl3.flags) $(imgui.flags) $(lua.flags) $(gekkonet.flags)
 
 # filter drives the CPU video filters; lzma unpacks .7z game archives
 objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
@@ -49,6 +66,7 @@ objects += ui-shader ui-stbimage
 objects += ui-cheats ui-cheat-window
 objects += ui-tests
 objects += ui-scripting lua
+objects += ui-netplay ui-netplay-window
 objects += core-main core-media core-vfs core-video core-info core-memory
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
 objects += ui-custom ui-paths ui-windows ui-state-manager ui-manifest ui-compat
@@ -75,6 +93,8 @@ obj/ui-cheats.o: $(ui)/cheats.cpp
 obj/ui-cheat-window.o: $(ui)/ui/cheats.cpp
 obj/ui-tests.o: $(ui)/tests.cpp
 obj/ui-scripting.o: $(ui)/scripting.cpp
+obj/ui-netplay.o: $(ui)/netplay.cpp
+obj/ui-netplay-window.o: $(ui)/ui/netplay.cpp
 obj/lua.o: $(lua.path)/onelua.c
 obj/lua.o: flags += -DMAKE_LIB $(if $(findstring g++,$(compiler)),-Wno-stringop-overflow)
 
@@ -122,11 +142,18 @@ endif
 	cmake -B $(sdl3.build) -S $(sdl3.path) $(sdl3.cmake.args)
 	+cmake --build $(sdl3.build) --target SDL3-static
 
-# order-only prerequisite: SDL's headers must exist before anything includes them
-$(objects): | $(sdl3.lib)
+$(gekkonet.lib):
+ifeq ($(wildcard ../gekkonet/CMakeLists.txt),)
+	git -C .. submodule update --init gekkonet
+endif
+	cmake -B $(gekkonet.build) -S ../gekkonet -DBUILD_SHARED_LIBS=OFF $(gekkonet.cmake.args)
+	+cmake --build $(gekkonet.build)
+
+# order-only prerequisite: headers must exist before anything includes them
+$(objects): | $(sdl3.lib) $(gekkonet.lib)
 
 all: $(objects)
 	$(info Linking out/$(name) ...)
-	+@$(compiler) -o out/$(name) $(objects) $(sdl3.lib) $(sdl3.options) $(options)
+	+@$(compiler) -o out/$(name) $(objects) $(sdl3.lib) $(gekkonet.lib) $(sdl3.options) $(gekkonet.options) $(options)
 
 verbose: nall.verbose all;

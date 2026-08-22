@@ -116,6 +116,12 @@ public:
   void apply(EmuCore& core, const std::vector<Controller>& pads,
             const Settings& settings, const InputSample& sample, long long frame) const;
 
+  // the 12 SNES buttons for one gamepad slot (bit i = EmuCore::Button i), for
+  // netplay to hand to GekkoNet instead of writing straight into the core
+  uint16_t pollButtons(int port, int player, const std::vector<Controller>& pads,
+                       const Settings& settings, const InputSample& sample,
+                       long long frame, double refreshRate) const;
+
   // pad events from another controller are ignored, so pad 1 cannot bind port 2
   static bool capture(const SDL_Event& event, Binding& out, const Controller* pad = nullptr,
                       bool chords = false);
