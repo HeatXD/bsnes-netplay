@@ -48,10 +48,12 @@ console, not an interactive Lua prompt.
 
 Drawing coordinates are SNES game coordinates. `(0, 0)` is the top-left of the
 game image, normally sized 256x224 or 256x240. The frontend scales the overlay
-with the game and clips it to the game image.
+with the game. Coordinates may be negative or extend past the game image; when
+the main window has spare space, those drawings remain visible there.
 
 Enable **Include Lua drawings in screenshots** in Video settings to save the
-displayed game and overlay together. Frontend menus and tool windows are omitted.
+displayed game and the portion of the overlay over it together. Drawings in the
+surrounding window space, frontend menus, and tool windows are omitted.
 
 Colors are integers in `0xAARRGGBB` form: alpha, red, green, then blue. An alpha
 of `0x00` is transparent and `0xff` is opaque.
@@ -86,8 +88,24 @@ Text accepts any value Lua can convert to a string. Its options are:
 {
   color = 0xffffffff,      -- default: opaque white
   outline = 0xff000000,    -- default: opaque black
-  size = 13                -- game-space pixels
+  size = 13,               -- game-space pixels
+  align = "left",          -- "left", "center", or "right"
+  font = "pixel",          -- "pixel" (fixed width) or "ui"
 }
+```
+
+The supplied `(x, y)` is an anchor. Left alignment starts the text at `x`,
+center alignment centers it on `x`, and right alignment ends it at `x`. The
+default pixel font is the bundled, pixel-snapped ProggyClean face: it stays
+independent of the frontend's selected UI font and every character has the same
+advance. Use `font = "ui"` when matching the frontend theme is more important.
+
+For example, these labels remain anchored to the middle and right edge without
+measuring individual characters:
+
+```lua
+gui.text(128, 4, "centered", {align = "center", size = 10})
+gui.text(252, 16, "HP: " .. hp, {align = "right", size = 10})
 ```
 
 Use `string.format()` when displaying hexadecimal or decimal values:
@@ -95,6 +113,35 @@ Use `string.format()` when displaying hexadecimal or decimal values:
 ```lua
 gui.text(4, 20, string.format("HP: %d  flags: %02x", hp, flags))
 ```
+
+## Script windows
+
+Scripts can create normal detachable frontend windows and put labels and
+buttons in them. Declare their contents each `on_frame()`, like the drawing API:
+
+```lua
+local invincible = false
+
+function on_frame()
+  gui.window("Trainer", {width = 220, height = 0})
+  gui.label("Invincibility: " .. (invincible and "on" or "off"))
+  if gui.button("Toggle invincibility", {id = "invincible"}) then
+    invincible = not invincible
+  end
+
+  if invincible then
+    memory.wram.write_u8(0x1234, 0xff)
+  end
+end
+```
+
+`gui.window(title, options)` starts a window and makes it the destination for
+the following widgets. Calling it again starts another window. Its optional
+`width` and `height` set the initial size; zero auto-sizes that axis.
+`gui.label(value)` adds text. `gui.button(label, options)` returns `true` once
+for a click, on the next emulated frame. Button options are `id`, `width`, and
+`height`; use a stable unique `id` when labels can change or repeat. Windows can
+be dragged out of the main emulator window when multi-viewport support is on.
 
 ## Memory
 
@@ -243,8 +290,8 @@ read-only starting states next to the script. Paths are relative, may use
 subdirectories, and cannot contain `..`, a drive name, or an absolute root.
 
 File states use heat-fe's `.bst` format and must match the currently loaded ROM
-and serialization settings. States from BizHawk, other emulators, and bsnes
-`.bsz` containers are not interchangeable. A numbered heat-fe `.bst` can be
+and serialization settings. States from other emulators and bsnes `.bsz`
+containers are not interchangeable. A numbered heat-fe `.bst` can be
 copied beside a script and loaded directly.
 
 A state contains the emulated machine only. Loading one does not rewind Lua
@@ -309,6 +356,5 @@ Lua 5.4's arithmetic, logical, and bitwise operators work normally.
 For safety, `debug`, `io`, `os`, `package`, `require`, `dofile`, and `loadfile`
 are unavailable. Scripts cannot load native libraries or execute programs.
 
-Current limitations: one script at a time, one frontend font for all overlay
-text, no image drawing, no interactive console, and no built-in binary
-formatter.
+Current limitations: one script at a time, no image drawing, no interactive
+console, and no built-in binary formatter.

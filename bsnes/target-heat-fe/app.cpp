@@ -449,6 +449,13 @@ void App::applyFont() {
   ImGuiIO& io = ImGui::GetIO();
   io.Fonts->Clear();
 
+  ImFontConfig pixelConfig;
+  pixelConfig.SizePixels = 13.0f;
+  pixelConfig.PixelSnapH = true;
+  pixelConfig.OversampleH = 1;
+  pixelConfig.OversampleV = 1;
+  luaPixelFont = io.Fonts->AddFontDefault(&pixelConfig);
+
   ImFontConfig config;
   config.SizePixels = (float)settings.fontSize;
   config.RasterizerMultiply = settings.fontWeight / 100.0f;
@@ -460,8 +467,9 @@ void App::applyFont() {
   }
   if(!font) {
     if(!settings.fontPath.empty()) showMessage("could not load font " + fileName(settings.fontPath));
-    io.Fonts->AddFontDefault(&config);
+    font = io.Fonts->AddFontDefault(&config);
   }
+  io.FontDefault = font;
 
   io.Fonts->Build();
   ImGui_ImplOpenGL3_DestroyFontsTexture();  // recreated by the next NewFrame

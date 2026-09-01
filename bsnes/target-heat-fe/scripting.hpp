@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 struct App;
@@ -51,9 +52,26 @@ private:
     float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f;
     uint32_t color = 0xffffffffu, outline = 0;
     float thickness = 1.0f, size = 13.0f;
+    enum TextAlign { Left, Center, Right } align = Left;
+    bool pixelFont = false;
     std::string text;
   };
   std::vector<DrawCommand> commands;
+
+  struct WindowWidget {
+    enum Type { Label, Button } type = Label;
+    std::string text;
+    std::string key;
+    float width = 0.0f, height = 0.0f;
+  };
+  struct WindowCommand {
+    std::string title;
+    float width = 0.0f, height = 0.0f;
+    std::vector<WindowWidget> widgets;
+  };
+  std::vector<WindowCommand> windows;
+  int currentWindow = -1;
+  std::unordered_set<std::string> clickedWidgets;
 
   void close();
   void clearInputOverrides();
@@ -72,6 +90,9 @@ private:
   static int drawLine(lua_State* state);
   static int drawPixel(lua_State* state);
   static int drawText(lua_State* state);
+  static int guiWindow(lua_State* state);
+  static int guiLabel(lua_State* state);
+  static int guiButton(lua_State* state);
   static int inputValue(lua_State* state);
   static int inputHeld(lua_State* state);
   static int inputSet(lua_State* state);

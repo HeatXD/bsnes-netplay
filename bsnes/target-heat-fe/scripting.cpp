@@ -38,6 +38,9 @@ void LuaEngine::close() {
   state = nullptr;
   active = false;
   commands.clear();
+  windows.clear();
+  clickedWidgets.clear();
+  currentWindow = -1;
 }
 
 bool LuaEngine::failFromStack(const char* prefix) {
@@ -48,6 +51,9 @@ bool LuaEngine::failFromStack(const char* prefix) {
   clearInputOverrides();
   active = false;
   commands.clear();
+  windows.clear();
+  clickedWidgets.clear();
+  currentWindow = -1;
   app.showMessage(lastError);
   return false;
 }
@@ -225,6 +231,15 @@ float tableNumber(lua_State* state, int table, const char* name, float fallback)
   return value;
 }
 
+std::string tableString(lua_State* state, int table, const char* name,
+                        const char* fallback = "") {
+  if(!lua_istable(state, table)) return fallback;
+  lua_getfield(state, table, name);
+  std::string value = lua_isstring(state, -1) ? lua_tostring(state, -1) : fallback;
+  lua_pop(state, 1);
+  return value;
+}
+
 ImU32 imguiColor(uint32_t argb) {
   return IM_COL32((argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff, argb >> 24);
 }
@@ -309,8 +324,65 @@ int LuaEngine::drawText(lua_State* state) {
   command.color = tableColor(state, 4, "color", 0xffffffffu);
   command.outline = tableColor(state, 4, "outline", 0xff000000u);
   command.size = tableNumber(state, 4, "size", 13.0f);
+  const std::string align = tableString(state, 4, "align", "left");
+  if(align == "center") command.align = DrawCommand::Center;
+  else if(align == "right") command.align = DrawCommand::Right;
+  else luaL_argcheck(state, align == "left", 4, "align must be 'left', 'center', or 'right'");
+  const std::string font = tableString(state, 4, "font", "pixel");
+  command.pixelFont = font == "pixel";
+  luaL_argcheck(state, command.pixelFont || font == "ui", 4,
+                "font must be 'pixel' or 'ui'");
   engine.commands.push_back(std::move(command));
   return 0;
+}
+
+int LuaEngine::guiWindow(lua_State* state) {
+  LuaEngine& engine = from(state);
+  size_t length = 0;
+  const char* title = luaL_checklstring(state, 1, &length);
+  luaL_argcheck(state, length > 0, 1, "window title cannot be empty");
+  WindowCommand window;
+  window.title.assign(title, length);
+  window.width = tableNumber(state, 2, "width", 0.0f);
+  window.height = tableNumber(state, 2, "height", 0.0f);
+  luaL_argcheck(state, window.width >= 0.0f, 2, "width cannot be negative");
+  luaL_argcheck(state, window.height >= 0.0f, 2, "height cannot be negative");
+  engine.windows.push_back(std::move(window));
+  engine.currentWindow = (int)engine.windows.size() - 1;
+  return 0;
+}
+
+int LuaEngine::guiLabel(lua_State* state) {
+  LuaEngine& engine = from(state);
+  luaL_argcheck(state, engine.currentWindow >= 0, 1, "call gui.window before gui.label");
+  size_t length = 0;
+  const char* value = luaL_tolstring(state, 1, &length);
+  WindowWidget widget;
+  widget.type = WindowWidget::Label;
+  widget.text.assign(value, length);
+  lua_pop(state, 1);
+  engine.windows[engine.currentWindow].widgets.push_back(std::move(widget));
+  return 0;
+}
+
+int LuaEngine::guiButton(lua_State* state) {
+  LuaEngine& engine = from(state);
+  luaL_argcheck(state, engine.currentWindow >= 0, 1, "call gui.window before gui.button");
+  size_t length = 0;
+  const char* label = luaL_checklstring(state, 1, &length);
+  WindowWidget widget;
+  widget.type = WindowWidget::Button;
+  widget.text.assign(label, length);
+  widget.width = tableNumber(state, 2, "width", 0.0f);
+  widget.height = tableNumber(state, 2, "height", 0.0f);
+  luaL_argcheck(state, widget.width >= 0.0f, 2, "width cannot be negative");
+  luaL_argcheck(state, widget.height >= 0.0f, 2, "height cannot be negative");
+  std::string id = tableString(state, 2, "id", widget.text.c_str());
+  widget.key = engine.windows[engine.currentWindow].title + '\x1f' + id;
+  const bool clicked = engine.clickedWidgets.erase(widget.key) != 0;
+  engine.windows[engine.currentWindow].widgets.push_back(std::move(widget));
+  lua_pushboolean(state, clicked);
+  return 1;
 }
 
 namespace {
@@ -673,6 +745,7 @@ void LuaEngine::registerApi() {
   const luaL_Reg gui[] = {
     {"box", drawBox}, {"circle", drawCircle}, {"ellipse", drawEllipse},
     {"line", drawLine}, {"pixel", drawPixel}, {"text", drawText},
+    {"window", guiWindow}, {"label", guiLabel}, {"button", guiButton},
     {nullptr, nullptr},
   };
   luaL_setfuncs(state, gui, 0);
@@ -748,10 +821,13 @@ void LuaEngine::stop() {
 bool LuaEngine::runFrame() {
   if(!active || !state) return false;
   commands.clear();
+  windows.clear();
+  currentWindow = -1;
 
   lua_getglobal(state, "on_frame");
   if(lua_isnil(state, -1)) {
     lua_pop(state, 1);
+    clickedWidgets.clear();
     return true;
   }
   if(!lua_isfunction(state, -1)) {
@@ -760,6 +836,9 @@ bool LuaEngine::runFrame() {
     return failFromStack("Lua frame: ");
   }
   if(lua_pcall(state, 0, 0, 0) != LUA_OK) return failFromStack("Lua frame: ");
+  // A click is a one-frame event. Buttons consume matching events while the
+  // callback runs; discard clicks for controls the script did not draw again.
+  clickedWidgets.clear();
   return true;
 }
 
@@ -793,7 +872,8 @@ bool LuaEngine::runBeforeFrame() {
 }
 
 void LuaEngine::drawOverlay() {
-  if(commands.empty() || app.shell.drawWidth <= 0 || app.shell.drawHeight <= 0) return;
+  if((commands.empty() && windows.empty()) || app.shell.drawWidth <= 0
+      || app.shell.drawHeight <= 0) return;
 
   const float sx = app.shell.drawWidth / 256.0f;
   const float sy = app.shell.drawHeight / videoHeight(app.settings);
@@ -804,10 +884,8 @@ void LuaEngine::drawOverlay() {
   // same draw list even if ImGui's current window belongs to another viewport,
   // so clean screenshots can capture the game and overlay together.
   ImDrawList* draw = ImGui::GetBackgroundDrawList(ImGui::GetMainViewport());
-  draw->PushClipRect(origin, ImVec2(origin.x + app.shell.drawWidth,
-                                    origin.y + app.shell.drawHeight), true);
   for(const DrawCommand& command : commands) {
-    const ImVec2 p1 = point(command.x1, command.y1);
+    ImVec2 p1 = point(command.x1, command.y1);
     if(command.type == DrawCommand::Box) {
       const ImVec2 p2 = point(command.x2, command.y2);
       if(command.color >> 24) draw->AddRectFilled(p1, p2, imguiColor(command.color));
@@ -830,16 +908,43 @@ void LuaEngine::drawOverlay() {
                           imguiColor(command.color));
     } else {
       const float size = command.size * sy;
+      ImFont* font = command.pixelFont && app.luaPixelFont ? app.luaPixelFont : ImGui::GetFont();
+      const ImVec2 extent = font->CalcTextSizeA(size, FLT_MAX, 0.0f, command.text.c_str());
+      if(command.align == DrawCommand::Center) p1.x -= extent.x * 0.5f;
+      else if(command.align == DrawCommand::Right) p1.x -= extent.x;
       if(command.outline >> 24) {
         for(int y = -1; y <= 1; y++) for(int x = -1; x <= 1; x++) {
-          if(x || y) draw->AddText(nullptr, size, ImVec2(p1.x + x, p1.y + y),
+          if(x || y) draw->AddText(font, size, ImVec2(p1.x + x, p1.y + y),
                                    imguiColor(command.outline), command.text.c_str());
         }
       }
-      draw->AddText(nullptr, size, p1, imguiColor(command.color), command.text.c_str());
+      draw->AddText(font, size, p1, imguiColor(command.color), command.text.c_str());
     }
   }
-  draw->PopClipRect();
+
+  for(const WindowCommand& window : windows) {
+    if(window.width > 0.0f || window.height > 0.0f) {
+      ImGui::SetNextWindowSize(ImVec2(window.width, window.height), ImGuiCond_FirstUseEver);
+    }
+    const std::string id = window.title + "###lua-window-" + window.title;
+    const ImGuiWindowFlags flags = window.width == 0.0f && window.height == 0.0f
+                                 ? ImGuiWindowFlags_AlwaysAutoResize : 0;
+    if(ImGui::Begin(id.c_str(), nullptr, flags)) {
+      for(const WindowWidget& widget : window.widgets) {
+        if(widget.type == WindowWidget::Label) {
+          ImGui::TextUnformatted(widget.text.c_str());
+        } else {
+          // ### keeps the visible label out of ImGui's identifier, so a stable
+          // options.id remains active even if the label changes mid-click.
+          const std::string label = widget.text + "###" + widget.key;
+          if(ImGui::Button(label.c_str(), ImVec2(widget.width, widget.height))) {
+            clickedWidgets.insert(widget.key);
+          }
+        }
+      }
+    }
+    ImGui::End();
+  }
 }
 
 int64_t LuaEngine::globalInteger(const char* name) const {

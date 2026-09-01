@@ -195,6 +195,8 @@ struct App {
 
   bool running = true;
   bool fontDirty = false;
+  // Always-available fixed-width font for Lua overlays, independent of the UI font.
+  ImFont* luaPixelFont = nullptr;
   bool paused = false;
   bool fastForward = false;
   bool rewinding = false;
