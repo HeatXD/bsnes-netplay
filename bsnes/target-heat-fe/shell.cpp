@@ -201,7 +201,8 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
   if(availW <= 0.0f || availH <= 0.0f) return;
 
   // NTSC output is 602 wide and scanlines 480 tall, and sizing off those would
-  // stretch them. NTSC pixels are not square either; 8/7 takes 256x224 to 4:3.
+  // stretch them. The core's 8/7 pixel-aspect correction approximates the 4:3
+  // presentation of an NTSC television; disabling it preserves square pixels.
   const float videoW = videoWidth(settings);
   const float videoH = videoHeight(settings);
 

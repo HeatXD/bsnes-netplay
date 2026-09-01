@@ -109,7 +109,7 @@ void App::drawOutputMenu() {
   }
 
   ImGui::Separator();
-  if(ImGui::MenuItem("Aspect correction (8:7)", nullptr, settings.aspectCorrect)) {
+  if(ImGui::MenuItem("Aspect correction (4:3)", nullptr, settings.aspectCorrect)) {
     settings.aspectCorrect = !settings.aspectCorrect;
     if(settings.windowScale > 0) shell.shrinkToFit(settings);
     settings.save(settingsCfg);

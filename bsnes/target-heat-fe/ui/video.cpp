@@ -108,7 +108,8 @@ void App::drawShaderSection(bool& dirty) {
 
 void App::drawVideoTab() {
   bool dirty = false;
-  bool geometryDirty = ImGui::Checkbox("Aspect correction (8:7)", &settings.aspectCorrect);
+  bool geometryDirty = ImGui::Checkbox("Aspect correction (4:3)", &settings.aspectCorrect);
+  tip("Off preserves the SNES's square-pixel 8:7 image; on applies the NTSC-TV correction.");
   dirty |= geometryDirty;
   dirty |= ImGui::Checkbox("Linear filtering (smooths fractional scales)", &settings.linearFilter);
   dirty |= ImGui::Combo("Output", &settings.outputMode, OutputNames, OutputCount);
