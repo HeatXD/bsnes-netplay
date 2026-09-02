@@ -1,6 +1,5 @@
 #include "ui.hpp"
 
-
 // the core names a multitap's inputs "Port 3 - Up": controller, then button
 std::string App::playerLabel(int device, int player) const {
   const std::string& name = core.inputs(device)[player * core.inputStride(device)].name;
@@ -16,8 +15,8 @@ void App::drawBindingRow(int device, int b, bool turbo) {
   ImGui::TableNextColumn();
   const std::string& name = core.inputs(device)[b].name;
   const size_t dash = name.rfind(" - ");
-  const std::string label = (dash == std::string::npos ? name : name.substr(dash + 3))
-                          + (turbo ? " turbo" : "");
+  const std::string label =
+      (dash == std::string::npos ? name : name.substr(dash + 3)) + (turbo ? " turbo" : "");
   ImGui::TextUnformatted(label.c_str());
 
   for(int slot = 0; slot < InputMap::Slots; slot++) {
@@ -28,12 +27,12 @@ void App::drawBindingRow(int device, int b, bool turbo) {
 
     // held bindings light up, so a press shows even on the wrong pad
     const bool held = capturing != id && bindingActive(binding, sample, pad);
-    if(held) ImGui::PushStyleColor(ImGuiCol_Button, accentColor());
+    if(held) { ImGui::PushStyleColor(ImGuiCol_Button, accentColor()); }
 
     const std::string text = capturing == id ? "..." : binding.label(pad);
-    if(ImGui::Button(text.c_str(), ImVec2(-1.0f, 0.0f))) capturing = id;
+    if(ImGui::Button(text.c_str(), ImVec2(-1.0f, 0.0f))) { capturing = id; }
 
-    if(held) ImGui::PopStyleColor();
+    if(held) { ImGui::PopStyleColor(); }
     ImGui::PopID();
   }
 }
@@ -49,10 +48,13 @@ void App::drawBindingTable(int device) {
 
   // content sizing would let the long pad labels swallow the row
   if(!ImGui::BeginTable("bindings", 1 + InputMap::Slots,
-                        ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
+                        ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) {
+    return;
+  }
 
   ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed);
-  // every slot takes a key or a pad button alike, so they are numbered, not typed
+  // every slot takes a key or a pad button alike, so they are numbered, not
+  // typed
   for(int slot = 0; slot < InputMap::Slots; slot++) {
     char label[16];
     SDL_snprintf(label, sizeof(label), "Mapping #%d", slot + 1);
@@ -66,7 +68,10 @@ void App::drawBindingTable(int device) {
   const bool pointer = core.isPointer(device);
 
   for(int b = first; b < last; b++) {
-    if(bindable(b)) { drawBindingRow(device, b, false); continue; }
+    if(bindable(b)) {
+      drawBindingRow(device, b, false);
+      continue;
+    }
 
     // an aiming device's axes follow the captured pointer; nothing else can
     ImGui::TableNextRow();
@@ -80,7 +85,7 @@ void App::drawBindingTable(int device) {
 
   // the turbo sets sit together below rather than doubling up every button
   for(int b = first; b < last; b++) {
-    if(bindable(b)) drawBindingRow(device, b, true);
+    if(bindable(b)) { drawBindingRow(device, b, true); }
   }
   ImGui::EndTable();
 }
@@ -89,15 +94,15 @@ void App::drawDevicePicker() {
   const auto& portDevices = core.devices(mapPort);
   int deviceIndex = 0;
   for(int i = 0; i < (int)portDevices.size(); i++) {
-    if(portDevices[i].id == core.connectedDevice(mapPort)) deviceIndex = i;
+    if(portDevices[i].id == core.connectedDevice(mapPort)) { deviceIndex = i; }
   }
   auto deviceName = [](void* data, int index) {
     return (*(const std::vector<EmuCore::DeviceInfo>*)data)[index].name.c_str();
   };
 
   if(ImGui::Combo("Device", &deviceIndex, deviceName, (void*)&portDevices,
-                  (int)portDevices.size())
-  && deviceIndex < (int)portDevices.size()) {
+                  (int)portDevices.size()) &&
+     deviceIndex < (int)portDevices.size()) {
     core.connect(mapPort, portDevices[deviceIndex].id);
     settings.devices[mapPort] = portDevices[deviceIndex].id;
     settings.save(settingsCfg);
@@ -109,7 +114,7 @@ void App::drawDevicePicker() {
 void App::drawControllerPicker() {
   // entry 0 is None, so the combo index is the pad index shifted by one
   auto padName = [](void* data, int index) -> const char* {
-    if(index == 0) return "None";
+    if(index == 0) { return "None"; }
     const auto& pads = *(const std::vector<Controller>*)data;
     const Controller& pad = pads[index - 1];
     const char* name = pad.name();
@@ -121,7 +126,7 @@ void App::drawControllerPicker() {
 
   const int slot = padSlot(mapPort, mapPlayer);
   int current = settings.padIndex[slot] + 1;
-  if(current < 0 || current > (int)pads.size()) current = 0;
+  if(current < 0 || current > (int)pads.size()) { current = 0; }
   if(ImGui::Combo("Controller", &current, padName, (void*)&pads, (int)pads.size() + 1)) {
     settings.padIndex[slot] = current - 1;
     settings.save(settingsCfg);
@@ -153,7 +158,7 @@ void App::drawInputTab() {
   // the core names a multitap's four controllers Port 2..Port 5
   const int device = core.connectedDevice(mapPort);
   const int players = core.playersFor(device);
-  if(mapPlayer >= players) mapPlayer = 0;
+  if(mapPlayer >= players) { mapPlayer = 0; }
   if(players > 1) {
     const char* label = device == EmuCore::SuperMultitap ? "Multitap slot" : "Controller slot";
     if(ImGui::BeginCombo(label, playerLabel(device, mapPlayer).c_str())) {
@@ -168,7 +173,7 @@ void App::drawInputTab() {
   if(core.isPointer(device)) {
     ImGui::TextWrapped("Aiming follows the mouse while it is captured (%s).",
                        input.hotkey(HkMouseCapture, 0).label().c_str());
-    if(ImGui::Button(mouseCaptured ? "Release mouse" : "Capture mouse")) toggleMouseCapture();
+    if(ImGui::Button(mouseCaptured ? "Release mouse" : "Capture mouse")) { toggleMouseCapture(); }
   } else {
     drawControllerPicker();
   }
@@ -178,16 +183,16 @@ void App::drawInputTab() {
     ImGui::Separator();
     ImGui::TextDisabled("This device has no inputs to map.");
   } else {
-    ImGui::TextUnformatted(capturing >= 0
-        ? "press a key, mouse or pad button, delete to unbind, esc to cancel"
-        : "click a binding to rebind it");
+    ImGui::TextUnformatted(capturing >= 0 ? "press a key, mouse or pad button, "
+                                            "delete to unbind, esc to cancel"
+                                          : "click a binding to rebind it");
     ImGui::Separator();
     drawBindingTable(device);
   }
 
   ImGui::Separator();
   ImGui::SliderInt("Turbo rate (Hz)", &settings.turboRate, 1, 30);
-  if(ImGui::IsItemDeactivatedAfterEdit()) settings.save(settingsCfg);
+  if(ImGui::IsItemDeactivatedAfterEdit()) { settings.save(settingsCfg); }
 
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##input")) {

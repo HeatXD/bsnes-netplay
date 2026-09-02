@@ -5,18 +5,21 @@ namespace {
 struct Loaded {
   void* data = nullptr;
   size_t size = 0;
+
   explicit Loaded(const std::string& path) { data = SDL_LoadFile(path.c_str(), &size); }
-  ~Loaded() { if(data) SDL_free(data); }
+
+  ~Loaded() {
+    if(data) { SDL_free(data); }
+  }
 };
 
-const char* const RomExts[] = {"sfc", "smc", "fig", "swc", "bs", "st", "gb", "gbc",
-                               "zip", "7z"};
-}
+const char* const RomExts[] = {"sfc", "smc", "fig", "swc", "bs", "st", "gb", "gbc", "zip", "7z"};
+}  // namespace
 
 // a game pak path ends in a separator, and is named by its folder
 std::string fileName(const std::string& path) {
   const size_t end = path.find_last_not_of("/\\");
-  if(end == std::string::npos) return path;
+  if(end == std::string::npos) { return path; }
   const size_t slash = path.find_last_of("/\\", end);
   const size_t start = slash == std::string::npos ? 0 : slash + 1;
   return path.substr(start, end + 1 - start);
@@ -24,7 +27,7 @@ std::string fileName(const std::string& path) {
 
 std::string parentDir(const std::string& path) {
   const size_t end = path.find_last_not_of("/\\");
-  if(end == std::string::npos) return {};
+  if(end == std::string::npos) { return {}; }
   const size_t slash = path.find_last_of("/\\", end);
   return slash == std::string::npos ? std::string() : path.substr(0, slash);
 }
@@ -37,7 +40,9 @@ std::string fileStem(const std::string& path) {
 
 std::string normalPath(const std::string& path) {
   std::string out = path;
-  for(char& c : out) if(c == '\\') c = '/';
+  for(char& c : out) {
+    if(c == '\\') { c = '/'; }
+  }
   return out;
 }
 
@@ -53,28 +58,28 @@ bool isDirectory(const std::string& path) {
 
 std::string pakPath(const std::string& dir) {
   std::string path = normalPath(dir);
-  if(!path.empty() && path.back() != '/') path += '/';
+  if(!path.empty() && path.back() != '/') { path += '/'; }
   return path;
 }
 
 std::pair<std::string, std::string> splitPair(const std::string& entry) {
   const char* bar = SDL_strchr(entry.c_str(), '|');
-  if(!bar) return {entry, {}};
+  if(!bar) { return {entry, {}}; }
   return {std::string(entry.c_str(), bar), std::string(bar + 1)};
 }
 
 std::string recentLabel(const std::string& entry) {
   const auto pair = splitPair(entry);
-  if(pair.second.empty()) return fileName(pair.first);
+  if(pair.second.empty()) { return fileName(pair.first); }
   return fileName(pair.first) + " + " + fileName(pair.second);
 }
 
 bool isRom(const char* name) {
   const char* ext = SDL_strrchr(name, '.');
-  if(!ext) return false;
+  if(!ext) { return false; }
 
   for(const char* candidate : RomExts) {
-    if(SDL_strcasecmp(ext + 1, candidate) == 0) return true;
+    if(SDL_strcasecmp(ext + 1, candidate) == 0) { return true; }
   }
   return false;
 }
@@ -83,7 +88,7 @@ const char* romFilterPattern() {
   static const std::string pattern = [] {
     std::string out;
     for(const char* ext : RomExts) {
-      if(!out.empty()) out += ';';
+      if(!out.empty()) { out += ';'; }
       out += ext;
     }
     return out;
@@ -94,11 +99,11 @@ const char* romFilterPattern() {
 const std::string& configDir() {
   static const std::string dir = [] {
     if(const char* base = SDL_GetBasePath()) {
-      if(pathExists(std::string(base) + "settings.cfg")) return std::string(base);
+      if(pathExists(std::string(base) + "settings.cfg")) { return std::string(base); }
     }
     char* pref = SDL_GetPrefPath("bsnes-netplay", "imgui");
     std::string path = pref ? pref : "";
-    if(pref) SDL_free(pref);
+    if(pref) { SDL_free(pref); }
     return path;
   }();
   return dir;
@@ -125,7 +130,7 @@ bool writeText(const std::string& path, const std::string& text) {
 
 std::vector<uint8_t> readBytes(const std::string& path) {
   const Loaded file(path);
-  if(!file.data) return {};
+  if(!file.data) { return {}; }
   const uint8_t* bytes = (const uint8_t*)file.data;
   return std::vector<uint8_t>(bytes, bytes + file.size);
 }
@@ -140,7 +145,7 @@ bool ensureDir(const std::string& path) {
 
 int64_t fileTime(const std::string& path) {
   SDL_PathInfo info;
-  if(!SDL_GetPathInfo(path.c_str(), &info)) return 0;
+  if(!SDL_GetPathInfo(path.c_str(), &info)) { return 0; }
   return SDL_NS_TO_SECONDS(info.modify_time);
 }
 
@@ -154,7 +159,7 @@ void SDLCALL onPicked(void* userdata, const char* const* filelist, int) {
 
 bool takePick(FilePick& pick, std::string& path) {
   Guard guard(pick.mutex);
-  if(!pick.ready) return false;
+  if(!pick.ready) { return false; }
   pick.ready = false;
   path = pick.path;
   return true;

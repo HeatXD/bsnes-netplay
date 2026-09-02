@@ -17,22 +17,26 @@ void App::drawCompatibilityTab() {
   }
   ImGui::TextDisabled("Entropy (randomization)");
   dirty |= ImGui::Combo("Startup state", &settings.hackEntropy, EntropyNames, EntropyCount);
-  tip("None suits old homebrew, Low matches a real SNES, High stresses new software.");
+  tip("None suits old homebrew, Low matches a real SNES, High stresses new "
+      "software.");
 
   ImGui::Spacing();
   ImGui::TextDisabled("CPU (processor)");
   dirty |= ImGui::Checkbox("Fast math", &settings.hackCpuFastMath);
-  tip("Returns multiplication and division results immediately, as old emulators did.");
+  tip("Returns multiplication and division results immediately, as old "
+      "emulators did.");
 
   ImGui::Spacing();
   ImGui::TextDisabled("PPU (video)");
   dirty |= ImGui::Checkbox("No VRAM blocking", &settings.hackPpuNoVRAMBlocking);
-  tip("Reproduces an old ZSNES/Snes9X bug some ROM hacks render incorrectly without.");
+  tip("Reproduces an old ZSNES/Snes9X bug some ROM hacks render incorrectly "
+      "without.");
 
   ImGui::Spacing();
   ImGui::TextDisabled("DSP (audio)");
   dirty |= ImGui::Checkbox("Echo shadow RAM", &settings.hackDspEchoShadow);
-  tip("Reproduces a ZSNES bug that older Super Mario World hacks crash without.");
+  tip("Reproduces a ZSNES bug that older Super Mario World hacks crash "
+      "without.");
 
   ImGui::Separator();
   ImGui::TextWrapped("These take effect the next time a game is loaded.");

@@ -8,53 +8,57 @@ void placeFloating(float w, float h) {
   const float x = view->WorkPos.x + (view->WorkSize.x - size.x) / 2.0f;
   const float y = view->WorkPos.y + (view->WorkSize.y - size.y) / 2.0f;
   const bool integrated = !(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable);
-  ImGui::SetNextWindowPos(ImVec2(x, y), integrated ? ImGuiCond_Always
-                                                   : ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(size, integrated ? ImGuiCond_Always
-                                            : ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowPos(ImVec2(x, y), integrated ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(size, integrated ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
 }
 
 namespace {
 constexpr uint64_t MessageMs = 6000;
 
-const struct { const char* name; void (App::*draw)(); } SettingsTabs[] = {
-  {"Video",         &App::drawVideoTab},
-  {"Audio",         &App::drawAudioTab},
-  {"Input",         &App::drawInputTab},
-  {"Hotkeys",       &App::drawHotkeysTab},
-  {"Emulator",      &App::drawEmulatorTab},
-  {"Enhancements",  &App::drawEnhancementsTab},
-  {"Compatibility", &App::drawCompatibilityTab},
-  {"Netplay",       &App::drawNetplayTab},
-  {"Appearance",    &App::drawCustomizationTab},
-  {"Paths",         &App::drawPathsTab},
+const struct {
+  const char* name;
+  void (App::*draw)();
+} SettingsTabs[] = {
+    {"Video", &App::drawVideoTab},
+    {"Audio", &App::drawAudioTab},
+    {"Input", &App::drawInputTab},
+    {"Hotkeys", &App::drawHotkeysTab},
+    {"Emulator", &App::drawEmulatorTab},
+    {"Enhancements", &App::drawEnhancementsTab},
+    {"Compatibility", &App::drawCompatibilityTab},
+    {"Netplay", &App::drawNetplayTab},
+    {"Appearance", &App::drawCustomizationTab},
+    {"Paths", &App::drawPathsTab},
 };
 
 // "(empty)", or when the slot was written
 std::string stateStamp(int64_t seconds) {
-  if(seconds == 0) return "(empty)";
+  if(seconds == 0) { return "(empty)"; }
   SDL_DateTime when;
-  if(!SDL_TimeToDateTime(SDL_SECONDS_TO_NS(seconds), &when, true)) return "(saved)";
+  if(!SDL_TimeToDateTime(SDL_SECONDS_TO_NS(seconds), &when, true)) { return "(saved)"; }
   char text[32];
-  SDL_snprintf(text, sizeof(text), "(%04d-%02d-%02d %02d:%02d)",
-               when.year, when.month, when.day, when.hour, when.minute);
+  SDL_snprintf(text, sizeof(text), "(%04d-%02d-%02d %02d:%02d)", when.year, when.month, when.day,
+               when.hour, when.minute);
   return text;
 }
 }  // namespace
 
 void App::drawFileMenu() {
-  if(ImGui::MenuItem("Open ROM...", "Ctrl+O")) openRomDialog();
-  if(ImGui::MenuItem("Open Game Pak...")) openFolderDialog(pakPick);
-  if(ImGui::MenuItem("Open Sufami Turbo Pair...")) openSufamiPairDialog();
+  if(ImGui::MenuItem("Open ROM...", "Ctrl+O")) { openRomDialog(); }
+  if(ImGui::MenuItem("Open Game Pak...")) { openFolderDialog(pakPick); }
+  if(ImGui::MenuItem("Open Sufami Turbo Pair...")) { openSufamiPairDialog(); }
   // with no game the list is already the home screen
-  if(ImGui::MenuItem("Games", nullptr, showGames, core.loaded())) showGames = !showGames;
+  if(ImGui::MenuItem("Games", nullptr, showGames, core.loaded())) { showGames = !showGames; }
 
   if(ImGui::BeginMenu("Recent", !settings.recent.empty())) {
     for(const std::string& rom : settings.recent) {
-      if(ImGui::MenuItem(recentLabel(rom).c_str())) loadRom(rom);
+      if(ImGui::MenuItem(recentLabel(rom).c_str())) { loadRom(rom); }
     }
     ImGui::Separator();
-    if(ImGui::MenuItem("Clear")) { settings.recent.clear(); settings.save(settingsCfg); }
+    if(ImGui::MenuItem("Clear")) {
+      settings.recent.clear();
+      settings.save(settingsCfg);
+    }
     ImGui::EndMenu();
   }
 
@@ -81,7 +85,7 @@ void App::setWindowScale(int scale) {
 }
 
 std::string windowScaleLabel(int scale, const Settings& settings) {
-  if(scale <= 0) return "Fit window";
+  if(scale <= 0) { return "Fit window"; }
   char label[24];
   SDL_snprintf(label, sizeof(label), "%dx (%dp)", scale, (int)videoHeight(settings) * scale);
   return label;
@@ -96,8 +100,8 @@ void App::drawWindowSizeMenu() {
     }
   }
   ImGui::Separator();
-  if(ImGui::MenuItem("Shrink window to size")) shell.shrinkToFit(settings);
-  if(ImGui::MenuItem("Center window")) shell.center(settings);
+  if(ImGui::MenuItem("Shrink window to size")) { shell.shrinkToFit(settings); }
+  if(ImGui::MenuItem("Center window")) { shell.center(settings); }
 }
 
 void App::drawOutputMenu() {
@@ -111,7 +115,7 @@ void App::drawOutputMenu() {
   ImGui::Separator();
   if(ImGui::MenuItem("Aspect correction (4:3)", nullptr, settings.aspectCorrect)) {
     settings.aspectCorrect = !settings.aspectCorrect;
-    if(settings.windowScale > 0) shell.shrinkToFit(settings);
+    if(settings.windowScale > 0) { shell.shrinkToFit(settings); }
     settings.save(settingsCfg);
   }
   if(ImGui::MenuItem("Linear filtering", nullptr, settings.linearFilter)) {
@@ -121,7 +125,7 @@ void App::drawOutputMenu() {
   if(ImGui::MenuItem("Crop overscan", nullptr, settings.overscanCrop)) {
     settings.overscanCrop = !settings.overscanCrop;
     core.setOverscanCrop(settings.overscanCrop);
-    if(settings.windowScale > 0) shell.shrinkToFit(settings);
+    if(settings.windowScale > 0) { shell.shrinkToFit(settings); }
     settings.save(settingsCfg);
   }
   if(ImGui::MenuItem("Hires blur emulation", nullptr, settings.hiresBlur)) {
@@ -144,7 +148,7 @@ void App::drawFilterMenu() {
 // the slow down and speed up hotkeys walk this same list
 void App::drawSpeedMenu() {
   for(int i = 0; i < SpeedCount; i++) {
-    if(ImGui::MenuItem(SpeedNames[i], nullptr, speedIndex == i)) setSpeed(i);
+    if(ImGui::MenuItem(SpeedNames[i], nullptr, speedIndex == i)) { setSpeed(i); }
   }
 }
 
@@ -158,27 +162,36 @@ void App::drawStateMenu(bool loading) {
     // loading an empty slot only prints a message, so it stays disabled
     if(ImGui::MenuItem(label.c_str(), nullptr, stateSlot == slot, !loading || when != 0)) {
       stateSlot = slot;
-      if(loading) loadState(name); else saveState(name);
+      if(loading) {
+        loadState(name);
+      } else {
+        saveState(name);
+      }
     }
   }
-  if(!loading) return;
+  if(!loading) { return; }
 
   ImGui::Separator();
-  if(ImGui::MenuItem("Undo Last Save", hotkeyShortcut(HkUndoState).c_str(),
-                     false, hasState("undo"))) loadState("undo");
-  if(ImGui::MenuItem("Redo Last Undo", hotkeyShortcut(HkRedoState).c_str(),
-                     false, hasState("redo"))) loadState("redo");
-  if(ImGui::MenuItem("Auto-resume State", nullptr, false, hasState("auto"))) loadState("auto");
+  if(ImGui::MenuItem("Undo Last Save", hotkeyShortcut(HkUndoState).c_str(), false,
+                     hasState("undo"))) {
+    loadState("undo");
+  }
+  if(ImGui::MenuItem("Redo Last Undo", hotkeyShortcut(HkRedoState).c_str(), false,
+                     hasState("redo"))) {
+    loadState("redo");
+  }
+  if(ImGui::MenuItem("Auto-resume State", nullptr, false, hasState("auto"))) { loadState("auto"); }
   ImGui::Separator();
-  if(ImGui::MenuItem("Remove All States")) confirmRemoveStates = true;
+  if(ImGui::MenuItem("Remove All States")) { confirmRemoveStates = true; }
 }
 
 void App::drawRemoveStatesPrompt() {
   if(confirmRemoveStates && !ImGui::IsPopupOpen("Remove states")) {
     ImGui::OpenPopup("Remove states");
   }
-  if(!ImGui::BeginPopupModal("Remove states", nullptr,
-                             ImGuiWindowFlags_AlwaysAutoResize)) return;
+  if(!ImGui::BeginPopupModal("Remove states", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    return;
+  }
 
   ImGui::Text("Permanently remove every state for %s?", gameTitle.c_str());
   ImGui::Separator();
@@ -200,7 +213,7 @@ void App::drawEmulationMenu() {
   // reset, states) or fights GekkoNet's own speed/rollback control (fast
   // forward, speed); all of it stays disabled for the life of a session
   const bool live = core.loaded() && !netplayActive();
-  if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause).c_str(), paused, live)) paused = !paused;
+  if(ImGui::MenuItem("Pause", hotkeyShortcut(HkPause).c_str(), paused, live)) { paused = !paused; }
   if(ImGui::MenuItem("Frame Advance", hotkeyShortcut(HkFrameAdvance).c_str(), false, live)) {
     paused = true;
     advanceOneFrame();
@@ -208,18 +221,29 @@ void App::drawEmulationMenu() {
   if(ImGui::MenuItem("Fast Forward", hotkeyShortcut(HkFastForward).c_str(), fastForward, live)) {
     toggleFastForward();
   }
-  if(ImGui::BeginMenu("Speed", live)) { drawSpeedMenu(); ImGui::EndMenu(); }
+  if(ImGui::BeginMenu("Speed", live)) {
+    drawSpeedMenu();
+    ImGui::EndMenu();
+  }
   if(ImGui::MenuItem("Mute", hotkeyShortcut(HkMute).c_str(), settings.mute)) {
     settings.mute = !settings.mute;
     settings.save(settingsCfg);
   }
   ImGui::Separator();
-  if(ImGui::BeginMenu("Save State", live)) { drawStateMenu(false); ImGui::EndMenu(); }
-  if(ImGui::BeginMenu("Load State", live)) { drawStateMenu(true); ImGui::EndMenu(); }
+  if(ImGui::BeginMenu("Save State", live)) {
+    drawStateMenu(false);
+    ImGui::EndMenu();
+  }
+  if(ImGui::BeginMenu("Load State", live)) {
+    drawStateMenu(true);
+    ImGui::EndMenu();
+  }
 
   ImGui::Separator();
-  if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset).c_str(), false, live)) reset();
-  if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, live)) powerCycle();
+  if(ImGui::MenuItem("Reset", hotkeyShortcut(HkReset).c_str(), false, live)) { reset(); }
+  if(ImGui::MenuItem("Power Cycle", hotkeyShortcut(HkPowerCycle).c_str(), false, live)) {
+    powerCycle();
+  }
 }
 
 void App::drawMovieMenu() {
@@ -232,13 +256,12 @@ void App::drawMovieMenu() {
   if(ImGui::MenuItem("Record from Current State", nullptr, false, core.loaded() && idle)) {
     beginMovieRecording(false);
   }
-  if(ImGui::MenuItem("Reset and Record", nullptr, false, core.loaded() && idle && !netplayActive())) {
+  if(ImGui::MenuItem("Reset and Record", nullptr, false,
+                     core.loaded() && idle && !netplayActive())) {
     beginMovieRecording(true);
   }
   ImGui::Separator();
-  if(ImGui::MenuItem("Stop", nullptr, false, movieMode != MovieMode::Inactive)) {
-    stopMovie();
-  }
+  if(ImGui::MenuItem("Stop", nullptr, false, movieMode != MovieMode::Inactive)) { stopMovie(); }
 }
 
 void App::drawShaderMenu() {
@@ -250,7 +273,7 @@ void App::drawShaderMenu() {
   }
   const std::string dir = shadersDir();
   const std::vector<std::string> folders = shaderList(dir);
-  if(!folders.empty()) ImGui::Separator();
+  if(!folders.empty()) { ImGui::Separator(); }
   for(const std::string& folder : folders) {
     const std::string path = normalPath(dir + "/" + folder);
     if(ImGui::MenuItem(shaderLabel(folder).c_str(), nullptr, settings.videoShader == path)) {
@@ -302,11 +325,20 @@ void App::drawSettingsMenu() {
 }
 
 void App::drawMenuBar() {
-  if(!ImGui::BeginMainMenuBar()) return;
+  if(!ImGui::BeginMainMenuBar()) { return; }
 
-  if(ImGui::BeginMenu("File"))      { drawFileMenu();      ImGui::EndMenu(); }
-  if(ImGui::BeginMenu("Emulation")) { drawEmulationMenu(); ImGui::EndMenu(); }
-  if(ImGui::BeginMenu("Settings"))  { drawSettingsMenu();  ImGui::EndMenu(); }
+  if(ImGui::BeginMenu("File")) {
+    drawFileMenu();
+    ImGui::EndMenu();
+  }
+  if(ImGui::BeginMenu("Emulation")) {
+    drawEmulationMenu();
+    ImGui::EndMenu();
+  }
+  if(ImGui::BeginMenu("Settings")) {
+    drawSettingsMenu();
+    ImGui::EndMenu();
+  }
   if(ImGui::BeginMenu("Netplay")) {
     if(ImGui::MenuItem("Direct P2P", nullptr, showNetplay && netplayTab == 0)) {
       showNetplay = true;
@@ -330,22 +362,24 @@ void App::drawMenuBar() {
     if(ImGui::MenuItem("State Manager", nullptr, showStateManager, core.loaded())) {
       showStateManager = !showStateManager;
     }
-    if(ImGui::MenuItem("Cheats", nullptr, showCheats, core.loaded())) showCheats = !showCheats;
+    if(ImGui::MenuItem("Cheats", nullptr, showCheats, core.loaded())) { showCheats = !showCheats; }
     if(ImGui::MenuItem("Cheat Finder", nullptr, showCheatFinder, core.loaded())) {
       showCheatFinder = !showCheatFinder;
     }
-    if(ImGui::MenuItem("Lua Scripting", nullptr, showScripting)) showScripting = !showScripting;
-    if(ImGui::MenuItem("Diagnostics", nullptr, showTools)) showTools = !showTools;
+    if(ImGui::MenuItem("Lua Scripting", nullptr, showScripting)) { showScripting = !showScripting; }
+    if(ImGui::MenuItem("Diagnostics", nullptr, showTools)) { showTools = !showTools; }
     if(ImGui::MenuItem("Manifest", nullptr, showManifest, core.loaded())) {
       showManifest = !showManifest;
     }
-    if(ImGui::MenuItem("Save Screenshot", hotkeyShortcut(HkScreenshot).c_str(),
-                       false, core.loaded())) takeScreenshot();
+    if(ImGui::MenuItem("Save Screenshot", hotkeyShortcut(HkScreenshot).c_str(), false,
+                       core.loaded())) {
+      takeScreenshot();
+    }
     ImGui::EndMenu();
   }
 
   if(ImGui::BeginMenu("Help")) {
-    if(ImGui::MenuItem("About")) showAbout = true;
+    if(ImGui::MenuItem("About")) { showAbout = true; }
     ImGui::EndMenu();
   }
 
@@ -354,82 +388,87 @@ void App::drawMenuBar() {
 
 // A viewport side bar, so the work area the game fills already excludes it.
 void App::drawStatusBar() {
-  if(!settings.showStatus) return;
+  if(!settings.showStatus) { return; }
 
-  if(!status.empty() && SDL_GetTicks() - messageTime > MessageMs) status.clear();
+  if(!status.empty() && SDL_GetTicks() - messageTime > MessageMs) { status.clear(); }
 
   ImGuiViewport* view = ImGui::GetMainViewport();
   const ImGuiStyle& style = ImGui::GetStyle();
-  const float paddingY = SDL_max(0.0f,
-    SDL_floor((ImGui::GetFrameHeight() - ImGui::GetTextLineHeight()) / 2.0f));
+  const float paddingY =
+      SDL_max(0.0f, SDL_floor((ImGui::GetFrameHeight() - ImGui::GetTextLineHeight()) / 2.0f));
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(style.WindowPadding.x, paddingY));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, style.Colors[ImGuiCol_MenuBarBg]);
   if(ImGui::BeginViewportSideBar("##status", view, ImGuiDir_Down, ImGui::GetFrameHeight(),
-                                 ImGuiWindowFlags_NoScrollbar |
-                                 ImGuiWindowFlags_NoScrollWithMouse |
-                                 ImGuiWindowFlags_NoNavInputs)) {
-      if(core.loaded()) {
-        // bsnes marks the same thing with an icon
-        const bool clean = core.verified();
-        ImGui::TextColored(clean ? ImVec4(0.4f, 0.85f, 0.4f, 1.0f)
-                                 : ImVec4(0.9f, 0.7f, 0.3f, 1.0f), "%s", clean ? "*" : "?");
-        tip(clean ? "A known clean game image; PCB emulation is exact."
-                  : "Not a verified game image; PCB emulation relies on heuristics.");
-        ImGui::SameLine();
-      }
-      const char* leftText = !status.empty() ? status.c_str()
-                           : core.loaded() ? gameTitle.c_str() : "no game";
+                                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                                     ImGuiWindowFlags_NoNavInputs)) {
+    if(core.loaded()) {
+      // bsnes marks the same thing with an icon
+      const bool clean = core.verified();
+      ImGui::TextColored(clean ? ImVec4(0.4f, 0.85f, 0.4f, 1.0f) : ImVec4(0.9f, 0.7f, 0.3f, 1.0f),
+                         "%s", clean ? "*" : "?");
+      tip(clean ? "A known clean game image; PCB emulation is exact."
+                : "Not a verified game image; PCB emulation relies on "
+                  "heuristics.");
+      ImGui::SameLine();
+    }
+    const char* leftText = !status.empty() ? status.c_str()
+                           : core.loaded() ? gameTitle.c_str()
+                                           : "no game";
 
-      const char* state = movieMode == MovieMode::Recording ? "  [movie rec]"
+    const char* state = movieMode == MovieMode::Recording ? "  [movie rec]"
                         : movieMode == MovieMode::Playing ? "  [movie play]"
-                        : fastForward ? "  [ff]" : rewinding ? "  [rewind]"
-                        : paused ? "  [paused]" : "";
-      char full[96], compact[64];
-      SDL_snprintf(full, sizeof(full), "%dx%d  %.1f fps%s",
-                   shell.frameWidth, shell.frameHeight, fps, state);
-      SDL_snprintf(compact, sizeof(compact), "%.0f fps%s", fps, state);
+                        : fastForward                     ? "  [ff]"
+                        : rewinding                       ? "  [rewind]"
+                        : paused                          ? "  [paused]"
+                                                          : "";
+    char full[96], compact[64];
+    SDL_snprintf(full, sizeof(full), "%dx%d  %.1f fps%s", shell.frameWidth, shell.frameHeight, fps,
+                 state);
+    SDL_snprintf(compact, sizeof(compact), "%.0f fps%s", fps, state);
 
-      const ImVec2 leftPos = ImGui::GetCursorScreenPos();
-      const float rightEdge = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 12.0f;
-      const float minimumLeft = ImGui::CalcTextSize("...").x;
-      const float rightBudget = rightEdge - leftPos.x - minimumLeft - style.ItemSpacing.x;
-      const char* rightText = full;
-      float rightWidth = ImGui::CalcTextSize(rightText).x;
-      if(rightWidth > rightBudget) {
-        rightText = compact;
-        rightWidth = ImGui::CalcTextSize(rightText).x;
-      }
-      if(rightWidth > rightBudget) {
-        rightText = *state ? state + 2 : nullptr;
-        rightWidth = rightText ? ImGui::CalcTextSize(rightText).x : 0.0f;
-      }
-      if(rightWidth > rightBudget) { rightText = nullptr; rightWidth = 0.0f; }
+    const ImVec2 leftPos = ImGui::GetCursorScreenPos();
+    const float rightEdge = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 12.0f;
+    const float minimumLeft = ImGui::CalcTextSize("...").x;
+    const float rightBudget = rightEdge - leftPos.x - minimumLeft - style.ItemSpacing.x;
+    const char* rightText = full;
+    float rightWidth = ImGui::CalcTextSize(rightText).x;
+    if(rightWidth > rightBudget) {
+      rightText = compact;
+      rightWidth = ImGui::CalcTextSize(rightText).x;
+    }
+    if(rightWidth > rightBudget) {
+      rightText = *state ? state + 2 : nullptr;
+      rightWidth = rightText ? ImGui::CalcTextSize(rightText).x : 0.0f;
+    }
+    if(rightWidth > rightBudget) {
+      rightText = nullptr;
+      rightWidth = 0.0f;
+    }
 
-      const float rightX = rightEdge - rightWidth;
-      const float leftWidth = SDL_max(0.0f, (rightText ? rightX - style.ItemSpacing.x
-                                                       : rightEdge) - leftPos.x);
-      ImDrawList* drawList = ImGui::GetWindowDrawList();
-      const ImVec2 clipMin(ImGui::GetWindowPos().x + style.WindowBorderSize,
-                           ImGui::GetWindowPos().y + style.WindowBorderSize);
-      const ImVec2 clipMax(ImGui::GetWindowPos().x + ImGui::GetWindowWidth()
-                             - style.WindowBorderSize,
-                           ImGui::GetWindowPos().y + ImGui::GetWindowHeight()
-                             - style.WindowBorderSize);
-      if(leftWidth > 0.0f) {
-        const ImVec2 leftMax(leftPos.x + leftWidth, leftPos.y + ImGui::GetTextLineHeight());
-        const ImVec2 leftSize = ImGui::CalcTextSize(leftText);
-        drawList->PushClipRect(clipMin, clipMax, false);
-        ImGui::RenderTextEllipsis(drawList, leftPos, ImVec2(leftMax.x, clipMax.y),
-                                  leftMax.x, leftMax.x, leftText, nullptr, &leftSize);
-        drawList->PopClipRect();
-        ImGui::Dummy(ImVec2(leftWidth, ImGui::GetTextLineHeight()));
-        if(leftSize.x > leftWidth) tip(leftText);
-      }
-      if(rightText) {
-        drawList->PushClipRect(clipMin, clipMax, false);
-        drawList->AddText(ImVec2(rightX, leftPos.y), ImGui::GetColorU32(ImGuiCol_Text), rightText);
-        drawList->PopClipRect();
-      }
+    const float rightX = rightEdge - rightWidth;
+    const float leftWidth =
+        SDL_max(0.0f, (rightText ? rightX - style.ItemSpacing.x : rightEdge) - leftPos.x);
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const ImVec2 clipMin(ImGui::GetWindowPos().x + style.WindowBorderSize,
+                         ImGui::GetWindowPos().y + style.WindowBorderSize);
+    const ImVec2 clipMax(
+        ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - style.WindowBorderSize,
+        ImGui::GetWindowPos().y + ImGui::GetWindowHeight() - style.WindowBorderSize);
+    if(leftWidth > 0.0f) {
+      const ImVec2 leftMax(leftPos.x + leftWidth, leftPos.y + ImGui::GetTextLineHeight());
+      const ImVec2 leftSize = ImGui::CalcTextSize(leftText);
+      drawList->PushClipRect(clipMin, clipMax, false);
+      ImGui::RenderTextEllipsis(drawList, leftPos, ImVec2(leftMax.x, clipMax.y), leftMax.x,
+                                leftMax.x, leftText, nullptr, &leftSize);
+      drawList->PopClipRect();
+      ImGui::Dummy(ImVec2(leftWidth, ImGui::GetTextLineHeight()));
+      if(leftSize.x > leftWidth) { tip(leftText); }
+    }
+    if(rightText) {
+      drawList->PushClipRect(clipMin, clipMax, false);
+      drawList->AddText(ImVec2(rightX, leftPos.y), ImGui::GetColorU32(ImGuiCol_Text), rightText);
+      drawList->PopClipRect();
+    }
   }
   ImGui::End();
   ImGui::PopStyleColor();
@@ -439,18 +478,19 @@ void App::drawStatusBar() {
 static float settingsNavigationWidth() {
   const ImGuiStyle& style = ImGui::GetStyle();
   float width = 0.0f;
-  for(const auto& tab : SettingsTabs) {
-    width = SDL_max(width, ImGui::CalcTextSize(tab.name).x);
-  }
+  for(const auto& tab : SettingsTabs) { width = SDL_max(width, ImGui::CalcTextSize(tab.name).x); }
   return width + style.FramePadding.x * 2.0f + style.ScrollbarSize;
 }
 
 void App::drawSettingsWindow() {
-  if(!showSettings) return;
+  if(!showSettings) { return; }
 
   placeFloating(720.0f, 480.0f);
   ImGui::SetNextWindowSizeConstraints(ImVec2(520.0f, 240.0f), ImVec2(FLT_MAX, FLT_MAX));
-  if(!ImGui::Begin("Settings", &showSettings)) { ImGui::End(); return; }
+  if(!ImGui::Begin("Settings", &showSettings)) {
+    ImGui::End();
+    return;
+  }
 
   settingsTab = SDL_clamp(settingsTab, 0, IM_ARRAYSIZE(SettingsTabs) - 1);
   ImGui::BeginChild("##settings-navigation", ImVec2(settingsNavigationWidth(), 0.0f),

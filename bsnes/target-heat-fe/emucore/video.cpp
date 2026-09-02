@@ -17,26 +17,27 @@ struct FilterEntry {
 };
 
 constexpr FilterEntry Filters[] = {
-  {"None",             &Filter::None::size,           &Filter::None::render,           0,   0},
-  {"Scanlines (Light)", &Filter::ScanlinesLight::size, &Filter::ScanlinesLight::render, 512, 240},
-  {"Scanlines (Dark)",  &Filter::ScanlinesDark::size,  &Filter::ScanlinesDark::render,  512, 240},
-  {"Scanlines (Black)", &Filter::ScanlinesBlack::size, &Filter::ScanlinesBlack::render, 512, 240},
-  {"Pixellate 2x",      &Filter::Pixellate2x::size,    &Filter::Pixellate2x::render,    512, 480},
-  {"Scale2x",           &Filter::Scale2x::size,        &Filter::Scale2x::render,        256, 240},
-  {"2xSaI",             &Filter::_2xSaI::size,         &Filter::_2xSaI::render,         256, 240},
-  {"Super 2xSaI",       &Filter::Super2xSaI::size,     &Filter::Super2xSaI::render,     256, 240},
-  {"Super Eagle",       &Filter::SuperEagle::size,     &Filter::SuperEagle::render,     256, 240},
-  {"LQ2x",              &Filter::LQ2x::size,           &Filter::LQ2x::render,           256, 240},
-  {"HQ2x",              &Filter::HQ2x::size,           &Filter::HQ2x::render,           256, 240},
-  {"NTSC (RF)",         &Filter::NTSC_RF::size,        &Filter::NTSC_RF::render,        512, 480},
-  {"NTSC (Composite)",  &Filter::NTSC_Composite::size, &Filter::NTSC_Composite::render, 512, 480},
-  {"NTSC (S-Video)",    &Filter::NTSC_SVideo::size,    &Filter::NTSC_SVideo::render,    512, 480},
-  {"NTSC (RGB)",        &Filter::NTSC_RGB::size,       &Filter::NTSC_RGB::render,       512, 480},
+    {"None", &Filter::None::size, &Filter::None::render, 0, 0},
+    {"Scanlines (Light)", &Filter::ScanlinesLight::size, &Filter::ScanlinesLight::render, 512, 240},
+    {"Scanlines (Dark)", &Filter::ScanlinesDark::size, &Filter::ScanlinesDark::render, 512, 240},
+    {"Scanlines (Black)", &Filter::ScanlinesBlack::size, &Filter::ScanlinesBlack::render, 512, 240},
+    {"Pixellate 2x", &Filter::Pixellate2x::size, &Filter::Pixellate2x::render, 512, 480},
+    {"Scale2x", &Filter::Scale2x::size, &Filter::Scale2x::render, 256, 240},
+    {"2xSaI", &Filter::_2xSaI::size, &Filter::_2xSaI::render, 256, 240},
+    {"Super 2xSaI", &Filter::Super2xSaI::size, &Filter::Super2xSaI::render, 256, 240},
+    {"Super Eagle", &Filter::SuperEagle::size, &Filter::SuperEagle::render, 256, 240},
+    {"LQ2x", &Filter::LQ2x::size, &Filter::LQ2x::render, 256, 240},
+    {"HQ2x", &Filter::HQ2x::size, &Filter::HQ2x::render, 256, 240},
+    {"NTSC (RF)", &Filter::NTSC_RF::size, &Filter::NTSC_RF::render, 512, 480},
+    {"NTSC (Composite)", &Filter::NTSC_Composite::size, &Filter::NTSC_Composite::render, 512, 480},
+    {"NTSC (S-Video)", &Filter::NTSC_SVideo::size, &Filter::NTSC_SVideo::render, 512, 480},
+    {"NTSC (RGB)", &Filter::NTSC_RGB::size, &Filter::NTSC_RGB::render, 512, 480},
 };
 constexpr int FilterCount = sizeof(Filters) / sizeof(Filters[0]);
 }  // namespace
 
-// saturation mixes channels via a per-pixel grayscale, then gamma, then luminance
+// saturation mixes channels via a per-pixel grayscale, then gamma, then
+// luminance
 auto EmuCore::Impl::buildPalette() -> void {
   const double gamma = videoGamma / 100.0;
   const double luminance = videoLuminance / 100.0;
@@ -50,15 +51,13 @@ auto EmuCore::Impl::buildPalette() -> void {
     for(uint level : range(32)) {
       uint16 value = level << 3 | level >> 2;
       value = value << 8 | value;
-      if(value <= 32767) value = uint16(32767 * pow(value / 32767.0, gamma));
-      if(luminance != 1.0) value = clamp16(value * luminance);
+      if(value <= 32767) { value = uint16(32767 * pow(value / 32767.0, gamma)); }
+      if(luminance != 1.0) { value = clamp16(value * luminance); }
       ramp[level] = value >> 8;
     }
     for(uint color : range(32768)) {
-      palette[color] = 0xff000000
-                     | ramp[(color >> 10) & 31] << 16
-                     | ramp[(color >> 5) & 31] << 8
-                     | ramp[(color >> 0) & 31];
+      palette[color] = 0xff000000 | ramp[(color >> 10) & 31] << 16 | ramp[(color >> 5) & 31] << 8 |
+                       ramp[(color >> 0) & 31];
     }
     return;
   }
@@ -69,9 +68,12 @@ auto EmuCore::Impl::buildPalette() -> void {
     uint16 r = (color >> 10) & 31;
     uint16 g = (color >> 5) & 31;
     uint16 b = (color >> 0) & 31;
-    r = r << 3 | r >> 2; r = r << 8 | r;
-    g = g << 3 | g >> 2; g = g << 8 | g;
-    b = b << 3 | b >> 2; b = b << 8 | b;
+    r = r << 3 | r >> 2;
+    r = r << 8 | r;
+    g = g << 3 | g >> 2;
+    g = g << 8 | g;
+    b = b << 3 | b >> 2;
+    b = b << 8 | b;
 
     uint16 grayscale = clamp16((r + g + b) / 3.0);
     double inverse = 1.0 - saturation > 0.0 ? 1.0 - saturation : 0.0;
@@ -80,9 +82,9 @@ auto EmuCore::Impl::buildPalette() -> void {
     b = clamp16(b * saturation + grayscale * inverse);
 
     if(gamma != 1.0) {
-      if(r <= 32767) r = uint16(32767 * pow(r / 32767.0, gamma));
-      if(g <= 32767) g = uint16(32767 * pow(g / 32767.0, gamma));
-      if(b <= 32767) b = uint16(32767 * pow(b / 32767.0, gamma));
+      if(r <= 32767) { r = uint16(32767 * pow(r / 32767.0, gamma)); }
+      if(g <= 32767) { g = uint16(32767 * pow(g / 32767.0, gamma)); }
+      if(b <= 32767) { b = uint16(32767 * pow(b / 32767.0, gamma)); }
     }
 
     if(luminance != 1.0) {
@@ -95,8 +97,9 @@ auto EmuCore::Impl::buildPalette() -> void {
   }
 }
 
-auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint height, uint scale) -> void {
-  if(!owner.onVideo) return;
+auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint height, uint scale)
+    -> void {
+  if(!owner.onVideo) { return; }
 
   // crop before filtering, so the filter sees exactly the
   // visible picture and its edge rows are the ones actually shown
@@ -109,16 +112,16 @@ auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint 
   // HD mode 7 and hires/interlaced frames outside a filter's working size
   // fall back to the identity filter
   const FilterEntry* filter = &Filters[filterIndex];
-  bool eligible = scale == 1 && filter->maxWidth
-                && width <= filter->maxWidth && height <= filter->maxHeight;
-  if(filterIndex != 0 && !eligible) filter = &Filters[0];
+  bool eligible =
+      scale == 1 && filter->maxWidth && width <= filter->maxWidth && height <= filter->maxHeight;
+  if(filterIndex != 0 && !eligible) { filter = &Filters[0]; }
 
   uint filterWidth = width, filterHeight = height;
   filter->size(filterWidth, filterHeight);
 
   filterScratch.resize((size_t)filterWidth * filterHeight);
-  filter->render(palette.data(), filterScratch.data(), filterWidth * (uint)sizeof(uint32_t),
-                 data, pitch, width, height);
+  filter->render(palette.data(), filterScratch.data(), filterWidth * (uint)sizeof(uint32_t), data,
+                 pitch, width, height);
 
   const uint32_t* src = filterScratch.data();
   const uint outWidth = filterWidth, outHeight = filterHeight;
@@ -130,7 +133,8 @@ auto EmuCore::Impl::videoFrame(const uint16* data, uint pitch, uint width, uint 
   }
 
   for(uint y : range(outHeight)) {
-    memory::copy(videoOut.data() + y * outWidth, src + y * filterWidth, outWidth * sizeof(uint32_t));
+    memory::copy(videoOut.data() + y * outWidth, src + y * filterWidth,
+                 outWidth * sizeof(uint32_t));
   }
 
   owner.onVideo(videoOut.data(), (int)outWidth, (int)outHeight);
@@ -147,13 +151,16 @@ void EmuCore::setPaletteAdjust(int gammaPercent, int luminancePercent, int satur
 
 void EmuCore::setFilter(const std::string& name) {
   for(int i = 0; i < FilterCount; i++) {
-    if(name == Filters[i].name) { impl->filterIndex = i; return; }
+    if(name == Filters[i].name) {
+      impl->filterIndex = i;
+      return;
+    }
   }
   impl->filterIndex = 0;
 }
 
 std::vector<std::string> EmuCore::filterNames() const {
   std::vector<std::string> names;
-  for(int i = 0; i < FilterCount; i++) names.push_back(Filters[i].name);
+  for(int i = 0; i < FilterCount; i++) { names.push_back(Filters[i].name); }
   return names;
 }

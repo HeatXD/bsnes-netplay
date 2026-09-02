@@ -16,6 +16,7 @@ LuaEngine::LuaEngine(App& app) : app(app) {
   physicalInput.resize(inputs);
   inputOverrideSet.resize(inputs);
 }
+
 LuaEngine::~LuaEngine() { close(); }
 
 void LuaEngine::clearInputOverrides() {
@@ -23,7 +24,7 @@ void LuaEngine::clearInputOverrides() {
     for(int port = 0; port < EmuCore::PortCount; port++) {
       for(int input = 0; input < EmuCore::MaxInputs; input++) {
         const int slot = port * EmuCore::MaxInputs + input;
-        if(inputOverrideSet[slot]) app.core.setInput(port, input, physicalInput[slot]);
+        if(inputOverrideSet[slot]) { app.core.setInput(port, input, physicalInput[slot]); }
       }
     }
   }
@@ -34,7 +35,7 @@ void LuaEngine::clearInputOverrides() {
 
 void LuaEngine::close() {
   clearInputOverrides();
-  if(state) lua_close(state);
+  if(state) { lua_close(state); }
   state = nullptr;
   active = false;
   beforeFramePrepared = false;
@@ -47,7 +48,7 @@ void LuaEngine::close() {
 bool LuaEngine::failFromStack(const char* prefix) {
   const char* detail = state ? lua_tostring(state, -1) : nullptr;
   lastError = std::string(prefix) + (detail ? detail : "unknown error");
-  if(state) lua_pop(state, 1);
+  if(state) { lua_pop(state, 1); }
   appendConsole(lastError);
   clearInputOverrides();
   active = false;
@@ -62,7 +63,7 @@ bool LuaEngine::failFromStack(const char* prefix) {
 
 void LuaEngine::appendConsole(std::string text) {
   constexpr size_t MaxConsoleBytes = 64 * 1024;
-  if(text.empty() || text.back() != '\n') text += '\n';
+  if(text.empty() || text.back() != '\n') { text += '\n'; }
   if(text.size() > MaxConsoleBytes) {
     text.resize(MaxConsoleBytes - 20);
     text += "\n[output truncated]\n";
@@ -103,13 +104,13 @@ bool LuaEngine::load(const std::string& path) {
     return false;
   }
   const luaL_Reg libraries[] = {
-    {LUA_GNAME, luaopen_base},
-    {LUA_COLIBNAME, luaopen_coroutine},
-    {LUA_TABLIBNAME, luaopen_table},
-    {LUA_STRLIBNAME, luaopen_string},
-    {LUA_MATHLIBNAME, luaopen_math},
-    {LUA_UTF8LIBNAME, luaopen_utf8},
-    {nullptr, nullptr},
+      {LUA_GNAME, luaopen_base},
+      {LUA_COLIBNAME, luaopen_coroutine},
+      {LUA_TABLIBNAME, luaopen_table},
+      {LUA_STRLIBNAME, luaopen_string},
+      {LUA_MATHLIBNAME, luaopen_math},
+      {LUA_UTF8LIBNAME, luaopen_utf8},
+      {nullptr, nullptr},
   };
   for(const luaL_Reg* library = libraries; library->func; library++) {
     luaL_requiref(state, library->name, library->func, true);
@@ -121,8 +122,8 @@ bool LuaEngine::load(const std::string& path) {
   }
   registerApi();
 
-  if(luaL_loadfile(state, scriptPath.c_str()) != LUA_OK) return failFromStack("Lua load: ");
-  if(lua_pcall(state, 0, 0, 0) != LUA_OK) return failFromStack("Lua start: ");
+  if(luaL_loadfile(state, scriptPath.c_str()) != LUA_OK) { return failFromStack("Lua load: "); }
+  if(lua_pcall(state, 0, 0, 0) != LUA_OK) { return failFromStack("Lua start: "); }
 
   active = true;
   app.showMessage("running " + fileName(scriptPath));
@@ -141,8 +142,8 @@ EmuCore::MemoryDomain memoryDomain(lua_State* state, int upvalue) {
   return (EmuCore::MemoryDomain)lua_tointeger(state, lua_upvalueindex(upvalue));
 }
 
-uint32_t checkedAddress(lua_State* state, const EmuCore& core,
-                        EmuCore::MemoryDomain domain, int bytes) {
+uint32_t checkedAddress(lua_State* state, const EmuCore& core, EmuCore::MemoryDomain domain,
+                        int bytes) {
   const lua_Integer value = luaL_checkinteger(state, 1);
   const uint32_t size = core.memorySize(domain);
   luaL_argcheck(state, value >= 0 && (lua_Unsigned)value < size, 1,
@@ -151,11 +152,11 @@ uint32_t checkedAddress(lua_State* state, const EmuCore& core,
                 "access crosses the end of the memory domain");
   return (uint32_t)value;
 }
-}
+}  // namespace
 
 int LuaEngine::readMemory(lua_State* state) {
   LuaEngine& engine = from(state);
-  if(!engine.app.core.loaded()) return luaL_error(state, "no game is loaded");
+  if(!engine.app.core.loaded()) { return luaL_error(state, "no game is loaded"); }
 
   const int bytes = (int)lua_tointeger(state, lua_upvalueindex(1));
   const auto domain = memoryDomain(state, 3);
@@ -167,7 +168,8 @@ int LuaEngine::readMemory(lua_State* state) {
     value |= (lua_Unsigned)engine.app.core.readMemory(domain, address + i) << shift;
   }
   const bool signedValue = lua_toboolean(state, lua_upvalueindex(4));
-  if(signedValue && bytes < (int)sizeof(lua_Integer) && (value & ((lua_Unsigned)1 << (bytes * 8 - 1)))) {
+  if(signedValue && bytes < (int)sizeof(lua_Integer) &&
+     (value & ((lua_Unsigned)1 << (bytes * 8 - 1)))) {
     value |= ~(((lua_Unsigned)1 << (bytes * 8)) - 1);
   }
   lua_pushinteger(state, (lua_Integer)value);
@@ -176,7 +178,7 @@ int LuaEngine::readMemory(lua_State* state) {
 
 int LuaEngine::writeMemory(lua_State* state) {
   LuaEngine& engine = from(state);
-  if(!engine.app.core.loaded()) return luaL_error(state, "no game is loaded");
+  if(!engine.app.core.loaded()) { return luaL_error(state, "no game is loaded"); }
 
   const lua_Unsigned value = (lua_Unsigned)luaL_checkinteger(state, 2);
   const int bytes = (int)lua_tointeger(state, lua_upvalueindex(1));
@@ -192,7 +194,7 @@ int LuaEngine::writeMemory(lua_State* state) {
 
 int LuaEngine::readBit(lua_State* state) {
   LuaEngine& engine = from(state);
-  if(!engine.app.core.loaded()) return luaL_error(state, "no game is loaded");
+  if(!engine.app.core.loaded()) { return luaL_error(state, "no game is loaded"); }
   const auto domain = memoryDomain(state, 1);
   const uint32_t address = checkedAddress(state, engine.app.core, domain, 1);
   const int bit = (int)luaL_checkinteger(state, 2);
@@ -203,39 +205,40 @@ int LuaEngine::readBit(lua_State* state) {
 
 int LuaEngine::writeBit(lua_State* state) {
   LuaEngine& engine = from(state);
-  if(!engine.app.core.loaded()) return luaL_error(state, "no game is loaded");
+  if(!engine.app.core.loaded()) { return luaL_error(state, "no game is loaded"); }
   const auto domain = memoryDomain(state, 1);
   const uint32_t address = checkedAddress(state, engine.app.core, domain, 1);
   const int bit = (int)luaL_checkinteger(state, 2);
   luaL_argcheck(state, bit >= 0 && bit < 8, 2, "bit must be from 0 to 7");
   uint8_t value = engine.app.core.readMemory(domain, address);
-  if(lua_toboolean(state, 3)) value |= (uint8_t)(1u << bit);
-  else value &= (uint8_t)~(1u << bit);
+  if(lua_toboolean(state, 3)) {
+    value |= (uint8_t)(1u << bit);
+  } else {
+    value &= (uint8_t)~(1u << bit);
+  }
   engine.app.core.writeMemory(domain, address, value);
   return 0;
 }
 
 namespace {
 uint32_t tableColor(lua_State* state, int table, const char* name, uint32_t fallback) {
-  if(!lua_istable(state, table)) return fallback;
+  if(!lua_istable(state, table)) { return fallback; }
   lua_getfield(state, table, name);
-  const uint32_t value = lua_isinteger(state, -1)
-                       ? (uint32_t)lua_tointeger(state, -1) : fallback;
+  const uint32_t value = lua_isinteger(state, -1) ? (uint32_t)lua_tointeger(state, -1) : fallback;
   lua_pop(state, 1);
   return value;
 }
 
 float tableNumber(lua_State* state, int table, const char* name, float fallback) {
-  if(!lua_istable(state, table)) return fallback;
+  if(!lua_istable(state, table)) { return fallback; }
   lua_getfield(state, table, name);
   const float value = lua_isnumber(state, -1) ? (float)lua_tonumber(state, -1) : fallback;
   lua_pop(state, 1);
   return value;
 }
 
-std::string tableString(lua_State* state, int table, const char* name,
-                        const char* fallback = "") {
-  if(!lua_istable(state, table)) return fallback;
+std::string tableString(lua_State* state, int table, const char* name, const char* fallback = "") {
+  if(!lua_istable(state, table)) { return fallback; }
   lua_getfield(state, table, name);
   std::string value = lua_isstring(state, -1) ? lua_tostring(state, -1) : fallback;
   lua_pop(state, 1);
@@ -245,7 +248,7 @@ std::string tableString(lua_State* state, int table, const char* name,
 ImU32 imguiColor(uint32_t argb) {
   return IM_COL32((argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff, argb >> 24);
 }
-}
+}  // namespace
 
 int LuaEngine::drawBox(lua_State* state) {
   LuaEngine& engine = from(state);
@@ -327,13 +330,16 @@ int LuaEngine::drawText(lua_State* state) {
   command.outline = tableColor(state, 4, "outline", 0xff000000u);
   command.size = tableNumber(state, 4, "size", 13.0f);
   const std::string align = tableString(state, 4, "align", "left");
-  if(align == "center") command.align = DrawCommand::Center;
-  else if(align == "right") command.align = DrawCommand::Right;
-  else luaL_argcheck(state, align == "left", 4, "align must be 'left', 'center', or 'right'");
+  if(align == "center") {
+    command.align = DrawCommand::Center;
+  } else if(align == "right") {
+    command.align = DrawCommand::Right;
+  } else {
+    luaL_argcheck(state, align == "left", 4, "align must be 'left', 'center', or 'right'");
+  }
   const std::string font = tableString(state, 4, "font", "pixel");
   command.pixelFont = font == "pixel";
-  luaL_argcheck(state, command.pixelFont || font == "ui", 4,
-                "font must be 'pixel' or 'ui'");
+  luaL_argcheck(state, command.pixelFont || font == "ui", 4, "font must be 'pixel' or 'ui'");
   engine.commands.push_back(std::move(command));
   return 0;
 }
@@ -391,7 +397,8 @@ namespace {
 int inputIndex(lua_State* state, App& app, int port) {
   if(lua_isinteger(state, 2)) {
     const int index = (int)lua_tointeger(state, 2);
-    luaL_argcheck(state, index >= 0 && index < EmuCore::MaxInputs, 2, "input index is out of range");
+    luaL_argcheck(state, index >= 0 && index < EmuCore::MaxInputs, 2,
+                  "input index is out of range");
     return index;
   }
 
@@ -399,12 +406,12 @@ int inputIndex(lua_State* state, App& app, int port) {
   const int device = app.core.connectedDevice(port);
   const auto& inputs = app.core.inputs(device);
   for(int i = 0; i < (int)inputs.size(); i++) {
-    if(SDL_strcasecmp(inputs[i].name.c_str(), wanted) == 0) return i;
+    if(SDL_strcasecmp(inputs[i].name.c_str(), wanted) == 0) { return i; }
   }
   luaL_error(state, "unknown input '%s'", wanted);
   return 0;
 }
-}
+}  // namespace
 
 int LuaEngine::inputValue(lua_State* state) {
   LuaEngine& engine = from(state);
@@ -418,7 +425,8 @@ int LuaEngine::inputHeld(lua_State* state) {
   LuaEngine& engine = from(state);
   const int port = (int)luaL_checkinteger(state, 1) - 1;
   luaL_argcheck(state, port >= 0 && port < EmuCore::PortCount, 1, "port must be from 1 to 3");
-  lua_pushboolean(state, engine.app.core.inputValue(port, inputIndex(state, engine.app, port)) != 0);
+  lua_pushboolean(state,
+                  engine.app.core.inputValue(port, inputIndex(state, engine.app, port)) != 0);
   return 1;
 }
 
@@ -427,14 +435,14 @@ int LuaEngine::inputSet(lua_State* state) {
   const int port = (int)luaL_checkinteger(state, 1) - 1;
   luaL_argcheck(state, port >= 0 && port < EmuCore::PortCount, 1, "port must be from 1 to 3");
   const int input = inputIndex(state, engine.app, port);
-  lua_Integer value = lua_isboolean(state, 3) ? lua_toboolean(state, 3)
-                                               : luaL_checkinteger(state, 3);
+  lua_Integer value =
+      lua_isboolean(state, 3) ? lua_toboolean(state, 3) : luaL_checkinteger(state, 3);
   luaL_argcheck(state, value >= -32768 && value <= 32767, 3,
                 "input value must fit in a signed 16-bit integer");
   const int slot = port * EmuCore::MaxInputs + input;
   engine.inputOverrides[slot] = (int16_t)value;
   engine.inputOverrideSet[slot] = 1;
-  if(engine.inBeforeFrame) engine.app.core.setInput(port, input, (int16_t)value);
+  if(engine.inBeforeFrame) { engine.app.core.setInput(port, input, (int16_t)value); }
   return 0;
 }
 
@@ -445,7 +453,9 @@ int LuaEngine::inputClear(lua_State* state) {
   const int input = inputIndex(state, engine.app, port);
   const int slot = port * EmuCore::MaxInputs + input;
   engine.inputOverrideSet[slot] = 0;
-  if(engine.havePhysicalInput) engine.app.core.setInput(port, input, engine.physicalInput[slot]);
+  if(engine.havePhysicalInput) {
+    engine.app.core.setInput(port, input, engine.physicalInput[slot]);
+  }
   return 0;
 }
 
@@ -470,7 +480,7 @@ int LuaEngine::consoleLog(lua_State* state) {
   for(int index = 1; index <= values; index++) {
     size_t length = 0;
     const char* value = luaL_tolstring(state, index, &length);
-    if(index > 1) line += '\t';
+    if(index > 1) { line += '\t'; }
     line.append(value, length);
     lua_pop(state, 1);
   }
@@ -489,7 +499,7 @@ std::string checkedStateSlot(lua_State* state) {
   luaL_argcheck(state, slot >= 1 && slot <= StateSlots, 1, "slot must be from 1 to 9");
   return App::slotName(slot);
 }
-}
+}  // namespace
 
 int LuaEngine::saveState(lua_State* state) {
   LuaEngine& engine = from(state);
@@ -527,14 +537,14 @@ int LuaEngine::emuPaused(lua_State* state) {
 
 int LuaEngine::emuPause(lua_State* state) {
   App& app = from(state).app;
-  if(app.core.loaded()) app.paused = true;
+  if(app.core.loaded()) { app.paused = true; }
   lua_pushboolean(state, app.core.loaded());
   return 1;
 }
 
 int LuaEngine::emuResume(lua_State* state) {
   App& app = from(state).app;
-  if(app.core.loaded()) app.paused = false;
+  if(app.core.loaded()) { app.paused = false; }
   lua_pushboolean(state, app.core.loaded());
   return 1;
 }
@@ -542,7 +552,7 @@ int LuaEngine::emuResume(lua_State* state) {
 int LuaEngine::emuReset(lua_State* state) {
   App& app = from(state).app;
   const bool loaded = app.core.loaded();
-  if(loaded) app.reset();
+  if(loaded) { app.reset(); }
   lua_pushboolean(state, loaded);
   return 1;
 }
@@ -550,7 +560,7 @@ int LuaEngine::emuReset(lua_State* state) {
 int LuaEngine::emuPower(lua_State* state) {
   App& app = from(state).app;
   const bool loaded = app.core.loaded();
-  if(loaded) app.powerCycle();
+  if(loaded) { app.powerCycle(); }
   lua_pushboolean(state, loaded);
   return 1;
 }
@@ -580,8 +590,8 @@ std::string checkedScriptPath(lua_State* state) {
   while(start <= path.size()) {
     const size_t end = path.find('/', start);
     const std::string part = path.substr(start, end - start);
-    if(part == "..") luaL_argerror(state, 1, "path cannot leave the script directory");
-    if(end == std::string::npos) break;
+    if(part == "..") { luaL_argerror(state, 1, "path cannot leave the script directory"); }
+    if(end == std::string::npos) { break; }
     start = end + 1;
   }
   return path;
@@ -596,7 +606,7 @@ std::string packagedScriptFile(lua_State* state, LuaEngine& engine) {
   const std::string relative = checkedScriptPath(state);
   return directory.empty() ? relative : directory + "/" + relative;
 }
-}
+}  // namespace
 
 int LuaEngine::saveStateFile(lua_State* state) {
   LuaEngine& engine = from(state);
@@ -626,13 +636,15 @@ int LuaEngine::fileWrite(lua_State* state) {
   size_t size = 0;
   const char* bytes = luaL_checklstring(state, 2, &size);
   const bool append = lua_toboolean(state, lua_upvalueindex(1));
-  if(!ensureDir(parentDir(path))) return luaL_error(state, "could not create the data directory");
+  if(!ensureDir(parentDir(path))) {
+    return luaL_error(state, "could not create the data directory");
+  }
 
   SDL_IOStream* file = SDL_IOFromFile(path.c_str(), append ? "ab" : "wb");
-  if(!file) return luaL_error(state, "could not open '%s'", path.c_str());
+  if(!file) { return luaL_error(state, "could not open '%s'", path.c_str()); }
   const bool wrote = SDL_WriteIO(file, bytes, size) == size;
   const bool closed = SDL_CloseIO(file);
-  if(!wrote || !closed) return luaL_error(state, "could not write '%s'", path.c_str());
+  if(!wrote || !closed) { return luaL_error(state, "could not write '%s'", path.c_str()); }
   lua_pushboolean(state, true);
   return 1;
 }
@@ -649,13 +661,13 @@ SDL_EnumerationResult SDLCALL collectScriptFile(void* userdata, const char*, con
   ((std::vector<std::string>*)userdata)->push_back(name);
   return SDL_ENUM_CONTINUE;
 }
-}
+}  // namespace
 
 int LuaEngine::fileList(lua_State* state) {
   LuaEngine& engine = from(state);
   const bool root = lua_isnoneornil(state, 1);
   const std::string path = root ? engine.dataDirectory() : scriptFile(state, engine);
-  if(root && !ensureDir(path)) return luaL_error(state, "could not create the data directory");
+  if(root && !ensureDir(path)) { return luaL_error(state, "could not create the data directory"); }
   SDL_PathInfo info{};
   if(!SDL_GetPathInfo(path.c_str(), &info) || info.type != SDL_PATHTYPE_DIRECTORY) {
     return luaL_error(state, "path is not a directory");
@@ -691,23 +703,28 @@ int LuaEngine::fileDirectory(lua_State* state) {
 void LuaEngine::registerApi() {
   lua_pushlightuserdata(state, this);
   lua_setfield(state, LUA_REGISTRYINDEX, "heat-fe.lua");
-  const struct { const char* name; int bytes; bool little; bool write; bool signedValue; } functions[] = {
-    {"read_u8", 1, true, false, false},
-    {"read_u16_le", 2, true, false, false}, {"read_u16_be", 2, false, false, false},
-    {"read_u24_le", 3, true, false, false}, {"read_u24_be", 3, false, false, false},
-    {"read_u32_le", 4, true, false, false}, {"read_u32_be", 4, false, false, false},
-    {"read_s8", 1, true, false, true},
-    {"read_s16_le", 2, true, false, true}, {"read_s16_be", 2, false, false, true},
-    {"read_s24_le", 3, true, false, true}, {"read_s24_be", 3, false, false, true},
-    {"read_s32_le", 4, true, false, true}, {"read_s32_be", 4, false, false, true},
-    {"write_u8", 1, true, true, false},
-    {"write_u16_le", 2, true, true, false}, {"write_u16_be", 2, false, true, false},
-    {"write_u24_le", 3, true, true, false}, {"write_u24_be", 3, false, true, false},
-    {"write_u32_le", 4, true, true, false}, {"write_u32_be", 4, false, true, false},
-    {"write_s8", 1, true, true, true},
-    {"write_s16_le", 2, true, true, true}, {"write_s16_be", 2, false, true, true},
-    {"write_s24_le", 3, true, true, true}, {"write_s24_be", 3, false, true, true},
-    {"write_s32_le", 4, true, true, true}, {"write_s32_be", 4, false, true, true},
+
+  const struct {
+    const char* name;
+    int bytes;
+    bool little;
+    bool write;
+    bool signedValue;
+  } functions[] = {
+      {"read_u8", 1, true, false, false},      {"read_u16_le", 2, true, false, false},
+      {"read_u16_be", 2, false, false, false}, {"read_u24_le", 3, true, false, false},
+      {"read_u24_be", 3, false, false, false}, {"read_u32_le", 4, true, false, false},
+      {"read_u32_be", 4, false, false, false}, {"read_s8", 1, true, false, true},
+      {"read_s16_le", 2, true, false, true},   {"read_s16_be", 2, false, false, true},
+      {"read_s24_le", 3, true, false, true},   {"read_s24_be", 3, false, false, true},
+      {"read_s32_le", 4, true, false, true},   {"read_s32_be", 4, false, false, true},
+      {"write_u8", 1, true, true, false},      {"write_u16_le", 2, true, true, false},
+      {"write_u16_be", 2, false, true, false}, {"write_u24_le", 3, true, true, false},
+      {"write_u24_be", 3, false, true, false}, {"write_u32_le", 4, true, true, false},
+      {"write_u32_be", 4, false, true, false}, {"write_s8", 1, true, true, true},
+      {"write_s16_le", 2, true, true, true},   {"write_s16_be", 2, false, true, true},
+      {"write_s24_le", 3, true, true, true},   {"write_s24_be", 3, false, true, true},
+      {"write_s32_le", 4, true, true, true},   {"write_s32_be", 4, false, true, true},
   };
 
   auto addMemoryDomain = [&](EmuCore::MemoryDomain domain) {
@@ -731,11 +748,16 @@ void LuaEngine::registerApi() {
 
   lua_newtable(state);
   addMemoryDomain(EmuCore::MemoryDomain::Bus);
-  const struct { const char* name; EmuCore::MemoryDomain domain; } domains[] = {
-    {"wram", EmuCore::MemoryDomain::WRAM}, {"vram", EmuCore::MemoryDomain::VRAM},
-    {"cgram", EmuCore::MemoryDomain::CGRAM}, {"oam", EmuCore::MemoryDomain::OAM},
-    {"apuram", EmuCore::MemoryDomain::APURAM},
+
+  const struct {
+    const char* name;
+    EmuCore::MemoryDomain domain;
+  } domains[] = {
+      {"wram", EmuCore::MemoryDomain::WRAM},     {"vram", EmuCore::MemoryDomain::VRAM},
+      {"cgram", EmuCore::MemoryDomain::CGRAM},   {"oam", EmuCore::MemoryDomain::OAM},
+      {"apuram", EmuCore::MemoryDomain::APURAM},
   };
+
   for(const auto& domain : domains) {
     lua_newtable(state);
     addMemoryDomain(domain.domain);
@@ -745,18 +767,17 @@ void LuaEngine::registerApi() {
 
   lua_newtable(state);
   const luaL_Reg gui[] = {
-    {"box", drawBox}, {"circle", drawCircle}, {"ellipse", drawEllipse},
-    {"line", drawLine}, {"pixel", drawPixel}, {"text", drawText},
-    {"window", guiWindow}, {"label", guiLabel}, {"button", guiButton},
-    {nullptr, nullptr},
+      {"box", drawBox},      {"circle", drawCircle}, {"ellipse", drawEllipse}, {"line", drawLine},
+      {"pixel", drawPixel},  {"text", drawText},     {"window", guiWindow},    {"label", guiLabel},
+      {"button", guiButton}, {nullptr, nullptr},
   };
   luaL_setfuncs(state, gui, 0);
   lua_setglobal(state, "gui");
 
   lua_newtable(state);
   const luaL_Reg input[] = {
-    {"value", inputValue}, {"held", inputHeld}, {"set", inputSet},
-    {"clear", inputClear}, {"clear_all", inputClearAll}, {nullptr, nullptr},
+      {"value", inputValue}, {"held", inputHeld},          {"set", inputSet},
+      {"clear", inputClear}, {"clear_all", inputClearAll}, {nullptr, nullptr},
   };
   luaL_setfuncs(state, input, 0);
   lua_setglobal(state, "input");
@@ -765,25 +786,27 @@ void LuaEngine::registerApi() {
   lua_setglobal(state, "print");
   lua_newtable(state);
   const luaL_Reg console[] = {
-    {"log", consoleLog}, {"clear", consoleClear}, {nullptr, nullptr},
+      {"log", consoleLog},
+      {"clear", consoleClear},
+      {nullptr, nullptr},
   };
   luaL_setfuncs(state, console, 0);
   lua_setglobal(state, "console");
 
   lua_newtable(state);
   const luaL_Reg savestate[] = {
-    {"save", saveState}, {"load", loadState}, {"exists", hasState},
-    {"remove", removeState}, {"save_file", saveStateFile},
-    {"load_file", loadStateFile}, {nullptr, nullptr},
+      {"save", saveState},     {"load", loadState},          {"exists", hasState},
+      {"remove", removeState}, {"save_file", saveStateFile}, {"load_file", loadStateFile},
+      {nullptr, nullptr},
   };
   luaL_setfuncs(state, savestate, 0);
   lua_setglobal(state, "savestate");
 
   lua_newtable(state);
   const luaL_Reg emu[] = {
-    {"loaded", emuLoaded}, {"paused", emuPaused}, {"pause", emuPause},
-    {"resume", emuResume}, {"reset", emuReset}, {"power", emuPower},
-    {"frame", emuFrame}, {"game", emuGame}, {nullptr, nullptr},
+      {"loaded", emuLoaded}, {"paused", emuPaused}, {"pause", emuPause},
+      {"resume", emuResume}, {"reset", emuReset},   {"power", emuPower},
+      {"frame", emuFrame},   {"game", emuGame},     {nullptr, nullptr},
   };
   luaL_setfuncs(state, emu, 0);
   lua_setglobal(state, "emu");
@@ -809,7 +832,7 @@ void LuaEngine::registerApi() {
 }
 
 bool LuaEngine::reload() {
-  if(scriptPath.empty()) return false;
+  if(scriptPath.empty()) { return false; }
   const std::string path = scriptPath;
   return load(path);
 }
@@ -817,11 +840,11 @@ bool LuaEngine::reload() {
 void LuaEngine::stop() {
   close();
   lastError.clear();
-  if(!scriptPath.empty()) app.showMessage("stopped " + fileName(scriptPath));
+  if(!scriptPath.empty()) { app.showMessage("stopped " + fileName(scriptPath)); }
 }
 
 bool LuaEngine::runFrame() {
-  if(!active || !state) return false;
+  if(!active || !state) { return false; }
   if(!beforeFramePrepared) {
     commands.clear();
     windows.clear();
@@ -840,13 +863,13 @@ bool LuaEngine::runFrame() {
     lua_pushliteral(state, "on_frame must be a function");
     return failFromStack("Lua frame: ");
   }
-  if(lua_pcall(state, 0, 0, 0) != LUA_OK) return failFromStack("Lua frame: ");
+  if(lua_pcall(state, 0, 0, 0) != LUA_OK) { return failFromStack("Lua frame: "); }
   clickedWidgets.clear();
   return true;
 }
 
 bool LuaEngine::runBeforeFrame() {
-  if(!active || !state) return false;
+  if(!active || !state) { return false; }
 
   commands.clear();
   windows.clear();
@@ -857,7 +880,7 @@ bool LuaEngine::runBeforeFrame() {
     for(int input = 0; input < EmuCore::MaxInputs; input++) {
       const int slot = port * EmuCore::MaxInputs + input;
       physicalInput[slot] = app.core.inputValue(port, input);
-      if(inputOverrideSet[slot]) app.core.setInput(port, input, inputOverrides[slot]);
+      if(inputOverrideSet[slot]) { app.core.setInput(port, input, inputOverrides[slot]); }
     }
   }
   havePhysicalInput = true;
@@ -884,8 +907,10 @@ bool LuaEngine::runBeforeFrame() {
 }
 
 void LuaEngine::drawOverlay() {
-  if((commands.empty() && windows.empty()) || app.shell.drawWidth <= 0
-      || app.shell.drawHeight <= 0) return;
+  if((commands.empty() && windows.empty()) || app.shell.drawWidth <= 0 ||
+     app.shell.drawHeight <= 0) {
+    return;
+  }
 
   const float sx = app.shell.drawWidth / 256.0f;
   const float sy = app.shell.drawHeight / videoHeight(app.settings);
@@ -900,14 +925,14 @@ void LuaEngine::drawOverlay() {
     ImVec2 p1 = point(command.x1, command.y1);
     if(command.type == DrawCommand::Box) {
       const ImVec2 p2 = point(command.x2, command.y2);
-      if(command.color >> 24) draw->AddRectFilled(p1, p2, imguiColor(command.color));
+      if(command.color >> 24) { draw->AddRectFilled(p1, p2, imguiColor(command.color)); }
       if(command.outline >> 24) {
         draw->AddRect(p1, p2, imguiColor(command.outline), 0.0f, 0,
                       SDL_max(1.0f, command.thickness * sy));
       }
     } else if(command.type == DrawCommand::Ellipse) {
       const ImVec2 radius(command.x2 * sx, command.y2 * sy);
-      if(command.color >> 24) draw->AddEllipseFilled(p1, radius, imguiColor(command.color));
+      if(command.color >> 24) { draw->AddEllipseFilled(p1, radius, imguiColor(command.color)); }
       if(command.outline >> 24) {
         draw->AddEllipse(p1, radius, imguiColor(command.outline), 0.0f, 0,
                          SDL_max(1.0f, command.thickness * sy));
@@ -922,12 +947,19 @@ void LuaEngine::drawOverlay() {
       const float size = command.size * sy;
       ImFont* font = command.pixelFont && app.luaPixelFont ? app.luaPixelFont : ImGui::GetFont();
       const ImVec2 extent = font->CalcTextSizeA(size, FLT_MAX, 0.0f, command.text.c_str());
-      if(command.align == DrawCommand::Center) p1.x -= extent.x * 0.5f;
-      else if(command.align == DrawCommand::Right) p1.x -= extent.x;
+      if(command.align == DrawCommand::Center) {
+        p1.x -= extent.x * 0.5f;
+      } else if(command.align == DrawCommand::Right) {
+        p1.x -= extent.x;
+      }
       if(command.outline >> 24) {
-        for(int y = -1; y <= 1; y++) for(int x = -1; x <= 1; x++) {
-          if(x || y) draw->AddText(font, size, ImVec2(p1.x + x, p1.y + y),
-                                   imguiColor(command.outline), command.text.c_str());
+        for(int y = -1; y <= 1; y++) {
+          for(int x = -1; x <= 1; x++) {
+            if(x || y) {
+              draw->AddText(font, size, ImVec2(p1.x + x, p1.y + y), imguiColor(command.outline),
+                            command.text.c_str());
+            }
+          }
         }
       }
       draw->AddText(font, size, p1, imguiColor(command.color), command.text.c_str());
@@ -939,8 +971,8 @@ void LuaEngine::drawOverlay() {
       ImGui::SetNextWindowSize(ImVec2(window.width, window.height), ImGuiCond_FirstUseEver);
     }
     const std::string id = window.title + "###lua-window-" + window.title;
-    const ImGuiWindowFlags flags = window.width == 0.0f && window.height == 0.0f
-                                 ? ImGuiWindowFlags_AlwaysAutoResize : 0;
+    const ImGuiWindowFlags flags =
+        window.width == 0.0f && window.height == 0.0f ? ImGuiWindowFlags_AlwaysAutoResize : 0;
     if(ImGui::Begin(id.c_str(), nullptr, flags)) {
       for(const WindowWidget& widget : window.widgets) {
         if(widget.type == WindowWidget::Label) {
@@ -958,7 +990,7 @@ void LuaEngine::drawOverlay() {
 }
 
 int64_t LuaEngine::globalInteger(const char* name) const {
-  if(!state) return 0;
+  if(!state) { return 0; }
   lua_getglobal(state, name);
   const int64_t value = lua_isinteger(state, -1) ? (int64_t)lua_tointeger(state, -1) : 0;
   lua_pop(state, 1);

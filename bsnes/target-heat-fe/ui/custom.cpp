@@ -28,7 +28,7 @@ bool App::drawColourSection() {
     applyTheme();
     dirty = true;
   }
-  if(follow) return dirty;
+  if(follow) { return dirty; }
 
   const ImVec4 chosen = unpackColor(settings.textColor);
   float text[3] = {chosen.x, chosen.y, chosen.z};
@@ -44,7 +44,7 @@ bool App::drawFontSection() {
 
   ImGui::TextDisabled("Font");
   ImGui::TextWrapped("%s", settings.fontPath.empty() ? "(built-in)" : settings.fontPath.c_str());
-  if(ImGui::Button("Browse##font")) openFontDialog();
+  if(ImGui::Button("Browse##font")) { openFontDialog(); }
   ImGui::SameLine();
   if(ImGui::Button("Use built-in")) {
     settings.fontPath.clear();
@@ -52,10 +52,10 @@ bool App::drawFontSection() {
   }
 
   ImGui::SliderInt("Size", &settings.fontSize, MinFontSize, MaxFontSize, "%dpx");
-  if(ImGui::IsItemDeactivatedAfterEdit()) fontDirty = dirty = true;
+  if(ImGui::IsItemDeactivatedAfterEdit()) { fontDirty = dirty = true; }
 
   ImGui::SliderInt("Weight", &settings.fontWeight, MinFontWeight, MaxFontWeight, "%d%%");
-  if(ImGui::IsItemDeactivatedAfterEdit()) fontDirty = dirty = true;
+  if(ImGui::IsItemDeactivatedAfterEdit()) { fontDirty = dirty = true; }
 
   return dirty;
 }
@@ -85,5 +85,5 @@ void App::drawCustomizationTab() {
   }
   ImGui::TextWrapped("Weight thickens the glyphs rather than switching to a bold face.");
 
-  if(dirty) settings.save(settingsCfg);
+  if(dirty) { settings.save(settingsCfg); }
 }

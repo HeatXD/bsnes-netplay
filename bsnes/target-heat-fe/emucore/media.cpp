@@ -18,17 +18,22 @@ auto normalize(const std::string& path) -> string {
   return string{path.c_str()}.transform("\\", "/");
 }
 
-constexpr struct { const char* suffix; EmuCore::Medium medium; } MediaSuffixes[] = {
-  {".sfc", EmuCore::Medium::SuperFamicom}, {".smc", EmuCore::Medium::SuperFamicom},
-  {".fig", EmuCore::Medium::SuperFamicom}, {".swc", EmuCore::Medium::SuperFamicom},
-  {".gb",  EmuCore::Medium::GameBoy},      {".gbc", EmuCore::Medium::GameBoy},
-  {".bs",  EmuCore::Medium::BSMemory},
-  {".st",  EmuCore::Medium::SufamiTurbo},
+constexpr struct {
+  const char* suffix;
+  EmuCore::Medium medium;
+} MediaSuffixes[] = {
+    {".sfc", EmuCore::Medium::SuperFamicom}, {".smc", EmuCore::Medium::SuperFamicom},
+    {".fig", EmuCore::Medium::SuperFamicom}, {".swc", EmuCore::Medium::SuperFamicom},
+    {".gb", EmuCore::Medium::GameBoy},       {".gbc", EmuCore::Medium::GameBoy},
+    {".bs", EmuCore::Medium::BSMemory},      {".st", EmuCore::Medium::SufamiTurbo},
 };
 
 auto mediumOfSuffix(const string& suffix, EmuCore::Medium& medium) -> bool {
   for(auto& entry : MediaSuffixes) {
-    if(suffix == entry.suffix) { medium = entry.medium; return true; }
+    if(suffix == entry.suffix) {
+      medium = entry.medium;
+      return true;
+    }
   }
   return false;
 }
@@ -38,8 +43,8 @@ auto mediumOfSuffix(const string& suffix, EmuCore::Medium& medium) -> bool {
 // both are reliable; BS Memory carries no marker and falls back.
 auto mediumOfData(const vector<uint8_t>& rom) -> EmuCore::Medium {
   static const uint8_t GameBoyLogo[] = {0xce, 0xed, 0x66, 0x66, 0xcc, 0x0d, 0x00, 0x0b};
-  if(rom.size() >= 0x134
-  && memory::compare(&rom.data()[0x104], GameBoyLogo, sizeof(GameBoyLogo)) == 0) {
+  if(rom.size() >= 0x134 &&
+     memory::compare(&rom.data()[0x104], GameBoyLogo, sizeof(GameBoyLogo)) == 0) {
     return EmuCore::Medium::GameBoy;
   }
   if(rom.size() >= 0x20000 && memory::compare(rom.data(), "BANDAI SFC-ADX", 14) == 0) {
@@ -50,34 +55,34 @@ auto mediumOfData(const vector<uint8_t>& rom) -> EmuCore::Medium {
 
 // bsnes asks per patch whether the ROM is headered; here it is a setting
 auto applyPatchIPS(vector<uint8_t>& data, const vector<uint8_t>& patch, bool headered) -> bool {
-  if(patch.size() < 8) return false;
-  if(memory::compare(patch.data(), "PATCH", 5) != 0) return false;
+  if(patch.size() < 8) { return false; }
+  if(memory::compare(patch.data(), "PATCH", 5) != 0) { return false; }
 
   for(uint index = 5;;) {
-    if(index == patch.size() - 6
-    && memory::compare(&patch.data()[index], "EOF", 3) == 0) {
+    if(index == patch.size() - 6 && memory::compare(&patch.data()[index], "EOF", 3) == 0) {
       uint32_t truncate = patch[index + 3] << 16 | patch[index + 4] << 8 | patch[index + 5];
       data.resize(truncate);
       return true;
     }
-    if(index == patch.size() - 3
-    && memory::compare(&patch.data()[index], "EOF", 3) == 0) return true;
-    if(index >= patch.size()) break;
+    if(index == patch.size() - 3 && memory::compare(&patch.data()[index], "EOF", 3) == 0) {
+      return true;
+    }
+    if(index >= patch.size()) { break; }
 
     int32_t offset = patch(index++, 0) << 16 | patch(index++, 0) << 8 | patch(index++, 0);
-    if(headered) offset -= 512;
+    if(headered) { offset -= 512; }
     uint16_t length = patch(index++, 0) << 8 | patch(index++, 0);
 
     if(length == 0) {  // run-length record: a repeat count and one fill byte
       uint16_t repeat = patch(index++, 0) << 8 | patch(index++, 0);
       uint8_t fill = patch(index++, 0);
       while(repeat--) {
-        if(offset >= 0) data(offset) = fill;
+        if(offset >= 0) { data(offset) = fill; }
         offset++;
       }
     } else {
       while(length--) {
-        if(offset >= 0) data(offset) = patch(index, 0);
+        if(offset >= 0) { data(offset) = patch(index, 0); }
         offset++;
         index++;
       }
@@ -91,7 +96,7 @@ auto loadFile(const string& location) -> vector<uint8_t> {
   auto suffix = Location::suffix(location).downcase();
   if(suffix == ".zip") {
     Decode::ZIP archive;
-    if(!archive.open(location)) return {};
+    if(!archive.open(location)) { return {}; }
     EmuCore::Medium medium;
     for(auto& entry : archive.file) {
       if(mediumOfSuffix(Location::suffix(entry.name).downcase(), medium)) {
@@ -100,11 +105,13 @@ auto loadFile(const string& location) -> vector<uint8_t> {
     }
     return {};
   }
-  if(suffix == ".7z") return LZMA::extract(location);
+  if(suffix == ".7z") { return LZMA::extract(location); }
   return file::read(location);
 }
 
-struct Patches { vector<uint8_t> ips, bps; };
+struct Patches {
+  vector<uint8_t> ips, bps;
+};
 
 // one archive scan answers both suffixes; a loose patch sits beside the ROM
 auto readPatches(const string& location, const std::string& patchesDir) -> Patches {
@@ -119,24 +126,24 @@ auto readPatches(const string& location, const std::string& patchesDir) -> Patch
     Decode::ZIP archive;
     if(archive.open(location)) {
       for(auto& entry : archive.file) {
-        if(!patches.ips && entry.name.iendsWith(".ips")) patches.ips = archive.extract(entry);
-        if(!patches.bps && entry.name.iendsWith(".bps")) patches.bps = archive.extract(entry);
+        if(!patches.ips && entry.name.iendsWith(".ips")) { patches.ips = archive.extract(entry); }
+        if(!patches.bps && entry.name.iendsWith(".bps")) { patches.bps = archive.extract(entry); }
       }
     }
-    if(patches.ips || patches.bps) return patches;
+    if(patches.ips || patches.bps) { return patches; }
   }
 
   const string stem = patchesDir.empty()
-    ? Location::notsuffix(location)
-    : string{patchesDir.c_str(), "/", Location::prefix(location)};
+                          ? Location::notsuffix(location)
+                          : string{patchesDir.c_str(), "/", Location::prefix(location)};
   patches.ips = file::read({stem, ".ips"});
   patches.bps = file::read({stem, ".bps"});
   return patches;
 }
 
 // a pak reads its parts from the folder; a loose ROM may have a .bml beside it
-auto loadParts(const string& location, const vector<string>& pakFiles,
-               string& manifest) -> vector<uint8_t> {
+auto loadParts(const string& location, const vector<string>& pakFiles, string& manifest)
+    -> vector<uint8_t> {
   vector<uint8_t> rom;
   if(location.endsWith("/")) {
     manifest = file::read({location, "manifest.bml"});
@@ -160,13 +167,13 @@ auto loadParts(const string& location, const vector<string>& pakFiles,
 }  // namespace
 
 // every slot medium is a manifest plus one program ROM
-template<typename Heuristic>
+template <typename Heuristic>
 auto EmuCore::Impl::loadCart(Media& slot, const string& location, uint minSize,
-                             const vector<string>& pakFiles,
-                             const vector<string>& databases) -> bool {
+                             const vector<string>& pakFiles, const vector<string>& databases)
+    -> bool {
   string manifest;
   auto rom = loadParts(location, pakFiles, manifest);
-  if(rom.size() < minSize) return false;
+  if(rom.size() < minSize) { return false; }
 
   slot.location = location;
   applyPatches(slot, rom, location);
@@ -178,13 +185,16 @@ auto EmuCore::Impl::loadCart(Media& slot, const string& location, uint minSize,
   return true;
 }
 
-auto EmuCore::Impl::applyPatches(Media& slot, vector<uint8_t>& rom,
-                                 const string& location) -> void {
+auto EmuCore::Impl::applyPatches(Media& slot, vector<uint8_t>& rom, const string& location)
+    -> void {
   auto patches = readPatches(location, patchesDir);
 
   if(auto& patch = patches.ips) {
-    if(applyPatchIPS(rom, patch, ipsHeadered)) slot.patched = true;
-    else patchError = {"the .ips patch for ", Location::file(location), " is malformed"};
+    if(applyPatchIPS(rom, patch, ipsHeadered)) {
+      slot.patched = true;
+    } else {
+      patchError = {"the .ips patch for ", Location::file(location), " is malformed"};
+    }
   }
   if(auto& patch = patches.bps) {
     string manifest, error;
@@ -201,20 +211,20 @@ auto EmuCore::Impl::applyPatches(Media& slot, vector<uint8_t>& rom,
 // a hit means the dump is known good, so its manifest beats the heuristic
 auto EmuCore::Impl::lookupDatabase(Media& slot, const vector<string>& databases,
                                    const string& sha256, const string& headerTitle) -> void {
-  if(databaseDir.empty()) return;
+  if(databaseDir.empty()) { return; }
 
   Markup::Node game;
   for(auto& database : databases) {
     auto text = string::read({databaseDir.c_str(), "/", database, ".bml"});
     // parsing the whole database to answer one hash is the expensive way round
-    if(!text.find(sha256)) continue;
-    if((game = BML::unserialize(text)[{"game(sha256=", sha256, ")"}])) break;
+    if(!text.find(sha256)) { continue; }
+    if((game = BML::unserialize(text)[{"game(sha256=", sha256, ")"}])) { break; }
   }
-  if(!game) return;
+  if(!game) { return; }
 
   slot.manifest = BML::serialize(game);
   // the database omits the header title, which the per-title hotfixes match on
-  if(headerTitle) slot.manifest.append("  title: ", headerTitle, "\n");
+  if(headerTitle) { slot.manifest.append("  title: ", headerTitle, "\n"); }
   slot.verified = true;
 }
 
@@ -227,12 +237,12 @@ EmuCore::Medium EmuCore::mediumOf(const std::string& path) {
     Decode::ZIP archive;
     if(archive.open(location)) {
       for(auto& entry : archive.file) {
-        if(mediumOfSuffix(Location::suffix(entry.name).downcase(), medium)) break;
+        if(mediumOfSuffix(Location::suffix(entry.name).downcase(), medium)) { break; }
       }
     }
     return medium;
   }
-  if(suffix == ".7z") return mediumOfData(LZMA::extract(location));
+  if(suffix == ".7z") { return mediumOfData(LZMA::extract(location)); }
 
   // a pak folder has no suffix, and is always a base cartridge
   mediumOfSuffix(suffix, medium);
@@ -240,18 +250,23 @@ EmuCore::Medium EmuCore::mediumOf(const std::string& path) {
 }
 
 std::string EmuCore::loadError() const { return (const char*)impl->error; }
+
 std::string EmuCore::missingFiles() const { return (const char*)impl->missing; }
+
 std::string EmuCore::patchError() const { return (const char*)impl->patchError; }
+
 bool EmuCore::patched() const {
-  for(const Media* slot : impl->allMedia()) if(slot->patched) return true;
+  for(const Media* slot : impl->allMedia()) {
+    if(slot->patched) { return true; }
+  }
   return false;
 }
 
 // verified only if every medium in the machine was found in the database
 bool EmuCore::verified() const {
-  if(!loaded()) return false;
+  if(!loaded()) { return false; }
   for(const Media* slot : impl->allMedia()) {
-    if(*slot && !slot->verified) return false;
+    if(*slot && !slot->verified) { return false; }
   }
   return true;
 }
@@ -260,9 +275,11 @@ void EmuCore::setIpsHeadered(bool headered) { impl->ipsHeadered = headered; }
 
 auto EmuCore::Impl::loadSuperFamicom(const string& location) -> bool {
   string manifest;
-  auto rom = loadParts(location, {"program.rom", "data.rom", "expansion.rom",
-                                  "*.boot.rom", "*.program.rom", "*.data.rom"}, manifest);
-  if(rom.size() < 0x8000) return false;
+  auto rom = loadParts(
+      location,
+      {"program.rom", "data.rom", "expansion.rom", "*.boot.rom", "*.program.rom", "*.data.rom"},
+      manifest);
+  if(rom.size() < 0x8000) { return false; }
 
   // strip a copier header if present
   if((rom.size() & 0x7fff) == 512) {
@@ -277,7 +294,9 @@ auto EmuCore::Impl::loadSuperFamicom(const string& location) -> bool {
   info.checksum = Hash::SHA256(rom).digest();
   superFamicom.manifest = manifest ? manifest : heuristics.manifest();
   // a hand-written manifest beside the ROM wins over the database
-  if(!manifest) lookupDatabase(superFamicom, {"Super Famicom"}, info.checksum, heuristics.title());
+  if(!manifest) {
+    lookupDatabase(superFamicom, {"Super Famicom"}, info.checksum, heuristics.title());
+  }
   sfcDocument = BML::unserialize(superFamicom.manifest);
 
   // the window title is the file name, not the cartridge header
@@ -290,7 +309,7 @@ auto EmuCore::Impl::loadSuperFamicom(const string& location) -> bool {
 
   uint offset = 0;
   auto take = [&](uint size, vector<uint8_t>& out) {
-    if(!size) return;
+    if(!size) { return; }
     out.resize(size);
     memory::copy(&out[0], &rom[offset], size);
     offset += size;
@@ -318,24 +337,24 @@ bool EmuCore::load(const GameSpec& spec) {
   const char* failed = nullptr;
   auto want = [&](const std::string& path) { return !failed && !path.empty(); };
 
-  if(!core.loadSuperFamicom(normalize(spec.superFamicom))) failed = "cartridge";
-  if(want(spec.gameBoy)
-  && !core.loadCart<Heuristics::GameBoy>(core.gameBoy, normalize(spec.gameBoy), 0x4000,
+  if(!core.loadSuperFamicom(normalize(spec.superFamicom))) { failed = "cartridge"; }
+  if(want(spec.gameBoy) &&
+     !core.loadCart<Heuristics::GameBoy>(core.gameBoy, normalize(spec.gameBoy), 0x4000,
                                          {"program.rom"}, {"Game Boy", "Game Boy Color"})) {
     failed = "Game Boy ROM";
   }
-  if(want(spec.bsMemory)
-  && !core.loadCart<Heuristics::BSMemory>(core.bsMemory, normalize(spec.bsMemory), 0x8000,
+  if(want(spec.bsMemory) &&
+     !core.loadCart<Heuristics::BSMemory>(core.bsMemory, normalize(spec.bsMemory), 0x8000,
                                           {"program.rom", "program.flash"}, {"BS Memory"})) {
     failed = "BS Memory ROM";
   }
-  if(want(spec.sufamiTurboA)
-  && !core.loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboA, normalize(spec.sufamiTurboA),
+  if(want(spec.sufamiTurboA) &&
+     !core.loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboA, normalize(spec.sufamiTurboA),
                                              0x20000, {"program.rom"}, {"Sufami Turbo"})) {
     failed = "Sufami Turbo cartridge";
   }
-  if(want(spec.sufamiTurboB)
-  && !core.loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboB, normalize(spec.sufamiTurboB),
+  if(want(spec.sufamiTurboB) &&
+     !core.loadCart<Heuristics::SufamiTurbo>(core.sufamiTurboB, normalize(spec.sufamiTurboB),
                                              0x20000, {"program.rom"}, {"Sufami Turbo"})) {
     failed = "second Sufami Turbo cartridge";
   }
@@ -354,7 +373,7 @@ bool EmuCore::load(const GameSpec& spec) {
   }
 
   auto addSlot = [&](const char* label, const Media& slot) {
-    if(!slot) return;
+    if(!slot) { return; }
     core.slotCache.push_back({label, (const char*)slot.name()});
     core.manifestCache.push_back({label, (const char*)slot.manifest});
   };
@@ -373,7 +392,7 @@ bool EmuCore::load(const GameSpec& spec) {
 
 void EmuCore::unload() {
   impl->emulator->unload();
-  for(Media* slot : impl->allMedia()) *slot = {};
+  for(Media* slot : impl->allMedia()) { *slot = {}; }
   impl->sfcDocument = {};
   impl->info = {};
   impl->slotCache.clear();

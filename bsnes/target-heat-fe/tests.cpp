@@ -10,9 +10,10 @@ uint64_t fnv(uint64_t hash, uint64_t value) { return (hash ^ value) * FnvPrime; 
 uint64_t frameHash(const App& app) {
   uint64_t hash = FnvBasis;
   const int pixels = app.shell.frameWidth * app.shell.frameHeight;
-  for(int i = 0; i < pixels; i++) hash = fnv(hash, app.shell.lastPixels[i]);
+  for(int i = 0; i < pixels; i++) { hash = fnv(hash, app.shell.lastPixels[i]); }
   return hash;
 }
+
 // a scratch state folder for as long as it is alive, so a self test never
 // writes into the states the user owns, whatever path it returns by
 struct ScratchStates {
@@ -22,6 +23,7 @@ struct ScratchStates {
   explicit ScratchStates(App& app) : app(app), previous(app.settings.statesDir) {
     app.settings.statesDir = configDir() + "States-selftest";
   }
+
   ~ScratchStates() {
     app.removeAllStates();
     SDL_RemovePath(app.statesDir().c_str());
@@ -32,9 +34,10 @@ struct ScratchStates {
 
 // save, diverge, restore: the same frames must come back, blob and file alike
 int runStateTest(App& app, int warmFrames, int frames) {
-  // a restored machine has not drawn yet, so only what it renders next says anything
+  // a restored machine has not drawn yet, so only what it renders next says
+  // anything
   auto replay = [&](int count) {
-    for(int i = 0; i < count; i++) app.core.runFrame();
+    for(int i = 0; i < count; i++) { app.core.runFrame(); }
     return frameHash(app);
   };
 
@@ -42,16 +45,22 @@ int runStateTest(App& app, int warmFrames, int frames) {
   const uint64_t at = replay(warmFrames);
 
   const std::vector<uint8_t> state = app.core.serialize();
-  if(state.empty()) { SDL_Log("state test: FAIL, the core refused to serialize"); return 1; }
+  if(state.empty()) {
+    SDL_Log("state test: FAIL, the core refused to serialize");
+    return 1;
+  }
   SDL_Log("state size %d bytes, frame %016llx", (int)state.size(), (unsigned long long)at);
 
   const uint64_t ahead = replay(settle);
-  if(ahead == at) { SDL_Log("state test: FAIL, %d frames changed nothing", settle); return 1; }
+  if(ahead == at) {
+    SDL_Log("state test: FAIL, %d frames changed nothing", settle);
+    return 1;
+  }
 
   const bool restored = app.core.unserialize(state);
   const bool blob = restored && replay(settle) == ahead;
-  SDL_Log("blob restore %s: %d frames replay to %016llx",
-          blob ? "ok" : "FAILED", settle, (unsigned long long)ahead);
+  SDL_Log("blob restore %s: %d frames replay to %016llx", blob ? "ok" : "FAILED", settle,
+          (unsigned long long)ahead);
 
   // and again through the file layer, header, folders and all
   const ScratchStates scratch(app);
@@ -59,14 +68,12 @@ int runStateTest(App& app, int warmFrames, int frames) {
   const uint64_t further = replay(settle);
   const bool read = app.loadState("statetest");
   const bool filed = wrote && read && replay(settle) == further;
-  SDL_Log("file round trip %s: %s", filed ? "ok" : "FAILED",
-          app.statePath("statetest").c_str());
+  SDL_Log("file round trip %s: %s", filed ? "ok" : "FAILED", app.statePath("statetest").c_str());
 
   const bool managedSaved = app.saveState("Managed/original", true);
   const bool managedListed = app.availableStates(true).size() == 1;
-  const bool managedRenamed = app.renameState("Managed/original", "Managed/renamed")
-                           && app.hasState("Managed/renamed")
-                           && !app.hasState("Managed/original");
+  const bool managedRenamed = app.renameState("Managed/original", "Managed/renamed") &&
+                              app.hasState("Managed/renamed") && !app.hasState("Managed/original");
   const bool managedRemoved = app.removeState("Managed/renamed");
   SDL_RemovePath((app.stateFolder() + "/Managed").c_str());
   const bool managed = managedSaved && managedListed && managedRenamed && managedRemoved;
@@ -80,8 +87,8 @@ int runStateTest(App& app, int warmFrames, int frames) {
   const bool undone = app.loadState("undo");
   const bool redone = app.loadState("redo");
   const bool reversible = undone && redone && replay(settle) == loop;
-  SDL_Log("undo and redo %s, held in memory (%d and %d bytes)",
-          reversible ? "ok" : "FAILED", (int)app.undoState.size(), (int)app.redoState.size());
+  SDL_Log("undo and redo %s, held in memory (%d and %d bytes)", reversible ? "ok" : "FAILED",
+          (int)app.undoState.size(), (int)app.redoState.size());
   // the guard clears the slots it knows about; this one is the test's own
   app.removeState("statetest");
 
@@ -98,17 +105,20 @@ int runStateTest(App& app, int warmFrames, int frames) {
 
 // same inputs, same result: what netplay's rollback rests on
 int runDeterminismTest(App& app, int frames) {
-  if(frames <= 0) frames = 600;
+  if(frames <= 0) { frames = 600; }
   // the layout is fixed for a cartridge, so it is read once, not per hash
   const std::vector<EmuCore::StateComponent> map = app.core.stateMap(false);
 
   // a fixed button stream, held eight frames at a time so the game reacts to it
   auto press = [&](int frame) {
     uint32_t bits = 2166136261u + (uint32_t)(frame / 8) * 16777619u;
-    bits ^= bits >> 13; bits *= 1274126177u; bits ^= bits >> 16;
-    for(int b = 0; b < EmuCore::ButtonCount; b++) app.core.setInput(0, b, (bits >> b) & 1);
+    bits ^= bits >> 13;
+    bits *= 1274126177u;
+    bits ^= bits >> 16;
+    for(int b = 0; b < EmuCore::ButtonCount; b++) { app.core.setInput(0, b, (bits >> b) & 1); }
   };
-  // every frame folded in, not just the last: a divergence that heals still fails
+  // every frame folded in, not just the last: a divergence that heals still
+  // fails
   auto run = [&](int first, int count) {
     uint64_t rolling = FnvBasis;
     for(int frame = first; frame < first + count; frame++) {
@@ -122,7 +132,7 @@ int runDeterminismTest(App& app, int frames) {
   auto guestHash = [&](const std::vector<uint8_t>& blob) {
     uint64_t hash = FnvBasis;
     for(const auto& part : map) {
-      if(part.hostState) continue;
+      if(part.hostState) { continue; }
       for(int i = part.offset; i < part.offset + part.size && i < (int)blob.size(); i++) {
         hash = fnv(hash, blob[i]);
       }
@@ -130,18 +140,22 @@ int runDeterminismTest(App& app, int frames) {
     return hash;
   };
   auto reportDiff = [&](const std::vector<uint8_t>& a, const std::vector<uint8_t>& b) {
-    if(a.size() != b.size()) { SDL_Log("  sizes differ: %d vs %d", (int)a.size(), (int)b.size()); return; }
+    if(a.size() != b.size()) {
+      SDL_Log("  sizes differ: %d vs %d", (int)a.size(), (int)b.size());
+      return;
+    }
     for(const auto& part : map) {
       const int end = SDL_min(part.offset + part.size, (int)a.size());
       for(int i = part.offset; i < end; i++) {
-        if(a[i] == b[i]) continue;
+        if(a[i] == b[i]) { continue; }
         SDL_Log("  %-12s differs at +%d%s", part.name.c_str(), i - part.offset,
                 part.hostState ? "  (host state, expected)" : "  <-- machine state");
         break;
       }
     }
   };
-  // both captures, so the rollback answer is not confused with the quick-state one
+  // both captures, so the rollback answer is not confused with the quick-state
+  // one
   auto rollbackReplay = [&](bool synchronize) {
     app.core.setOption("Hacks/Entropy", "None");
     app.core.power();
@@ -150,16 +164,18 @@ int runDeterminismTest(App& app, int frames) {
     const uint64_t ahead = run(frames / 2, frames - frames / 2);
     const std::vector<uint8_t> aheadState = app.core.serialize(synchronize);
 
-    if(!app.core.unserialize(save)) { SDL_Log("  restore refused"); return false; }
+    if(!app.core.unserialize(save)) {
+      SDL_Log("  restore refused");
+      return false;
+    }
     const uint64_t again = run(frames / 2, frames - frames / 2);
     const std::vector<uint8_t> againState = app.core.serialize(synchronize);
     const bool sameFrames = again == ahead;
     const bool sameGuest = guestHash(againState) == guestHash(aheadState);
     SDL_Log("replay across a %s restore: frames %s, machine state %s (%016llx)",
-            synchronize ? "synchronized" : "deterministic",
-            sameFrames ? "match" : "DIFFER", sameGuest ? "matches" : "DIFFERS",
-            (unsigned long long)ahead);
-    if(againState != aheadState) reportDiff(aheadState, againState);
+            synchronize ? "synchronized" : "deterministic", sameFrames ? "match" : "DIFFER",
+            sameGuest ? "matches" : "DIFFERS", (unsigned long long)ahead);
+    if(againState != aheadState) { reportDiff(aheadState, againState); }
     return sameFrames && sameGuest;
   };
 
@@ -180,7 +196,7 @@ int runDeterminismTest(App& app, int frames) {
             (unsigned long long)first, sameFrames ? "repeat" : "DIFFER",
             sameState ? "repeats" : "differs",
             SDL_strcmp(entropy, "None") == 0 ? "" : " (expected, it randomises)");
-    if(SDL_strcmp(entropy, "None") == 0) pass = pass && sameFrames && sameState;
+    if(SDL_strcmp(entropy, "None") == 0) { pass = pass && sameFrames && sameState; }
   }
 
   // the rollback shape: restore, feed the same inputs, land in the same place
@@ -214,13 +230,13 @@ int runTimelineTest(App& app, int warmFrames) {
 
   app.core.setOption("Hacks/Entropy", "None");
   app.core.power();
-  for(int frame = 0; frame < warmFrames; frame++) app.core.runFrame();
+  for(int frame = 0; frame < warmFrames; frame++) { app.core.runFrame(); }
   const std::vector<uint8_t> baseline = app.core.serialize(false);
   const std::vector<EmuCore::StateComponent> map = app.core.stateMap(false);
   auto guestHash = [&](const std::vector<uint8_t>& state) {
     uint64_t hash = FnvBasis;
     for(const auto& part : map) {
-      if(part.hostState) continue;
+      if(part.hostState) { continue; }
       for(int i = part.offset; i < part.offset + part.size && i < (int)state.size(); i++) {
         hash = fnv(hash, state[i]);
       }
@@ -228,7 +244,7 @@ int runTimelineTest(App& app, int warmFrames) {
     return hash;
   };
   auto run = [&](int frames) {
-    for(int frame = 0; frame < frames; frame++) app.core.runFrame();
+    for(int frame = 0; frame < frames; frame++) { app.core.runFrame(); }
   };
 
   app.core.unserialize(baseline);
@@ -245,8 +261,8 @@ int runTimelineTest(App& app, int warmFrames) {
   app.advanceEmulation();
   const bool runAheadVideo = frameHash(app) == futureFrame;
   const bool runAheadState = guestHash(app.core.serialize(false)) == oneFrameState;
-  SDL_Log("run-ahead: future frame %s, authoritative state %s",
-          runAheadVideo ? "ok" : "FAILED", runAheadState ? "ok" : "FAILED");
+  SDL_Log("run-ahead: future frame %s, authoritative state %s", runAheadVideo ? "ok" : "FAILED",
+          runAheadState ? "ok" : "FAILED");
 
   app.core.unserialize(baseline);
   run(20);
@@ -256,14 +272,14 @@ int runTimelineTest(App& app, int warmFrames) {
   app.settings.rewindFrequency = 5;
   app.settings.rewindLength = 3;
   app.resetTimeline();
-  for(int frame = 0; frame < 25; frame++) app.advanceEmulation();
+  for(int frame = 0; frame < 25; frame++) { app.advanceEmulation(); }
   const bool bounded = app.rewindHistory.size() == 3;
   app.setRewinding(true);
   app.advanceEmulation();
   app.advanceEmulation();
   const bool rewound = guestHash(app.core.serialize(false)) == twentyFrameState;
-  SDL_Log("rewind: history bound %s, restored timeline %s",
-          bounded ? "ok" : "FAILED", rewound ? "ok" : "FAILED");
+  SDL_Log("rewind: history bound %s, restored timeline %s", bounded ? "ok" : "FAILED",
+          rewound ? "ok" : "FAILED");
 
   restoreSettings();
   const bool pass = !baseline.empty() && runAheadVideo && runAheadState && bounded && rewound;
@@ -294,8 +310,8 @@ int runCheatTest(App& app) {
   app.saveCheats();
   app.cheats.clear();
   app.loadCheats();
-  const bool persisted = app.cheats.size() == 1 && app.cheats[0].name == "Self test"
-                      && app.cheats[0].code == standard && app.cheats[0].enabled;
+  const bool persisted = app.cheats.size() == 1 && app.cheats[0].name == "Self test" &&
+                         app.cheats[0].code == standard && app.cheats[0].enabled;
 
   app.core.setCheats({});
   app.cheats.clear();
@@ -308,13 +324,13 @@ int runCheatTest(App& app) {
   app.cheatsDirty = false;
   app.applyCheats();
   SDL_Log("cheats: apply %s, restore %s, decode %s, database %s, persistence %s",
-          applied ? "ok" : "FAILED", restored ? "ok" : "FAILED",
-          decoded ? "ok" : "FAILED", database ? "ok" : "FAILED",
-          persisted ? "ok" : "FAILED");
+          applied ? "ok" : "FAILED", restored ? "ok" : "FAILED", decoded ? "ok" : "FAILED",
+          database ? "ok" : "FAILED", persisted ? "ok" : "FAILED");
   return applied && restored && decoded && database && persisted ? 0 : 1;
 }
 
-// hotkeyHeld against a fabricated keyboard, since SDL's own state cannot be driven
+// hotkeyHeld against a fabricated keyboard, since SDL's own state cannot be
+// driven
 int runHotkeyTest(App& app) {
   bool keys[SDL_SCANCODE_COUNT] = {};
   InputSample sample;
@@ -322,9 +338,9 @@ int runHotkeyTest(App& app) {
   bool pass = true;
 
   auto set = [&](SDL_Scancode a, SDL_Scancode b, int mods) {
-    for(bool& key : keys) key = false;
-    if(a != SDL_SCANCODE_UNKNOWN) keys[a] = true;
-    if(b != SDL_SCANCODE_UNKNOWN) keys[b] = true;
+    for(bool& key : keys) { key = false; }
+    if(a != SDL_SCANCODE_UNKNOWN) { keys[a] = true; }
+    if(b != SDL_SCANCODE_UNKNOWN) { keys[b] = true; }
     sample.mods = mods;
   };
   auto expect = [&](const char* what, int index, bool want) {
@@ -356,10 +372,12 @@ int runHotkeyTest(App& app) {
   expect("shift+2 bound, right shift", HkReset, true);
   set(SDL_SCANCODE_2, SDL_SCANCODE_LCTRL, normalizeMods(SDL_KMOD_LCTRL));
   expect("shift+2 bound, ctrl+2", HkReset, false);
-  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT, normalizeMods((SDL_Keymod)(SDL_KMOD_LSHIFT | SDL_KMOD_LCTRL)));
+  set(SDL_SCANCODE_2, SDL_SCANCODE_LSHIFT,
+      normalizeMods((SDL_Keymod)(SDL_KMOD_LSHIFT | SDL_KMOD_LCTRL)));
   expect("shift+2 bound, ctrl+shift+2", HkReset, false);
 
-  // a plain key must not fire while a modifier is down, or the chord is ambiguous
+  // a plain key must not fire while a modifier is down, or the chord is
+  // ambiguous
   app.input.hotkey(HkQuit, 0) = {Binding::Key, SDL_SCANCODE_2, 0, 0};
   app.input.hotkey(HkQuit, 1) = {};
   set(SDL_SCANCODE_2, SDL_SCANCODE_UNKNOWN, 0);
@@ -369,12 +387,12 @@ int runHotkeyTest(App& app) {
 
   // Unmapped HID devices arrive through SDL's raw joystick events. Ensure all
   // three bindable control shapes survive capture without real test hardware.
-  auto expectRaw = [&](const char* what, SDL_Event event, Binding::Type type,
-                       int code, int direction) {
+  auto expectRaw = [&](const char* what, SDL_Event event, Binding::Type type, int code,
+                       int direction) {
     Binding binding;
     const bool captured = InputMap::capture(event, binding);
-    const bool right = captured && binding.type == type && binding.code == code
-                    && binding.direction == direction;
+    const bool right =
+        captured && binding.type == type && binding.code == code && binding.direction == direction;
     SDL_Log("%-30s %d%s", what, right, right ? "" : "  <-- WRONG");
     pass = pass && right;
   };
@@ -416,23 +434,21 @@ int runLuaTest(App& app, const std::string& script) {
   const bool controlsTest = app.scripting.globalInteger("expected_controls") > 0;
   const std::string originalStatesDir = app.settings.statesDir;
   const std::string controlsDataDir = controlsTest ? app.scripting.dataDirectory() : std::string();
-  const std::string controlsStateDir = controlsTest
-                                     ? controlsDataDir + "/_state_test" : std::string();
-  const std::string packagedState = controlsTest
-                                  ? parentDir(script) + "/_heat_fe_package_state.bst" : std::string();
+  const std::string controlsStateDir =
+      controlsTest ? controlsDataDir + "/_state_test" : std::string();
+  const std::string packagedState =
+      controlsTest ? parentDir(script) + "/_heat_fe_package_state.bst" : std::string();
   if(controlsTest) {
     app.settings.statesDir = controlsStateDir;
     pass = app.saveStateFile(packagedState, true) && pass;
   }
   if(pass && app.scripting.globalInteger("expected_frame_error") > 0) {
     setPhysicalInput();
-    const bool cleared = app.scripting.runBeforeFrame() && !app.scripting.runFrame()
-                      && !app.scripting.running()
-                      && app.scripting.commandCount() == 0
-                      && app.core.inputValue(0, EmuCore::A) == 0
-                      && app.scripting.console().find("intentional frame failure")
-                         != std::string::npos
-                      && !app.scripting.error().empty();
+    const bool cleared =
+        app.scripting.runBeforeFrame() && !app.scripting.runFrame() && !app.scripting.running() &&
+        app.scripting.commandCount() == 0 && app.core.inputValue(0, EmuCore::A) == 0 &&
+        app.scripting.console().find("intentional frame failure") != std::string::npos &&
+        !app.scripting.error().empty();
     SDL_Log("Lua error clears drawing and input overrides: %s", cleared ? "ok" : "FAILED");
     SDL_Log("Lua lifecycle test: %s", cleared ? "PASS" : "FAIL");
     return cleared ? 0 : 1;
@@ -450,46 +466,46 @@ int runLuaTest(App& app, const std::string& script) {
     pass = pass && domains;
   }
   if(app.scripting.globalInteger("expected_input") > 0) {
-    const bool input = app.scripting.globalInteger("b_held") == 1
-                    && app.scripting.globalInteger("right_value") == 1
-                    && app.scripting.globalInteger("right_index") == 1
-                    && app.scripting.globalInteger("a_held") == 0;
+    const bool input = app.scripting.globalInteger("b_held") == 1 &&
+                       app.scripting.globalInteger("right_value") == 1 &&
+                       app.scripting.globalInteger("right_index") == 1 &&
+                       app.scripting.globalInteger("a_held") == 0;
     SDL_Log("Lua input inspection: %s", input ? "ok" : "FAILED");
     pass = pass && input;
   }
   const bool injectionTest = app.scripting.globalInteger("expected_injection") > 0;
   if(injectionTest) {
-    const bool injected = app.scripting.globalInteger("before_frames") == 2
-                       && app.scripting.globalInteger("first_a") == 1
-                       && app.scripting.globalInteger("first_b") == 0
-                       && app.scripting.globalInteger("first_right") == 0
-                       && app.scripting.globalInteger("first_y") == 1
-                       && app.scripting.globalInteger("second_a") == 0
-                       && app.scripting.globalInteger("second_b") == 1
-                       && app.scripting.globalInteger("second_right") == 1;
+    const bool injected = app.scripting.globalInteger("before_frames") == 2 &&
+                          app.scripting.globalInteger("first_a") == 1 &&
+                          app.scripting.globalInteger("first_b") == 0 &&
+                          app.scripting.globalInteger("first_right") == 0 &&
+                          app.scripting.globalInteger("first_y") == 1 &&
+                          app.scripting.globalInteger("second_a") == 0 &&
+                          app.scripting.globalInteger("second_b") == 1 &&
+                          app.scripting.globalInteger("second_right") == 1;
     SDL_Log("Lua input injection and clearing: %s", injected ? "ok" : "FAILED");
     pass = pass && injected;
   }
   if(app.scripting.globalInteger("expected_console") > 0) {
-    const bool console = app.scripting.console()
-                      == "start\t42\ttrue\tnil\nready\nframe\t1\nframe\t2\n";
+    const bool console =
+        app.scripting.console() == "start\t42\ttrue\tnil\nready\nframe\t1\nframe\t2\n";
     SDL_Log("Lua captured console output: %s", console ? "ok" : "FAILED");
     pass = pass && console;
   }
   if(controlsTest) {
-    const bool controls = app.scripting.globalInteger("before_frames") == 2
-                       && app.scripting.globalInteger("memory_changed") == 1
-                       && app.scripting.globalInteger("memory_restored") == 1
-                       && app.scripting.globalInteger("state_removed") == 1
-                       && app.scripting.globalInteger("packaged_state_loaded") == 1
-                       && app.scripting.globalInteger("data_state_loaded") == 1
-                       && app.scripting.globalInteger("emu_controls") == 1;
+    const bool controls = app.scripting.globalInteger("before_frames") == 2 &&
+                          app.scripting.globalInteger("memory_changed") == 1 &&
+                          app.scripting.globalInteger("memory_restored") == 1 &&
+                          app.scripting.globalInteger("state_removed") == 1 &&
+                          app.scripting.globalInteger("packaged_state_loaded") == 1 &&
+                          app.scripting.globalInteger("data_state_loaded") == 1 &&
+                          app.scripting.globalInteger("emu_controls") == 1;
     SDL_Log("Lua save-state and emulator controls: %s", controls ? "ok" : "FAILED");
     pass = pass && controls;
   }
   if(app.scripting.globalInteger("expected_commands") > 0) {
-    const bool drawing = app.scripting.commandCount()
-                      == app.scripting.globalInteger("expected_commands");
+    const bool drawing =
+        app.scripting.commandCount() == app.scripting.globalInteger("expected_commands");
     SDL_Log("Lua drawing commands: %s", drawing ? "ok" : "FAILED");
     pass = pass && drawing;
   }
@@ -503,8 +519,8 @@ int runLuaTest(App& app, const std::string& script) {
 
   const bool loadedAgain = app.scripting.reload();
   setPhysicalInput();
-  const bool reloaded = loadedAgain && app.scripting.runBeforeFrame() && app.scripting.runFrame()
-                     && app.scripting.globalInteger("frames") == 1;
+  const bool reloaded = loadedAgain && app.scripting.runBeforeFrame() && app.scripting.runFrame() &&
+                        app.scripting.globalInteger("frames") == 1;
   SDL_Log("Lua reload: %s", reloaded ? "ok" : "FAILED");
   pass = pass && reloaded;
 
@@ -513,8 +529,8 @@ int runLuaTest(App& app, const std::string& script) {
     app.scripting.stop();
     app.core.setOption("Hacks/PPU/Fast", originalFastPpu ? "false" : "true");
     app.core.power();
-    const bool alternatePpu = app.scripting.load(script)
-                           && app.scripting.globalInteger("domains_verified") == 5;
+    const bool alternatePpu =
+        app.scripting.load(script) && app.scripting.globalInteger("domains_verified") == 5;
     SDL_Log("Lua memory domains with alternate PPU: %s", alternatePpu ? "ok" : "FAILED");
     pass = pass && alternatePpu;
     app.scripting.stop();
@@ -523,17 +539,15 @@ int runLuaTest(App& app, const std::string& script) {
   }
 
   app.scripting.stop();
-  const bool inputRestored = !injectionTest
-                          || (app.core.inputValue(0, EmuCore::A) == 0
-                           && app.core.inputValue(0, EmuCore::B) == 1
-                           && app.core.inputValue(0, EmuCore::Right) == 1);
-  const bool stopped = !app.scripting.running() && !app.scripting.runBeforeFrame()
-                    && !app.scripting.runFrame() && inputRestored;
+  const bool inputRestored = !injectionTest || (app.core.inputValue(0, EmuCore::A) == 0 &&
+                                                app.core.inputValue(0, EmuCore::B) == 1 &&
+                                                app.core.inputValue(0, EmuCore::Right) == 1);
+  const bool stopped = !app.scripting.running() && !app.scripting.runBeforeFrame() &&
+                       !app.scripting.runFrame() && inputRestored;
   SDL_Log("Lua stop: %s", stopped ? "ok" : "FAILED");
   pass = pass && stopped;
 
-  const bool reported = !app.scripting.load(script + ".missing")
-                     && !app.scripting.error().empty();
+  const bool reported = !app.scripting.load(script + ".missing") && !app.scripting.error().empty();
   SDL_Log("Lua error reporting: %s", reported ? "ok" : "FAILED");
   pass = pass && reported;
 
@@ -560,8 +574,8 @@ std::vector<uint32_t> testFrame(int width, int height) {
   std::vector<uint32_t> pixels((size_t)width * height);
   for(int y = 0; y < height; y++) {
     for(int x = 0; x < width; x++) {
-      pixels[(size_t)y * width + x] = 0xff000000u | (uint32_t)(x * 255 / width) << 16
-                                    | (uint32_t)(y * 255 / height) << 8 | 0x40u;
+      pixels[(size_t)y * width + x] = 0xff000000u | (uint32_t)(x * 255 / width) << 16 |
+                                      (uint32_t)(y * 255 / height) << 8 | 0x40u;
     }
   }
   return pixels;
@@ -570,7 +584,7 @@ std::vector<uint32_t> testFrame(int width, int height) {
 // reads the chain's own output, so nothing depends on a UI frame being drawn
 uint64_t renderHash(Shader& shader, int width, int height) {
   const GLuint texture = shader.render(width, height);
-  if(!texture) return 0;
+  if(!texture) { return 0; }
 
   std::vector<uint32_t> pixels((size_t)shader.outputWidth * shader.outputHeight);
   glBindTexture(GL_TEXTURE_2D, texture);
@@ -585,19 +599,13 @@ uint64_t renderHash(Shader& shader, int width, int height) {
     hash = fnv(hash, pixel);
     const bool lit = (pixel & 0x00ffffffu) != 0;
     const bool opaque = (pixel >> 24) >= 0x80;
-    if(lit) {
-      litPixels++;
-    }
-    if(opaque) {
-      opaquePixels++;
-    }
-    if(lit && opaque) {
-      visible++;
-    }
+    if(lit) { litPixels++; }
+    if(opaque) { opaquePixels++; }
+    if(lit && opaque) { visible++; }
   }
   if(visible == 0) {
-    SDL_Log("shader output hidden: %d lit, %d opaque, %d visible of %d pixels",
-            (int)litPixels, (int)opaquePixels, (int)visible, (int)pixels.size());
+    SDL_Log("shader output hidden: %d lit, %d opaque, %d visible of %d pixels", (int)litPixels,
+            (int)opaquePixels, (int)visible, (int)pixels.size());
     return 0;
   }
   return hash;
@@ -606,10 +614,9 @@ uint64_t renderHash(Shader& shader, int width, int height) {
 // a package that will not compile, for the diagnostics check
 std::string writeBrokenPackage() {
   const std::string dir = configDir() + "broken-selftest.shader";
-  if(!ensureDir(dir)) return {};
+  if(!ensureDir(dir)) { return {}; }
   writeText(dir + "/manifest.bml", "program\n  fragment: broken.fs\n");
-  writeText(dir + "/broken.fs",
-            "#version 150\nout vec4 fragColor;\nvoid main() { !!! }\n");
+  writeText(dir + "/broken.fs", "#version 150\nout vec4 fragColor;\nvoid main() { !!! }\n");
   return dir;
 }
 
@@ -629,8 +636,8 @@ int runShaderTest(App& app, int warmFrames) {
   }
 
   bool pass = true;
-  const bool refused = !shader.load(configDir() + "no-such.shader", {})
-                    && !shader.active() && !shader.failure.empty();
+  const bool refused = !shader.load(configDir() + "no-such.shader", {}) && !shader.active() &&
+                       !shader.failure.empty();
   SDL_Log("missing package refused: %s", refused ? "ok" : "FAILED");
   pass = pass && refused;
 
@@ -638,9 +645,7 @@ int runShaderTest(App& app, int warmFrames) {
   int frameWidth = 256;
   int frameHeight = 224;
   if(app.core.loaded()) {
-    for(int i = 0; i < warmFrames; i++) {
-      app.core.runFrame();
-    }
+    for(int i = 0; i < warmFrames; i++) { app.core.runFrame(); }
     frameWidth = app.shell.frameWidth;
     frameHeight = app.shell.frameHeight;
     const size_t pixels = (size_t)frameWidth * frameHeight;
@@ -648,9 +653,7 @@ int runShaderTest(App& app, int warmFrames) {
       frame.assign(app.shell.lastPixels, app.shell.lastPixels + pixels);
     }
   }
-  if(frame.empty()) {
-    frame = testFrame(frameWidth, frameHeight);
-  }
+  if(frame.empty()) { frame = testFrame(frameWidth, frameHeight); }
   const std::string dir = app.shadersDir();
   const std::vector<std::string> folders = shaderList(dir);
   SDL_Log("%d packages in %s", (int)folders.size(), dir.c_str());
@@ -663,7 +666,7 @@ int runShaderTest(App& app, int warmFrames) {
     const std::string path = normalPath(dir + "/" + folder);
     if(!shader.load(path, {})) {
       SDL_Log("%-24s FAILED: %s", folder.c_str(), shader.failure.c_str());
-      if(!shader.log.empty()) SDL_Log("%s", shader.log.c_str());
+      if(!shader.log.empty()) { SDL_Log("%s", shader.log.c_str()); }
       pass = false;
       continue;
     }
@@ -676,10 +679,11 @@ int runShaderTest(App& app, int warmFrames) {
     const GLenum error = glGetError();
 
     // a full ring of the same picture has to match one seeded frame
-    if(!shader.load(path, {})) { pass = false; continue; }
-    for(int i = 0; i < 9; i++) {
-      shader.pushFrame(frame.data(), frameWidth, frameHeight);
+    if(!shader.load(path, {})) {
+      pass = false;
+      continue;
     }
+    for(int i = 0; i < 9; i++) { shader.pushFrame(frame.data(), frameWidth, frameHeight); }
     const bool coherent = renderHash(shader, 640, 480) == once;
 
     if(!once || !cachedRedraw || !resized || !coherent || error != GL_NO_ERROR) {
@@ -695,8 +699,8 @@ int runShaderTest(App& app, int warmFrames) {
 
   // a compile failure has to leave the driver's message behind for the UI
   if(const std::string broken = writeBrokenPackage(); !broken.empty()) {
-    const bool reported = !shader.load(broken, {}) && !shader.active()
-                       && !shader.failure.empty() && !shader.log.empty();
+    const bool reported = !shader.load(broken, {}) && !shader.active() && !shader.failure.empty() &&
+                          !shader.log.empty();
     SDL_Log("compiler diagnostics kept: %s", reported ? "ok" : "FAILED");
     pass = pass && reported;
     removeBrokenPackage(broken);
@@ -705,15 +709,17 @@ int runShaderTest(App& app, int warmFrames) {
   // a package with parameters has to honour an override
   std::string withParams;
   for(const std::string& folder : folders) {
-    if(!shader.load(normalPath(dir + "/" + folder), {})) continue;
-    if(!shader.params.empty()) { withParams = folder; break; }
+    if(!shader.load(normalPath(dir + "/" + folder), {})) { continue; }
+    if(!shader.params.empty()) {
+      withParams = folder;
+      break;
+    }
   }
   if(!withParams.empty()) {
     const std::string name = shader.params[0].name;
     const std::vector<ShaderParam> overrides = {{name, "0.25", {}}};
-    const bool applied = shader.load(normalPath(dir + "/" + withParams), overrides)
-                      && shader.params[0].value == "0.25"
-                      && shader.params[0].stock != "0.25";
+    const bool applied = shader.load(normalPath(dir + "/" + withParams), overrides) &&
+                         shader.params[0].value == "0.25" && shader.params[0].stock != "0.25";
     SDL_Log("parameter override in %s: %s", withParams.c_str(), applied ? "ok" : "FAILED");
     pass = pass && applied;
   } else {
@@ -729,10 +735,9 @@ int runShaderTest(App& app, int warmFrames) {
   Settings reread;
   reread.load(temp);
   SDL_RemovePath(temp.c_str());
-  const bool roundTrip = reread.videoShader == normalPath(written.videoShader)
-                      && reread.shaderParams.size() == 1
-                      && reread.shaderParams[0].name == "gamma"
-                      && reread.shaderParams[0].value == "2.5";
+  const bool roundTrip =
+      reread.videoShader == normalPath(written.videoShader) && reread.shaderParams.size() == 1 &&
+      reread.shaderParams[0].name == "gamma" && reread.shaderParams[0].value == "2.5";
   SDL_Log("settings round-trip: %s", roundTrip ? "ok" : "FAILED");
   pass = pass && roundTrip;
 
@@ -754,9 +759,7 @@ int runMovieTest(App& app, int warmFrames) {
   auto guestHash = [&](const std::vector<uint8_t>& state) {
     uint64_t hash = FnvBasis;
     for(const auto& part : map) {
-      if(part.hostState) {
-        continue;
-      }
+      if(part.hostState) { continue; }
       for(int i = part.offset; i < part.offset + part.size && i < (int)state.size(); i++) {
         hash = fnv(hash, state[i]);
       }
@@ -770,9 +773,7 @@ int runMovieTest(App& app, int warmFrames) {
   };
   app.core.setOption("Hacks/Entropy", "None");
   app.core.power();
-  for(int frame = 0; frame < warmFrames; frame++) {
-    app.core.runFrame();
-  }
+  for(int frame = 0; frame < warmFrames; frame++) { app.core.runFrame(); }
 
   app.beginMovieRecording(false);
   const int frames = 120;
@@ -787,24 +788,20 @@ int runMovieTest(App& app, int warmFrames) {
   const bool wrote = inputs > 0 && app.writeMovieFile(path);
   app.clearMovie();
 
-  for(int button = 0; button < EmuCore::ButtonCount; button++) {
-    app.core.setInput(0, button, 0);
-  }
-  const int previousDevice = app.movieDevices[1] == EmuCore::None
-                           ? EmuCore::Gamepad : EmuCore::None;
+  for(int button = 0; button < EmuCore::ButtonCount; button++) { app.core.setInput(0, button, 0); }
+  const int previousDevice =
+      app.movieDevices[1] == EmuCore::None ? EmuCore::Gamepad : EmuCore::None;
   app.core.connect(1, previousDevice);
   app.core.power();
   const bool opened = wrote && app.playMovieFile(path);
-  for(int frame = 0; opened && frame < frames; frame++) {
-    app.core.runFrame();
-  }
-  const bool replayed = opened && frameHash(app) == recorded
-                      && guestHash(app.core.serialize(false)) == recordedState
-                      && app.moviePlaybackFinished;
+  for(int frame = 0; opened && frame < frames; frame++) { app.core.runFrame(); }
+  const bool replayed = opened && frameHash(app) == recorded &&
+                        guestHash(app.core.serialize(false)) == recordedState &&
+                        app.moviePlaybackFinished;
   app.clearMovie();
-  const bool playbackRestored = app.movieMode == MovieMode::Inactive
-                             && app.core.connectedDevice(1) == previousDevice
-                             && !app.movieDevicesChanged;
+  const bool playbackRestored = app.movieMode == MovieMode::Inactive &&
+                                app.core.connectedDevice(1) == previousDevice &&
+                                !app.movieDevicesChanged;
 
   app.beginMovieRecording(true);
   const int beginningFrames = 240;
@@ -818,19 +815,14 @@ int runMovieTest(App& app, int warmFrames) {
   app.movieMode = MovieMode::Inactive;
   const bool beginningWrote = beginningInputs > 0 && app.writeMovieFile(beginningPath);
   const std::vector<uint8_t> beginningFile = readBytes(beginningPath);
-  const bool stateLess = beginningFile.size() >= 8
-                      && beginningFile[4] == 0
-                      && beginningFile[5] == 0
-                      && beginningFile[6] == 0
-                      && beginningFile[7] == 0;
+  const bool stateLess = beginningFile.size() >= 8 && beginningFile[4] == 0 &&
+                         beginningFile[5] == 0 && beginningFile[6] == 0 && beginningFile[7] == 0;
   app.clearMovie();
   const bool beginningOpened = beginningWrote && stateLess && app.playMovieFile(beginningPath);
-  for(int frame = 0; beginningOpened && frame < beginningFrames; frame++) {
-    app.core.runFrame();
-  }
-  const bool beginningReplayed = beginningOpened && frameHash(app) == beginningFrame
-                              && guestHash(app.core.serialize(false)) == beginningState
-                              && app.moviePlaybackFinished;
+  for(int frame = 0; beginningOpened && frame < beginningFrames; frame++) { app.core.runFrame(); }
+  const bool beginningReplayed = beginningOpened && frameHash(app) == beginningFrame &&
+                                 guestHash(app.core.serialize(false)) == beginningState &&
+                                 app.moviePlaybackFinished;
   app.clearMovie();
 
   app.core.power();
@@ -839,19 +831,18 @@ int runMovieTest(App& app, int warmFrames) {
   const bool entropyRestored = guestHash(app.core.serialize(false)) != firstRandomPower;
 
   std::vector<uint8_t> damaged = readBytes(path);
-  if(!damaged.empty()) {
-    damaged[0] = 'X';
-  }
+  if(!damaged.empty()) { damaged[0] = 'X'; }
   const std::string broken = configDir() + "movie-broken-selftest.bsv";
-  const bool damagedWritten = !damaged.empty() && writeBytes(broken, damaged.data(), damaged.size());
+  const bool damagedWritten =
+      !damaged.empty() && writeBytes(broken, damaged.data(), damaged.size());
   app.clearMovie();
   const bool refused = damagedWritten && !app.playMovieFile(broken);
   const std::string empty = configDir() + "movie-empty-selftest.bsv";
   const uint8_t emptyMovie[8] = {'B', 'S', 'V', '1', 0, 0, 0, 0};
   const uint64_t beforeEmpty = guestHash(app.core.serialize(false));
   const bool emptyWritten = writeBytes(empty, emptyMovie, sizeof(emptyMovie));
-  const bool emptyRefused = emptyWritten && !app.playMovieFile(empty)
-                         && guestHash(app.core.serialize(false)) == beforeEmpty;
+  const bool emptyRefused = emptyWritten && !app.playMovieFile(empty) &&
+                            guestHash(app.core.serialize(false)) == beforeEmpty;
   SDL_RemovePath(path.c_str());
   SDL_RemovePath(beginningPath.c_str());
   SDL_RemovePath(broken.c_str());
@@ -860,15 +851,14 @@ int runMovieTest(App& app, int warmFrames) {
   app.settings.hackEntropy = configuredEntropy;
   app.core.setOption("Hacks/Entropy", EntropyNames[configuredEntropy]);
 
-  const bool pass = wrote && replayed && playbackRestored && beginningWrote
-                 && beginningReplayed && entropyRestored && refused && emptyRefused;
+  const bool pass = wrote && replayed && playbackRestored && beginningWrote && beginningReplayed &&
+                    entropyRestored && refused && emptyRefused;
   SDL_Log("movie round trip: %s, %d inputs", replayed ? "ok" : "FAILED", (int)inputs);
   SDL_Log("movie from reset: %s, %d inputs", beginningReplayed ? "ok" : "FAILED",
           (int)beginningInputs);
   SDL_Log("playback state restored: %s", playbackRestored ? "ok" : "FAILED");
   SDL_Log("configured entropy restored: %s", entropyRestored ? "ok" : "FAILED");
-  SDL_Log("invalid movies refused without mutation: %s",
-          refused && emptyRefused ? "ok" : "FAILED");
+  SDL_Log("invalid movies refused without mutation: %s", refused && emptyRefused ? "ok" : "FAILED");
   SDL_Log("movie test: %s", pass ? "PASS" : "FAIL");
   return pass ? 0 : 1;
 }

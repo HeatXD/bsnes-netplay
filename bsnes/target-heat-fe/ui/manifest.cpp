@@ -8,10 +8,10 @@ void drawField(const char* label, const std::string& value) {
   ImGui::TableSetColumnIndex(1);
   ImGui::TextWrapped("%s", value.c_str());
 }
-}
+}  // namespace
 
 void App::drawManifestWindow() {
-  if(!showManifest) return;
+  if(!showManifest) { return; }
 
   placeFloating(520.0f, 460.0f);
   if(ImGui::Begin("Manifest", &showManifest)) {
@@ -31,11 +31,10 @@ void App::drawManifestWindow() {
       drawField("RAM size", core.ramSizeText());
       drawField("Expansion chip", core.expansionChip());
       drawField("SHA-256", core.checksum());
-      drawField("Verified", core.verified()
-        ? "yes, this dump is in the games database"
-        : "no, the board layout is guessed from the ROM");
-      if(core.patched()) drawField("Patch", "applied on load");
-      for(const auto& slot : core.slots()) drawField(slot.label.c_str(), slot.game);
+      drawField("Verified", core.verified() ? "yes, this dump is in the games database"
+                                            : "no, the board layout is guessed from the ROM");
+      if(core.patched()) { drawField("Patch", "applied on load"); }
+      for(const auto& slot : core.slots()) { drawField(slot.label.c_str(), slot.game); }
       ImGui::EndTable();
     }
 
@@ -50,9 +49,10 @@ void App::drawManifestWindow() {
     // one tab per medium in the machine, base cartridge first
     if(ImGui::BeginTabBar("manifests")) {
       for(const auto& entry : core.manifestList()) {
-        if(!ImGui::BeginTabItem(entry.label.c_str())) continue;
+        if(!ImGui::BeginTabItem(entry.label.c_str())) { continue; }
         ImGui::InputTextMultiline("##manifesttext", const_cast<char*>(entry.text.c_str()),
-          entry.text.size() + 1, ImVec2(-1, -1), ImGuiInputTextFlags_ReadOnly);
+                                  entry.text.size() + 1, ImVec2(-1, -1),
+                                  ImGuiInputTextFlags_ReadOnly);
         ImGui::EndTabItem();
       }
       ImGui::EndTabBar();

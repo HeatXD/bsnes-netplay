@@ -10,7 +10,7 @@
 #include <vector>
 
 class EmuCore {
-public:
+ public:
   // starting size, not a cap: 640 clears SNES_NTSC_OUT_WIDTH(256) == 602, the
   // widest CPU filter output. HD mode 7 grows both buffer and texture past it.
   static constexpr int MaxWidth = 640;
@@ -28,15 +28,30 @@ public:
   enum Button { Up, Down, Left, Right, B, A, Y, X, L, R, Select, Start, ButtonCount };
 
   // matches SuperFamicom::ID::Device
-  enum Device { None, Gamepad, Mouse, SuperMultitap, SuperScope, Justifier, Justifiers,
-                Satellaview, S21FX };
-
+  enum Device {
+    None,
+    Gamepad,
+    Mouse,
+    SuperMultitap,
+    SuperScope,
+    Justifier,
+    Justifiers,
+    Satellaview,
+    S21FX
+  };
 
   // matches Emulator::Interface::Input::Type
   enum InputType { Hat, ButtonInput, Trigger, Control, Axis, Rumble };
 
-  struct DeviceInfo { int id; std::string name; };
-  struct InputInfo { std::string name; int type; };
+  struct DeviceInfo {
+    int id;
+    std::string name;
+  };
+
+  struct InputInfo {
+    std::string name;
+    int type;
+  };
 
   // the Super Famicom cartridge is the base; the rest fill slots it asks for
   struct GameSpec {
@@ -47,8 +62,15 @@ public:
     std::string sufamiTurboB;
   };
 
-  struct SlotInfo { std::string label; std::string game; };
-  struct ManifestInfo { std::string label; std::string text; };
+  struct SlotInfo {
+    std::string label;
+    std::string game;
+  };
+
+  struct ManifestInfo {
+    std::string label;
+    std::string text;
+  };
 
   // only this layer can see inside an archive, so it picks the slot
   enum class Medium { SuperFamicom, GameBoy, BSMemory, SufamiTurbo };
@@ -79,7 +101,8 @@ public:
   void reset();
   void runFrame();
   void setRunAhead(bool enabled);
-  // gates audio/video output the same way run-ahead does, for rollback resimulation
+  // gates audio/video output the same way run-ahead does, for rollback
+  // resimulation
   void setRollback(bool enabled);
 
   // the whole machine; false is the deterministic capture rollback needs
@@ -88,7 +111,13 @@ public:
   static bool deterministicStates();
 
   // hostState marks the cothread stacks: restorable, never comparable
-  struct StateComponent { std::string name; int offset; int size; bool hostState; };
+  struct StateComponent {
+    std::string name;
+    int offset;
+    int size;
+    bool hostState;
+  };
+
   std::vector<StateComponent> stateMap(bool synchronize = true);
   bool unserialize(const std::vector<uint8_t>& state);
 
@@ -183,7 +212,7 @@ public:
   std::function<void(const float* interleaved, int frames)> onAudio;
   std::function<int16_t(int port, int device, int input, int16_t value)> onInputPoll;
 
-private:
+ private:
   struct Impl;
   std::unique_ptr<Impl> impl;
 };

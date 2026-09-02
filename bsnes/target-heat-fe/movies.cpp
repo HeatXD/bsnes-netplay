@@ -8,19 +8,17 @@ constexpr uint8_t Signature1[] = {'B', 'S', 'V', '1'};
 constexpr uint8_t Signature2[] = {'B', 'S', 'V', '2'};
 constexpr size_t MovieHeaderSize = 9 + EmuCore::PortCount;
 const SDL_DialogFileFilter MovieFilters[] = {
-  {"bsnes movies", "bsv"},
-  {"All files", "*"},
+    {"bsnes movies", "bsv"},
+    {"All files", "*"},
 };
 
 uint32_t read32(const uint8_t* data) {
-  return (uint32_t)data[0] | (uint32_t)data[1] << 8 | (uint32_t)data[2] << 16
-       | (uint32_t)data[3] << 24;
+  return (uint32_t)data[0] | (uint32_t)data[1] << 8 | (uint32_t)data[2] << 16 |
+         (uint32_t)data[3] << 24;
 }
 
 void append32(std::vector<uint8_t>& data, uint32_t value) {
-  for(int shift = 0; shift < 32; shift += 8) {
-    data.push_back(value >> shift);
-  }
+  for(int shift = 0; shift < 32; shift += 8) { data.push_back(value >> shift); }
 }
 
 void powerForMovie(EmuCore& core, int configuredEntropy) {
@@ -28,16 +26,12 @@ void powerForMovie(EmuCore& core, int configuredEntropy) {
   core.power();
   core.setOption("Hacks/Entropy", EntropyNames[configuredEntropy]);
 }
-}
+}  // namespace
 
-void App::openMovieDialog() {
-  openPick(movieOpenPick, MovieFilters, nullptr);
-}
+void App::openMovieDialog() { openPick(movieOpenPick, MovieFilters, nullptr); }
 
 void App::beginMovieRecording(bool fromBeginning) {
-  if(!core.loaded() || movieActive()) {
-    return;
-  }
+  if(!core.loaded() || movieActive()) { return; }
   // a power cycle resets every peer's machine independently and desyncs the
   // session; recording from the state already agreed on with peers is fine
   if(fromBeginning && netplayActive()) {
@@ -79,18 +73,16 @@ void App::beginMovieRecording(bool fromBeginning) {
 }
 
 bool App::playMovieFile(const std::string& path) {
-  if(!core.loaded() || movieActive() || netplayActive()) {
-    return false;
-  }
+  if(!core.loaded() || movieActive() || netplayActive()) { return false; }
   if(scripting.running()) {
     showMessage("stop Lua scripting before playing a movie");
     return false;
   }
   const std::vector<uint8_t> file = readBytes(path);
-  const bool version1 = file.size() >= 8
-                     && std::equal(std::begin(Signature1), std::end(Signature1), file.begin());
-  const bool version2 = file.size() >= MovieHeaderSize
-                     && std::equal(std::begin(Signature2), std::end(Signature2), file.begin());
+  const bool version1 =
+      file.size() >= 8 && std::equal(std::begin(Signature1), std::end(Signature1), file.begin());
+  const bool version2 = file.size() >= MovieHeaderSize &&
+                        std::equal(std::begin(Signature2), std::end(Signature2), file.begin());
   if(!version1 && !version2) {
     showMessage("movie signature not supported");
     return false;
@@ -123,13 +115,15 @@ bool App::playMovieFile(const std::string& path) {
     }
     movieDevicesChanged = true;
     movieDeterministic = (file[8 + EmuCore::PortCount] & 1) != 0;
-    if(movieDeterministic) netplayApplyDeterministicSettings();
+    if(movieDeterministic) { netplayApplyDeterministicSettings(); }
   }
   std::vector<uint8_t> state(file.begin() + headerSize, file.begin() + headerSize + stateSize);
   if(state.empty()) {
     powerForMovie(core, settings.hackEntropy);
   } else {
-    if(version2) core.power();  // refreshes serialization sizes for the movie's devices
+    if(version2) {
+      core.power();  // refreshes serialization sizes for the movie's devices
+    }
     if(!core.unserialize(state)) {
       restoreMovieDevices();
       showMessage("movie state does not match this game");
@@ -152,23 +146,19 @@ bool App::playMovieFile(const std::string& path) {
 }
 
 bool App::writeMovieFile(std::string path) {
-  if(path.empty()) {
-    return false;
-  }
-  const bool hasExtension = path.size() >= 4
-                         && SDL_strcasecmp(path.c_str() + path.size() - 4, ".bsv") == 0;
-  if(!hasExtension) {
-    path += ".bsv";
-  }
-  if(movieState.size() > UINT32_MAX) {
-    return false;
-  }
+  if(path.empty()) { return false; }
+  const bool hasExtension =
+      path.size() >= 4 && SDL_strcasecmp(path.c_str() + path.size() - 4, ".bsv") == 0;
+  if(!hasExtension) { path += ".bsv"; }
+  if(movieState.size() > UINT32_MAX) { return false; }
 
   std::vector<uint8_t> file;
   file.reserve(MovieHeaderSize + movieState.size() + movieInput.size() * 2);
   file.insert(file.end(), std::begin(Signature2), std::end(Signature2));
   append32(file, (uint32_t)movieState.size());
-  for(int port = 0; port < EmuCore::PortCount; port++) file.push_back((uint8_t)movieDevices[port]);
+  for(int port = 0; port < EmuCore::PortCount; port++) {
+    file.push_back((uint8_t)movieDevices[port]);
+  }
   file.push_back(movieDeterministic ? 1 : 0);
   file.insert(file.end(), movieState.begin(), movieState.end());
   for(int16_t input : movieInput) {
@@ -185,9 +175,7 @@ void App::stopMovie() {
     showMessage("movie playback stopped");
     return;
   }
-  if(movieMode != MovieMode::Recording || movieSavePending) {
-    return;
-  }
+  if(movieMode != MovieMode::Recording || movieSavePending) { return; }
 
   movieMode = MovieMode::Inactive;
   movieSavePending = true;
@@ -204,12 +192,14 @@ void App::clearMovie() {
   movieInput.clear();
   moviePosition = 0;
   moviePlaybackFinished = false;
-  if(restorePlayback) restoreMovieDevices();
+  if(restorePlayback) { restoreMovieDevices(); }
 }
 
 void App::restoreMovieDevices() {
   if(movieDevicesChanged) {
-    for(int port = 0; port < EmuCore::PortCount; port++) core.connect(port, moviePreviousDevices[port]);
+    for(int port = 0; port < EmuCore::PortCount; port++) {
+      core.connect(port, moviePreviousDevices[port]);
+    }
   }
   pushEnhancements();
   core.power();
@@ -219,18 +209,14 @@ void App::restoreMovieDevices() {
 int16_t App::pollMovieInput(int, int, int, int16_t physical) {
   // GekkoNet can run this frame repeatedly for rollback and presentation
   // runahead; only its single real timeline advance belongs in the movie
-  if(netplayActive() && !netplay.recordInput) return physical;
+  if(netplayActive() && !netplay.recordInput) { return physical; }
   if(movieMode == MovieMode::Recording) {
     movieInput.push_back(physical);
     return physical;
   }
-  if(movieMode != MovieMode::Playing) {
-    return physical;
-  }
-  if(moviePosition >= movieInput.size()) {
-    return physical;
-  }
+  if(movieMode != MovieMode::Playing) { return physical; }
+  if(moviePosition >= movieInput.size()) { return physical; }
   const int16_t value = movieInput[moviePosition++];
-  if(moviePosition == movieInput.size()) moviePlaybackFinished = true;
+  if(moviePosition == movieInput.size()) { moviePlaybackFinished = true; }
   return value;
 }

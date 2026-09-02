@@ -7,8 +7,9 @@ void App::restoreHotkeyDefaults() {
 
 void App::drawHotkeysTab() {
   ImGui::TextUnformatted(capturingHotkey >= 0
-      ? "press a key, mouse or pad button, delete to unbind, esc to cancel"
-      : "click a mapping to rebind it; hold ctrl, shift or alt for a chord");
+                             ? "press a key, mouse or pad button, delete to unbind, esc to cancel"
+                             : "click a mapping to rebind it; hold ctrl, shift or alt for a "
+                               "chord");
   ImGui::Separator();
 
   if(ImGui::BeginTable("hotkeys", 1 + InputMap::HotkeySlots,
@@ -32,7 +33,7 @@ void App::drawHotkeysTab() {
         ImGui::PushID(1000 + id);
         const Binding& binding = input.hotkey(i, slot);
         const std::string label = capturingHotkey == id ? "..." : binding.label();
-        if(ImGui::Button(label.c_str(), ImVec2(-1.0f, 0.0f))) capturingHotkey = id;
+        if(ImGui::Button(label.c_str(), ImVec2(-1.0f, 0.0f))) { capturingHotkey = id; }
         ImGui::PopID();
       }
     }

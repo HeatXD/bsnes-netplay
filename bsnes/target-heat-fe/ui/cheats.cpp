@@ -9,12 +9,15 @@ void sortCheats(std::vector<CheatEntry>& cheats) {
     return SDL_strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
   });
 }
-}
+}  // namespace
 
 void App::drawCheatsWindow() {
-  if(!showCheats) return;
+  if(!showCheats) { return; }
   placeFloating(620.0f, 500.0f);
-  if(!ImGui::Begin("Cheats", &showCheats)) { ImGui::End(); return; }
+  if(!ImGui::Begin("Cheats", &showCheats)) {
+    ImGui::End();
+    return;
+  }
 
   if(!core.loaded()) {
     ImGui::TextDisabled("Load a game to edit its cheats.");
@@ -36,12 +39,16 @@ void App::drawCheatsWindow() {
   if(ImGui::Button("Import from database...")) {
     databaseCheats = findDatabaseCheats();
     databaseCheatSelected.assign(databaseCheats.size(), true);
-    if(databaseCheats.empty()) showMessage("no database cheats found for this game");
-    else ImGui::OpenPopup("Cheat database");
+    if(databaseCheats.empty()) {
+      showMessage("no database cheats found for this game");
+    } else {
+      ImGui::OpenPopup("Cheat database");
+    }
   }
 
-  if(ImGui::BeginTable("##cheats", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
-                                     | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable,
+  if(ImGui::BeginTable("##cheats", 2,
+                       ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
+                           ImGuiTableFlags_Resizable,
                        ImVec2(0.0f, 190.0f))) {
     ImGui::TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 35.0f);
     ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
@@ -75,8 +82,9 @@ void App::drawCheatsWindow() {
   ImGui::InputTextMultiline("##codes", cheatCode, sizeof(cheatCode), ImVec2(-1.0f, 75.0f));
   ImGui::Checkbox("Enable this cheat", &cheatEditEnabled);
   ImGui::TextDisabled(core.gameBoyLoaded()
-                    ? "Game Genie, GameShark, or address=data; one code per line."
-                    : "Game Genie, Pro Action Replay, or address=data; one code per line.");
+                          ? "Game Genie, GameShark, or address=data; one code per line."
+                          : "Game Genie, Pro Action Replay, or address=data; one code per "
+                            "line.");
 
   auto accept = [&](bool replace) {
     std::string name = cheatName;
@@ -84,8 +92,14 @@ void App::drawCheatsWindow() {
     const size_t last = name.find_last_not_of(" \t");
     name = first == std::string::npos ? std::string() : name.substr(first, last + 1 - first);
     std::string code = cheatCode;
-    if(name.empty()) { cheatError = "A cheat needs a name."; return; }
-    if(!normalizeCheatCode(code)) { cheatError = "The code format is not valid for this game."; return; }
+    if(name.empty()) {
+      cheatError = "A cheat needs a name.";
+      return;
+    }
+    if(!normalizeCheatCode(code)) {
+      cheatError = "The code format is not valid for this game.";
+      return;
+    }
     const CheatEntry changed{name, code, cheatEditEnabled};
     if(replace && cheatSelected >= 0 && cheatSelected < (int)cheats.size()) {
       cheats[(size_t)cheatSelected] = changed;
@@ -95,7 +109,7 @@ void App::drawCheatsWindow() {
     sortCheats(cheats);
     cheatSelected = -1;
     for(int i = 0; i < (int)cheats.size(); i++) {
-      if(cheats[(size_t)i].name == name && cheats[(size_t)i].code == code) cheatSelected = i;
+      if(cheats[(size_t)i].name == name && cheats[(size_t)i].code == code) { cheatSelected = i; }
     }
     SDL_strlcpy(cheatName, name.c_str(), sizeof(cheatName));
     SDL_strlcpy(cheatCode, code.c_str(), sizeof(cheatCode));
@@ -105,12 +119,12 @@ void App::drawCheatsWindow() {
     applyCheats();
   };
 
-  if(ImGui::Button("Add")) accept(false);
+  if(ImGui::Button("Add")) { accept(false); }
   ImGui::SameLine();
   ImGui::BeginDisabled(cheatSelected < 0 || cheatSelected >= (int)cheats.size());
-  if(ImGui::Button("Update")) accept(true);
+  if(ImGui::Button("Update")) { accept(true); }
   ImGui::SameLine();
-  if(ImGui::Button("Remove")) confirmRemoveCheat = true;
+  if(ImGui::Button("Remove")) { confirmRemoveCheat = true; }
   ImGui::EndDisabled();
   ImGui::SameLine();
   if(ImGui::Button("Clear form")) {
@@ -125,7 +139,7 @@ void App::drawCheatsWindow() {
     ImGui::PopStyleColor();
   }
 
-  if(confirmRemoveCheat) ImGui::OpenPopup("Remove cheat");
+  if(confirmRemoveCheat) { ImGui::OpenPopup("Remove cheat"); }
   if(ImGui::BeginPopupModal("Remove cheat", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextUnformatted("Permanently remove the selected cheat?");
     if(ImGui::Button("Remove")) {
@@ -151,11 +165,11 @@ void App::drawCheatsWindow() {
   if(ImGui::BeginPopupModal("Cheat database", nullptr)) {
     ImGui::Text("%d cheats found", (int)databaseCheats.size());
     if(ImGui::Button("Select all")) {
-      for(size_t i = 0; i < databaseCheatSelected.size(); i++) databaseCheatSelected[i] = true;
+      for(size_t i = 0; i < databaseCheatSelected.size(); i++) { databaseCheatSelected[i] = true; }
     }
     ImGui::SameLine();
     if(ImGui::Button("Select none")) {
-      for(size_t i = 0; i < databaseCheatSelected.size(); i++) databaseCheatSelected[i] = false;
+      for(size_t i = 0; i < databaseCheatSelected.size(); i++) { databaseCheatSelected[i] = false; }
     }
     if(ImGui::BeginChild("##database", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing() * 2.0f),
                          ImGuiChildFlags_Borders)) {
@@ -171,13 +185,16 @@ void App::drawCheatsWindow() {
     ImGui::EndChild();
     if(ImGui::Button("Add selected")) {
       for(size_t i = 0; i < databaseCheats.size(); i++) {
-        if(!databaseCheatSelected[i]) continue;
+        if(!databaseCheatSelected[i]) { continue; }
         const CheatEntry& candidate = databaseCheats[i];
         bool duplicate = false;
         for(const CheatEntry& existing : cheats) {
-          if(existing.code == candidate.code) { duplicate = true; break; }
+          if(existing.code == candidate.code) {
+            duplicate = true;
+            break;
+          }
         }
-        if(!duplicate) cheats.push_back(candidate);
+        if(!duplicate) { cheats.push_back(candidate); }
       }
       sortCheats(cheats);
       cheatsDirty = true;
@@ -185,7 +202,7 @@ void App::drawCheatsWindow() {
       ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if(ImGui::Button("Cancel")) ImGui::CloseCurrentPopup();
+    if(ImGui::Button("Cancel")) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
   }
 
@@ -194,9 +211,12 @@ void App::drawCheatsWindow() {
 }
 
 void App::drawCheatFinderWindow() {
-  if(!showCheatFinder) return;
+  if(!showCheatFinder) { return; }
   placeFloating(520.0f, 460.0f);
-  if(!ImGui::Begin("Cheat Finder", &showCheatFinder)) { ImGui::End(); return; }
+  if(!ImGui::Begin("Cheat Finder", &showCheatFinder)) {
+    ImGui::End();
+    return;
+  }
   if(!core.loaded()) {
     ImGui::TextDisabled("Load a game to search its memory.");
     ImGui::End();
@@ -222,43 +242,47 @@ void App::drawCheatFinderWindow() {
     return value;
   };
   auto matches = [&](uint32_t value, uint32_t wanted) {
-    if(cheatSearchMode == 0) return value == wanted;
-    if(cheatSearchMode == 1) return value != wanted;
-    if(cheatSearchMode == 2) return value >= wanted;
-    if(cheatSearchMode == 3) return value <= wanted;
-    if(cheatSearchMode == 4) return value > wanted;
+    if(cheatSearchMode == 0) { return value == wanted; }
+    if(cheatSearchMode == 1) { return value != wanted; }
+    if(cheatSearchMode == 2) { return value >= wanted; }
+    if(cheatSearchMode == 3) { return value <= wanted; }
+    if(cheatSearchMode == 4) { return value > wanted; }
     return value < wanted;
   };
   auto scan = [&] {
     std::string valueText = cheatSearchValue;
-    if(!valueText.empty() && valueText[0] == '$') valueText = "0x" + valueText.substr(1);
-    if(!valueText.empty() && valueText[0] == '#') valueText.erase(0, 1);
-    const int base = valueText.compare(0, 2, "0x") == 0 || valueText.compare(0, 2, "0X") == 0 ? 16 : 10;
-    if(base == 16) valueText.erase(0, 2);
+    if(!valueText.empty() && valueText[0] == '$') { valueText = "0x" + valueText.substr(1); }
+    if(!valueText.empty() && valueText[0] == '#') { valueText.erase(0, 1); }
+    const int base =
+        valueText.compare(0, 2, "0x") == 0 || valueText.compare(0, 2, "0X") == 0 ? 16 : 10;
+    if(base == 16) { valueText.erase(0, 2); }
     char* end = nullptr;
     const uint32_t mask = cheatSearchSize == 0 ? 0xff : cheatSearchSize == 1 ? 0xffff : 0xffffff;
     const uint32_t wanted = (uint32_t)std::strtoul(valueText.c_str(), &end, base) & mask;
-    if(valueText.empty() || !end || *end) { showMessage("enter a decimal, $hex, or 0xhex value"); return; }
+    if(valueText.empty() || !end || *end) {
+      showMessage("enter a decimal, $hex, or 0xhex value");
+      return;
+    }
     std::vector<CheatCandidate> found;
     if(cheatCandidates.empty()) {
       const uint32_t limit = core.memorySize(EmuCore::MemoryDomain::WRAM) - cheatSearchSize;
       for(uint32_t offset = 0; offset < limit && found.size() < 4096; offset++) {
         const uint32_t value = read(offset);
-        if(matches(value, wanted)) found.push_back({0x7e0000 + offset, value, cheatSearchSize});
+        if(matches(value, wanted)) { found.push_back({0x7e0000 + offset, value, cheatSearchSize}); }
       }
     } else {
       for(const CheatCandidate& candidate : cheatCandidates) {
         const uint32_t offset = candidate.address - 0x7e0000;
-        if(offset + cheatSearchSize >= core.memorySize(EmuCore::MemoryDomain::WRAM)) continue;
+        if(offset + cheatSearchSize >= core.memorySize(EmuCore::MemoryDomain::WRAM)) { continue; }
         const uint32_t value = read(offset);
-        if(matches(value, wanted)) found.push_back({candidate.address, value, cheatSearchSize});
+        if(matches(value, wanted)) { found.push_back({candidate.address, value, cheatSearchSize}); }
       }
     }
     cheatCandidates = std::move(found);
     cheatCandidateSelected = -1;
   };
 
-  if(ImGui::Button("Scan")) scan();
+  if(ImGui::Button("Scan")) { scan(); }
   ImGui::SameLine();
   ImGui::BeginDisabled(cheatCandidates.empty());
   if(ImGui::Button("Clear")) {
@@ -270,8 +294,8 @@ void App::drawCheatFinderWindow() {
   ImGui::TextDisabled("%d candidates%s", (int)cheatCandidates.size(),
                       cheatCandidates.size() == 4096 ? " (limit reached)" : "");
 
-  if(ImGui::BeginTable("##candidates", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
-                                         | ImGuiTableFlags_ScrollY,
+  if(ImGui::BeginTable("##candidates", 2,
+                       ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
                        ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing() * 2.0f))) {
     ImGui::TableSetupColumn("Address");
     ImGui::TableSetupColumn("Value");
@@ -283,12 +307,14 @@ void App::drawCheatFinderWindow() {
         const CheatCandidate& candidate = cheatCandidates[(size_t)i];
         char address[16], value[32];
         SDL_snprintf(address, sizeof(address), "%06x", candidate.address);
-        SDL_snprintf(value, sizeof(value), "%0*x (%u)", (candidate.size + 1) * 2,
-                     candidate.value, candidate.value);
+        SDL_snprintf(value, sizeof(value), "%0*x (%u)", (candidate.size + 1) * 2, candidate.value,
+                     candidate.value);
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         if(ImGui::Selectable(address, cheatCandidateSelected == i,
-                             ImGuiSelectableFlags_SpanAllColumns)) cheatCandidateSelected = i;
+                             ImGuiSelectableFlags_SpanAllColumns)) {
+          cheatCandidateSelected = i;
+        }
         ImGui::TableSetColumnIndex(1);
         ImGui::TextUnformatted(value);
       }
@@ -296,8 +322,8 @@ void App::drawCheatFinderWindow() {
     ImGui::EndTable();
   }
 
-  ImGui::BeginDisabled(cheatCandidateSelected < 0
-                    || cheatCandidateSelected >= (int)cheatCandidates.size());
+  ImGui::BeginDisabled(cheatCandidateSelected < 0 ||
+                       cheatCandidateSelected >= (int)cheatCandidates.size());
   if(ImGui::Button("Send to editor")) {
     const CheatCandidate& candidate = cheatCandidates[(size_t)cheatCandidateSelected];
     std::string codes;

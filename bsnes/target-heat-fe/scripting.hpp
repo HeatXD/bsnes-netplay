@@ -9,7 +9,7 @@ struct App;
 struct lua_State;
 
 class LuaEngine {
-public:
+ public:
   explicit LuaEngine(App& app);
   ~LuaEngine();
 
@@ -24,16 +24,23 @@ public:
   void drawOverlay();
 
   bool running() const { return active; }
+
   const std::string& path() const { return scriptPath; }
+
   const std::string& error() const { return lastError; }
+
   int64_t globalInteger(const char* name) const;
+
   int commandCount() const { return (int)commands.size(); }
+
   std::string dataDirectory() const;
+
   const std::string& console() const { return consoleText; }
+
   void clearConsole();
   bool takeConsoleScroll();
 
-private:
+ private:
   App& app;
   lua_State* state = nullptr;
   std::string scriptPath;
@@ -50,26 +57,33 @@ private:
 
   struct DrawCommand {
     enum Type { Box, Ellipse, Line, Pixel, Text } type;
+
     float x1 = 0.0f, y1 = 0.0f, x2 = 0.0f, y2 = 0.0f;
     uint32_t color = 0xffffffffu, outline = 0;
     float thickness = 1.0f, size = 13.0f;
+
     enum TextAlign { Left, Center, Right } align = Left;
+
     bool pixelFont = false;
     std::string text;
   };
+
   std::vector<DrawCommand> commands;
 
   struct WindowWidget {
     enum Type { Label, Button } type = Label;
+
     std::string text;
     std::string key;
     float width = 0.0f, height = 0.0f;
   };
+
   struct WindowCommand {
     std::string title;
     float width = 0.0f, height = 0.0f;
     std::vector<WindowWidget> widgets;
   };
+
   std::vector<WindowCommand> windows;
   int currentWindow = -1;
   std::unordered_set<std::string> clickedWidgets;

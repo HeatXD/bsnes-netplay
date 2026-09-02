@@ -12,8 +12,16 @@ constexpr int IdleDelayMs = 32;
 
 // what this invocation is for; the harnesses are mutually exclusive
 enum class Mode {
-  Run, UiShot, StateTest, DeterminismTest, TimelineTest,
-  HotkeyTest, LuaTest, ShaderTest, CheatTest, MovieTest
+  Run,
+  UiShot,
+  StateTest,
+  DeterminismTest,
+  TimelineTest,
+  HotkeyTest,
+  LuaTest,
+  ShaderTest,
+  CheatTest,
+  MovieTest
 };
 
 struct Options {
@@ -53,9 +61,9 @@ struct Options {
 
   // the modes that drive the emulator itself; the hotkey matcher needs no game
   bool needsRom() const {
-    return mode == Mode::StateTest || mode == Mode::DeterminismTest || mode == Mode::TimelineTest
-        || mode == Mode::CheatTest || mode == Mode::MovieTest
-        || (mode == Mode::Run && (frameLimit || netplayPort || !playMovie.empty()));
+    return mode == Mode::StateTest || mode == Mode::DeterminismTest || mode == Mode::TimelineTest ||
+           mode == Mode::CheatTest || mode == Mode::MovieTest ||
+           (mode == Mode::Run && (frameLimit || netplayPort || !playMovie.empty()));
   }
 };
 
@@ -65,49 +73,77 @@ Options parseArgs(int argc, char** argv) {
     const char* arg = argv[i];
     const bool hasValue = i + 1 < argc;
 
-    if(SDL_strcmp(arg, "--fast") == 0) opt.fast = true;
-    else if(SDL_strcmp(arg, "--state-test") == 0) opt.mode = Mode::StateTest;
-    else if(SDL_strcmp(arg, "--determinism-test") == 0) opt.mode = Mode::DeterminismTest;
-    else if(SDL_strcmp(arg, "--timeline-test") == 0) opt.mode = Mode::TimelineTest;
-    else if(SDL_strcmp(arg, "--hotkey-test") == 0) opt.mode = Mode::HotkeyTest;
-    else if(SDL_strcmp(arg, "--shader-test") == 0) opt.mode = Mode::ShaderTest;
-    else if(SDL_strcmp(arg, "--cheat-test") == 0) opt.mode = Mode::CheatTest;
-    else if(SDL_strcmp(arg, "--movie-test") == 0) opt.mode = Mode::MovieTest;
-    else if(SDL_strcmp(arg, "--lua-test") == 0 && hasValue) {
+    if(SDL_strcmp(arg, "--fast") == 0) {
+      opt.fast = true;
+    } else if(SDL_strcmp(arg, "--state-test") == 0) {
+      opt.mode = Mode::StateTest;
+    } else if(SDL_strcmp(arg, "--determinism-test") == 0) {
+      opt.mode = Mode::DeterminismTest;
+    } else if(SDL_strcmp(arg, "--timeline-test") == 0) {
+      opt.mode = Mode::TimelineTest;
+    } else if(SDL_strcmp(arg, "--hotkey-test") == 0) {
+      opt.mode = Mode::HotkeyTest;
+    } else if(SDL_strcmp(arg, "--shader-test") == 0) {
+      opt.mode = Mode::ShaderTest;
+    } else if(SDL_strcmp(arg, "--cheat-test") == 0) {
+      opt.mode = Mode::CheatTest;
+    } else if(SDL_strcmp(arg, "--movie-test") == 0) {
+      opt.mode = Mode::MovieTest;
+    } else if(SDL_strcmp(arg, "--lua-test") == 0 && hasValue) {
       opt.luaTest = argv[++i];
       opt.mode = Mode::LuaTest;
-    }
-    else if(SDL_strcmp(arg, "--lua") == 0 && hasValue) opt.luaScript = argv[++i];
-    else if(SDL_strcmp(arg, "--ui-fullscreen") == 0) opt.uiFullscreen = true;
-    else if(SDL_strcmp(arg, "--frames") == 0 && hasValue) opt.frameLimit = SDL_atoi(argv[++i]);
-    else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) {
+    } else if(SDL_strcmp(arg, "--lua") == 0 && hasValue) {
+      opt.luaScript = argv[++i];
+    } else if(SDL_strcmp(arg, "--ui-fullscreen") == 0) {
+      opt.uiFullscreen = true;
+    } else if(SDL_strcmp(arg, "--frames") == 0 && hasValue) {
+      opt.frameLimit = SDL_atoi(argv[++i]);
+    } else if(SDL_strcmp(arg, "--ui-shot") == 0 && hasValue) {
       opt.uiShot = argv[++i];
       opt.mode = Mode::UiShot;
-    }
-    else if(SDL_strcmp(arg, "--ui-screen") == 0 && hasValue) opt.uiScreen = argv[++i];
-    else if(SDL_strcmp(arg, "--ui-tab") == 0 && hasValue) opt.shotTab = SDL_atoi(argv[++i]);
-    else if(SDL_strcmp(arg, "--ui-warm") == 0 && hasValue) opt.warmFrames = SDL_atoi(argv[++i]);
-    else if(SDL_strcmp(arg, "--ui-size") == 0 && i + 2 < argc) {
+    } else if(SDL_strcmp(arg, "--ui-screen") == 0 && hasValue) {
+      opt.uiScreen = argv[++i];
+    } else if(SDL_strcmp(arg, "--ui-tab") == 0 && hasValue) {
+      opt.shotTab = SDL_atoi(argv[++i]);
+    } else if(SDL_strcmp(arg, "--ui-warm") == 0 && hasValue) {
+      opt.warmFrames = SDL_atoi(argv[++i]);
+    } else if(SDL_strcmp(arg, "--ui-size") == 0 && i + 2 < argc) {
       opt.shotW = SDL_atoi(argv[i + 1]);
       opt.shotH = SDL_atoi(argv[i + 2]);
       i += 2;
+    } else if(SDL_strcmp(arg, "--netplay-port") == 0 && hasValue) {
+      opt.netplayPort = SDL_atoi(argv[++i]);
+    } else if(SDL_strcmp(arg, "--netplay-local") == 0 && hasValue) {
+      opt.netplayLocal = SDL_atoi(argv[++i]);
+    } else if(SDL_strcmp(arg, "--netplay-remote") == 0 && hasValue) {
+      opt.netplayRemotes.push_back(argv[++i]);
+    } else if(SDL_strcmp(arg, "--netplay-spectate") == 0) {
+      opt.netplaySpectate = true;
+    } else if(SDL_strcmp(arg, "--netplay-spectate-players") == 0 && hasValue) {
+      opt.netplaySpectatePlayers = SDL_atoi(argv[++i]);
+    } else if(SDL_strcmp(arg, "--netplay-spectator-remote") == 0 && hasValue) {
+      opt.netplaySpectators.push_back(argv[++i]);
+    } else if(SDL_strcmp(arg, "--netplay-record") == 0 && hasValue) {
+      opt.netplayRecord = argv[++i];
+    } else if(SDL_strcmp(arg, "--play-movie") == 0 && hasValue) {
+      opt.playMovie = argv[++i];
+    } else if(SDL_strcmp(arg, "--weyve-server") == 0 && hasValue) {
+      opt.weyveServer = argv[++i];
+    } else if(SDL_strcmp(arg, "--weyve-create") == 0) {
+      opt.weyveCreate = true;
+    } else if(SDL_strcmp(arg, "--weyve-browse") == 0) {
+      opt.weyveBrowse = true;
+    } else if(SDL_strcmp(arg, "--weyve-join") == 0 && hasValue) {
+      opt.weyveJoin = argv[++i];
+    } else if(SDL_strcmp(arg, "--weyve-select-first-game") == 0) {
+      opt.weyveSelectFirstGame = true;
+    } else if(SDL_strcmp(arg, "--weyve-auto-start") == 0) {
+      opt.weyveAutoStart = true;
+    } else if(SDL_strcmp(arg, "--weyve-demote-at-count") == 0 && hasValue) {
+      opt.weyveDemoteAtCount = SDL_atoi(argv[++i]);
+    } else if(arg[0] != '-' && opt.romPath.empty()) {
+      opt.romPath = arg;
     }
-    else if(SDL_strcmp(arg, "--netplay-port") == 0 && hasValue) opt.netplayPort = SDL_atoi(argv[++i]);
-    else if(SDL_strcmp(arg, "--netplay-local") == 0 && hasValue) opt.netplayLocal = SDL_atoi(argv[++i]);
-    else if(SDL_strcmp(arg, "--netplay-remote") == 0 && hasValue) opt.netplayRemotes.push_back(argv[++i]);
-    else if(SDL_strcmp(arg, "--netplay-spectate") == 0) opt.netplaySpectate = true;
-    else if(SDL_strcmp(arg, "--netplay-spectate-players") == 0 && hasValue) opt.netplaySpectatePlayers = SDL_atoi(argv[++i]);
-    else if(SDL_strcmp(arg, "--netplay-spectator-remote") == 0 && hasValue) opt.netplaySpectators.push_back(argv[++i]);
-    else if(SDL_strcmp(arg, "--netplay-record") == 0 && hasValue) opt.netplayRecord = argv[++i];
-    else if(SDL_strcmp(arg, "--play-movie") == 0 && hasValue) opt.playMovie = argv[++i];
-    else if(SDL_strcmp(arg, "--weyve-server") == 0 && hasValue) opt.weyveServer = argv[++i];
-    else if(SDL_strcmp(arg, "--weyve-create") == 0) opt.weyveCreate = true;
-    else if(SDL_strcmp(arg, "--weyve-browse") == 0) opt.weyveBrowse = true;
-    else if(SDL_strcmp(arg, "--weyve-join") == 0 && hasValue) opt.weyveJoin = argv[++i];
-    else if(SDL_strcmp(arg, "--weyve-select-first-game") == 0) opt.weyveSelectFirstGame = true;
-    else if(SDL_strcmp(arg, "--weyve-auto-start") == 0) opt.weyveAutoStart = true;
-    else if(SDL_strcmp(arg, "--weyve-demote-at-count") == 0 && hasValue) opt.weyveDemoteAtCount = SDL_atoi(argv[++i]);
-    else if(arg[0] != '-' && opt.romPath.empty()) opt.romPath = arg;
   }
   return opt;
 }
@@ -140,7 +176,7 @@ void shutdownImGui() {
 // the escape hatch for a pad SDL has no mapping for, which is otherwise dead
 void loadGamepadMappings() {
   const std::string path = configDir() + "gamecontrollerdb.txt";
-  if(!pathExists(path)) return;
+  if(!pathExists(path)) { return; }
   SDL_Log("gamepad mappings from %s: %d", path.c_str(),
           SDL_AddGamepadMappingsFromFile(path.c_str()));
 }
@@ -149,20 +185,23 @@ void loadGamepadMappings() {
 // opening one twice would list the same stick under two slots
 void addPad(App& app, SDL_JoystickID id) {
   for(const Controller& pad : app.pads) {
-    if(pad && pad.id() == id) return;
+    if(pad && pad.id() == id) { return; }
   }
   Controller opened;
   if(SDL_IsGamepad(id)) {
     opened.gamepad = SDL_OpenGamepad(id);
-    if(opened.gamepad) opened.joystick = SDL_GetGamepadJoystick(opened.gamepad);
+    if(opened.gamepad) { opened.joystick = SDL_GetGamepadJoystick(opened.gamepad); }
   } else {
     opened.joystick = SDL_OpenJoystick(id);
   }
-  if(!opened) return;
+  if(!opened) { return; }
 
   // reuse a slot left by an unplugged pad before growing the list
   for(Controller& slot : app.pads) {
-    if(!slot) { slot = opened; return; }
+    if(!slot) {
+      slot = opened;
+      return;
+    }
   }
   app.pads.push_back(opened);
 }
@@ -170,8 +209,8 @@ void addPad(App& app, SDL_JoystickID id) {
 void openGamepads(App& app) {
   int count = 0;
   SDL_JoystickID* ids = SDL_GetJoysticks(&count);
-  for(int i = 0; ids && i < count; i++) addPad(app, ids[i]);
-  if(ids) SDL_free(ids);
+  for(int i = 0; ids && i < count; i++) { addPad(app, ids[i]); }
+  if(ids) { SDL_free(ids); }
 }
 
 // Drives the frame loop. Lives as a struct so the event watch can call back
@@ -207,7 +246,7 @@ struct Frontend {
 };
 
 void Frontend::renderUi() {
-  if(app.fontDirty) app.applyFont();
+  if(app.fontDirty) { app.applyFont(); }
 
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplSDL3_NewFrame();
@@ -249,7 +288,7 @@ void Frontend::advance() {
     // input straight from GekkoNet, including on resimulated frames
   } else if(ImGui::GetIO().WantCaptureKeyboard || blockInput) {
     for(int port = 0; port < InputMap::Ports; port++) {
-      for(int b = 0; b < EmuCore::MaxInputs; b++) app.core.setInput(port, b, 0);
+      for(int b = 0; b < EmuCore::MaxInputs; b++) { app.core.setInput(port, b, 0); }
     }
   } else {
     app.input.apply(app.core, app.pads, app.settings, app.sample, app.emulatedFrames);
@@ -263,7 +302,9 @@ void Frontend::advance() {
 // Returns true when nothing was emulated, so the caller knows to idle. Also
 // runs re-entrantly from the event watch during an OS drag or resize.
 bool Frontend::stepFrame() {
-  if(inFrame) return false;  // the watch can fire while we are already drawing
+  if(inFrame) {
+    return false;  // the watch can fire while we are already drawing
+  }
   inFrame = true;
 
   // one read a frame: the relative delta is consumed by whoever asks first
@@ -273,14 +314,17 @@ bool Frontend::stepFrame() {
 
   if(!weyveRequestSent && app.weyveConnected()) {
     weyveRequestSent = true;
-    if(opt.weyveCreate) app.weyveCreateRoom(true);
-    else if(!opt.weyveJoin.empty()) app.weyveJoinRoom(opt.weyveJoin, "");
-    if(opt.weyveBrowse) app.weyveListRooms();
+    if(opt.weyveCreate) {
+      app.weyveCreateRoom(true);
+    } else if(!opt.weyveJoin.empty()) {
+      app.weyveJoinRoom(opt.weyveJoin, "");
+    }
+    if(opt.weyveBrowse) { app.weyveListRooms(); }
   }
 
   if(app.pendingNetplayUnload) {
     app.pendingNetplayUnload = false;
-    if(app.core.loaded()) app.unloadRom();
+    if(app.core.loaded()) { app.unloadRom(); }
   }
 
   if(!weyveRoomReported && app.weyveInRoom()) {
@@ -296,17 +340,20 @@ bool Frontend::stepFrame() {
     SDL_Log("weyve selected game: %s", app.games[0].first.c_str());
     app.weyveSelectGame(0);
   }
-  if(opt.weyveDemoteAtCount && !weyveDemoted && app.weyveInRoom() && weyve_is_host(app.weyve.client)) {
+  if(opt.weyveDemoteAtCount && !weyveDemoted && app.weyveInRoom() &&
+     weyve_is_host(app.weyve.client)) {
     uint32_t count = 0;
     const uint32_t* members = weyve_members(app.weyve.client, &count);
     if((int)count >= opt.weyveDemoteAtCount) {
       weyveDemoted = true;
       uint32_t newest = 0;
-      for(uint32_t i = 0; i < count; i++) newest = SDL_max(newest, members[i]);
+      for(uint32_t i = 0; i < count; i++) { newest = SDL_max(newest, members[i]); }
       app.weyveSetRole(newest, "spec");
     }
   }
-  if(weyveDemoted && weyveDemotedFrames < 60) weyveDemotedFrames++;  // let the role change propagate
+  if(weyveDemoted && weyveDemotedFrames < 60) {
+    weyveDemotedFrames++;  // let the role change propagate
+  }
   if(opt.weyveAutoStart && !weyveStarted && app.weyveInRoom() && weyve_is_host(app.weyve.client)) {
     const std::string blocked = app.weyveStartBlockedReason();
     if(blocked != weyveBlocked) {
@@ -320,17 +367,20 @@ bool Frontend::stepFrame() {
   }
 
   // --frames has to keep running while unfocused, or a headless run stalls
-  const bool stopped = app.emulationIdle()
-                    && !(opt.frameLimit && !app.paused && app.core.loaded());
+  const bool stopped = app.emulationIdle() && !(opt.frameLimit && !app.paused && app.core.loaded());
 
-  if(!stopped) advance();
+  if(!stopped) { advance(); }
   app.frameAdvance = false;
   app.saveMemoryTick();
 
   // screensaver comes back the instant emulation isn't actually running
   const bool running = app.core.loaded() && !stopped;
   if(running != screensaverInhibited) {
-    if(running) SDL_DisableScreenSaver(); else SDL_EnableScreenSaver();
+    if(running) {
+      SDL_DisableScreenSaver();
+    } else {
+      SDL_EnableScreenSaver();
+    }
     screensaverInhibited = running;
   }
 
@@ -346,7 +396,8 @@ bool Frontend::stepFrame() {
   if(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault();
-    SDL_GL_MakeCurrent(app.shell.window, app.shell.gl);  // popups leave their context current
+    SDL_GL_MakeCurrent(app.shell.window,
+                       app.shell.gl);  // popups leave their context current
   }
   SDL_GL_SwapWindow(app.shell.window);
 
@@ -354,7 +405,7 @@ bool Frontend::stepFrame() {
   // a second wall-clock path would stack frames and run the game fast. Waiting
   // after the present means the next poll sees fresh events rather than ones
   // that went stale during the wait.
-  if(!stopped && !opt.fast && !app.unpaced()) app.shell.pace(app.settings);
+  if(!stopped && !opt.fast && !app.unpaced()) { app.shell.pace(app.settings); }
 
   inFrame = false;
   return stopped;
@@ -368,33 +419,37 @@ void Frontend::handleWindowEvent(const SDL_Event& event) {
       app.running = false;
     }
   }
-  if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED
-  && event.window.windowID == SDL_GetWindowID(app.shell.window)) {
+  if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+     event.window.windowID == SDL_GetWindowID(app.shell.window)) {
     if(app.movieActive()) {
       app.showMessage("stop the movie before quitting");
     } else {
       app.running = false;
     }
   }
-  if(event.type == SDL_EVENT_DROP_FILE && event.drop.data) app.loadRom(event.drop.data);
+  if(event.type == SDL_EVENT_DROP_FILE && event.drop.data) { app.loadRom(event.drop.data); }
 }
 
 void Frontend::handleGamepadEvent(const SDL_Event& event) {
   if(event.type == SDL_EVENT_GAMEPAD_ADDED || event.type == SDL_EVENT_JOYSTICK_ADDED) {
-    addPad(app, event.type == SDL_EVENT_GAMEPAD_ADDED ? event.gdevice.which
-                                                      : event.jdevice.which);
+    addPad(app, event.type == SDL_EVENT_GAMEPAD_ADDED ? event.gdevice.which : event.jdevice.which);
     return;
   }
-  if(event.type != SDL_EVENT_GAMEPAD_REMOVED && event.type != SDL_EVENT_JOYSTICK_REMOVED) return;
-  const SDL_JoystickID id = event.type == SDL_EVENT_GAMEPAD_REMOVED ? event.gdevice.which
-                                                                    : event.jdevice.which;
+  if(event.type != SDL_EVENT_GAMEPAD_REMOVED && event.type != SDL_EVENT_JOYSTICK_REMOVED) {
+    return;
+  }
+  const SDL_JoystickID id =
+      event.type == SDL_EVENT_GAMEPAD_REMOVED ? event.gdevice.which : event.jdevice.which;
 
   // the slot is emptied rather than erased, so unplugging one pad never
   // renumbers the others out from under whoever picked them
   for(Controller& pad : app.pads) {
-    if(!pad || pad.id() != id) continue;
-    if(pad.gamepad) SDL_CloseGamepad(pad.gamepad);
-    else SDL_CloseJoystick(pad.joystick);
+    if(!pad || pad.id() != id) { continue; }
+    if(pad.gamepad) {
+      SDL_CloseGamepad(pad.gamepad);
+    } else {
+      SDL_CloseJoystick(pad.joystick);
+    }
     pad = {};
     break;
   }
@@ -402,18 +457,18 @@ void Frontend::handleGamepadEvent(const SDL_Event& event) {
 
 // returns true when the event was swallowed by a pending rebind
 bool Frontend::handleRebind(const SDL_Event& event) {
-  const bool escape = event.type == SDL_EVENT_KEY_DOWN
-                   && event.key.scancode == SDL_SCANCODE_ESCAPE;
+  const bool escape = event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_ESCAPE;
 
   if(app.capturing >= 0) {
     // only the pad this port reads may bind it, so two sticks stay distinct
     const Controller* owner = app.portPad(app.mapPort, app.mapPlayer);
     Binding b;
-    if(escape) app.capturing = -1;
-    else if(InputMap::capture(event, b, owner)) {
+    if(escape) {
+      app.capturing = -1;
+    } else if(InputMap::capture(event, b, owner)) {
       app.input.binding(app.mapPort, app.core.connectedDevice(app.mapPort),
-                        app.capturing / InputMap::SlotCount,
-                        app.capturing % InputMap::SlotCount) = b;
+                        app.capturing / InputMap::SlotCount, app.capturing % InputMap::SlotCount) =
+          b;
       app.input.save(app.inputCfg);
       app.capturing = -1;
     }
@@ -422,8 +477,9 @@ bool Frontend::handleRebind(const SDL_Event& event) {
 
   if(app.capturingHotkey >= 0) {
     Binding b;
-    if(escape) app.capturingHotkey = -1;
-    else if(InputMap::capture(event, b, nullptr, true)) {
+    if(escape) {
+      app.capturingHotkey = -1;
+    } else if(InputMap::capture(event, b, nullptr, true)) {
       app.input.hotkey(app.capturingHotkey / InputMap::HotkeySlots,
                        app.capturingHotkey % InputMap::HotkeySlots) = b;
       app.input.save(app.inputCfg);
@@ -437,8 +493,8 @@ bool Frontend::handleRebind(const SDL_Event& event) {
 
 // Ctrl+O is a menu accelerator rather than a hotkey, so it stays event driven
 void Frontend::handleHotkey(const SDL_Event& event) {
-  if(event.type != SDL_EVENT_KEY_DOWN || event.key.repeat) return;
-  if(ImGui::GetIO().WantCaptureKeyboard) return;
+  if(event.type != SDL_EVENT_KEY_DOWN || event.key.repeat) { return; }
+  if(ImGui::GetIO().WantCaptureKeyboard) { return; }
 
   if(event.key.scancode == SDL_SCANCODE_O && (event.key.mod & SDL_KMOD_CTRL)) {
     app.openRomDialog();
@@ -448,15 +504,15 @@ void Frontend::handleHotkey(const SDL_Event& event) {
 void Frontend::handleEvent(const SDL_Event& event) {
   handleWindowEvent(event);
   handleGamepadEvent(event);
-  if(handleRebind(event)) return;
+  if(handleRebind(event)) { return; }
   handleHotkey(event);
 }
 
 void Frontend::drainPicks() {
   std::string picked;
 
-  if(takePick(app.romPick, picked) && !picked.empty()) app.loadRom(picked);
-  if(takePick(app.pakPick, picked) && !picked.empty()) app.loadRom(picked);
+  if(takePick(app.romPick, picked) && !picked.empty()) { app.loadRom(picked); }
+  if(takePick(app.pakPick, picked) && !picked.empty()) { app.loadRom(picked); }
 
   // cancelling the second cartridge loads slot A alone rather than nothing
   if(takePick(app.sufamiAPick, picked)) {
@@ -525,9 +581,7 @@ void Frontend::drainPicks() {
       app.showScripting = true;
     }
   }
-  if(takePick(app.movieOpenPick, picked) && !picked.empty()) {
-    app.playMovieFile(picked);
-  }
+  if(takePick(app.movieOpenPick, picked) && !picked.empty()) { app.playMovieFile(picked); }
   if(takePick(app.movieSavePick, picked)) {
     const bool saved = !picked.empty() && app.writeMovieFile(picked);
     app.clearMovie();
@@ -551,16 +605,17 @@ void Frontend::drainPicks() {
 int Frontend::runLoop() {
   // Windows blocks inside its own message pump while a window is dragged or
   // resized, so SDL_PollEvent never returns. Drive frames from a watch instead.
-  SDL_AddEventWatch([](void* data, SDL_Event* event) -> bool {
-    if(event->type == SDL_EVENT_WINDOW_EXPOSED
-    || event->type == SDL_EVENT_WINDOW_RESIZED) {
-      ((Frontend*)data)->stepFrame();
-    }
-    return true;
-  }, this);
+  SDL_AddEventWatch(
+      [](void* data, SDL_Event* event) -> bool {
+        if(event->type == SDL_EVENT_WINDOW_EXPOSED || event->type == SDL_EVENT_WINDOW_RESIZED) {
+          ((Frontend*)data)->stepFrame();
+        }
+        return true;
+      },
+      this);
 
   while(app.running) {
-    if(opt.frameLimit && frames >= opt.frameLimit) break;
+    if(opt.frameLimit && frames >= opt.frameLimit) { break; }
 
     SDL_Event event;
     bool busy = false;
@@ -577,29 +632,28 @@ int Frontend::runLoop() {
     // once per redraw, so while events arrive follow the display the window is
     // on; anything slower visibly trails the cursor, anything faster is thrown
     // away by the compositor.
-    if(stepFrame()) SDL_Delay(busy ? app.shell.displayFrameMs() : IdleDelayMs);
+    if(stepFrame()) { SDL_Delay(busy ? app.shell.displayFrameMs() : IdleDelayMs); }
   }
 
   if(app.netplay.instance.size() || app.netplay.desyncCount) {
-    SDL_Log("netplay: instance %s, %u desync event(s), stopped %s, "
-            "desync detection %s, state cache %d entries",
-            app.netplay.instance.c_str(), app.netplay.desyncCount,
-            app.netplayActive() ? "no" : "yes",
-            app.netplay.detectDesyncs ? "on" : "off",
-            (int)app.netplay.stateCache.size());
+    SDL_Log(
+        "netplay: instance %s, %u desync event(s), stopped %s, "
+        "desync detection %s, state cache %d entries",
+        app.netplay.instance.c_str(), app.netplay.desyncCount, app.netplayActive() ? "no" : "yes",
+        app.netplay.detectDesyncs ? "on" : "off", (int)app.netplay.stateCache.size());
   }
   if(!opt.weyveServer.empty()) {
-    SDL_Log("weyve: connected=%d inRoom=%d roomListCount=%d",
-            app.weyveConnected(), app.weyveInRoom(), (int)app.weyve.roomList.size());
+    SDL_Log("weyve: connected=%d inRoom=%d roomListCount=%d", app.weyveConnected(),
+            app.weyveInRoom(), (int)app.weyve.roomList.size());
     for(const WeyveRoomListing& room : app.weyve.roomList) {
-      SDL_Log("weyve room: id=%s members=%u passworded=%d game=\"%s\" host=\"%s\"",
-              room.id.c_str(), room.members, room.passworded, room.game.c_str(), room.host.c_str());
+      SDL_Log("weyve room: id=%s members=%u passworded=%d game=\"%s\" host=\"%s\"", room.id.c_str(),
+              room.members, room.passworded, room.game.c_str(), room.host.c_str());
     }
   }
   if(!opt.netplayRecord.empty() && app.movieMode == MovieMode::Recording) {
     const bool wrote = app.writeMovieFile(opt.netplayRecord);
-    SDL_Log("netplay movie: %s, %d inputs -> %s",
-            wrote ? "wrote" : "FAILED", (int)app.movieInput.size(), opt.netplayRecord.c_str());
+    SDL_Log("netplay movie: %s, %d inputs -> %s", wrote ? "wrote" : "FAILED",
+            (int)app.movieInput.size(), opt.netplayRecord.c_str());
   }
   if(!opt.playMovie.empty()) {
     // hostState (cothread stacks) never compares between two processes; skip
@@ -607,18 +661,17 @@ int Frontend::runLoop() {
     const std::vector<uint8_t> finalState = app.core.serialize(false);
     uint32_t sum = 2166136261u;
     for(const EmuCore::StateComponent& part : app.core.stateMap(false)) {
-      if(part.hostState) continue;
+      if(part.hostState) { continue; }
       for(int i = 0; i < part.size && part.offset + i < (int)finalState.size(); i++) {
         sum = (sum ^ finalState[part.offset + i]) * 16777619u;
       }
     }
-    SDL_Log("movie playback: mode %d, position %d/%d, checksum %08x",
-            (int)app.movieMode, (int)app.moviePosition, (int)app.movieInput.size(), sum);
+    SDL_Log("movie playback: mode %d, position %d/%d, checksum %08x", (int)app.movieMode,
+            (int)app.moviePosition, (int)app.movieInput.size(), sum);
   }
-  SDL_Log("platform viewports: %d (1 = host window only)",
-          ImGui::GetPlatformIO().Viewports.Size);
-  SDL_Log("ran %d frames, last frame %dx%d, %.1f samples/frame (expect %.1f)",
-          frames, app.shell.frameWidth, app.shell.frameHeight,
+  SDL_Log("platform viewports: %d (1 = host window only)", ImGui::GetPlatformIO().Viewports.Size);
+  SDL_Log("ran %d frames, last frame %dx%d, %.1f samples/frame (expect %.1f)", frames,
+          app.shell.frameWidth, app.shell.frameHeight,
           frames ? (double)app.totalSamples / frames : 0.0, AudioRate / app.core.refreshRate());
 
   app.input.save(app.inputCfg);
@@ -627,15 +680,13 @@ int Frontend::runLoop() {
 }
 
 int Frontend::runUiShot() {
-  if(opt.shotW > 0 && opt.shotH > 0) SDL_SetWindowSize(app.shell.window, opt.shotW, opt.shotH);
-  if(opt.uiFullscreen) app.toggleFullscreen();
+  if(opt.shotW > 0 && opt.shotH > 0) { SDL_SetWindowSize(app.shell.window, opt.shotW, opt.shotH); }
+  if(opt.uiFullscreen) { app.toggleFullscreen(); }
 
   // warm the emulator so the shot shows the UI over a real frame
   for(int i = 0; app.core.loaded() && i < opt.warmFrames; i++) {
     for(int port = 0; port < EmuCore::PortCount; port++) {
-      for(int input = 0; input < EmuCore::MaxInputs; input++) {
-        app.core.setInput(port, input, 0);
-      }
+      for(int input = 0; input < EmuCore::MaxInputs; input++) { app.core.setInput(port, input, 0); }
     }
     app.scripting.runBeforeFrame();
     app.core.runFrame();
@@ -650,13 +701,13 @@ int Frontend::runUiShot() {
     if(app.weyveConnected()) {
       SDL_Delay(1);
       app.weyvePoll();
-      if(opt.weyveAutoStart && !weyveStarted && app.weyveInRoom()
-         && weyve_is_host(app.weyve.client) && app.weyveStartBlockedReason().empty()) {
+      if(opt.weyveAutoStart && !weyveStarted && app.weyveInRoom() &&
+         weyve_is_host(app.weyve.client) && app.weyveStartBlockedReason().empty()) {
         weyveStarted = true;
         app.weyveStartGame();
       }
     }
-    if(pass == 0 && opt.shotTab >= 0) app.settingsTab = opt.shotTab;
+    if(pass == 0 && opt.shotTab >= 0) { app.settingsTab = opt.shotTab; }
     renderUi();
   }
 
@@ -701,7 +752,8 @@ void loadConfigs(App& app) {
 
   SDL_strlcpy(app.weyveHostInput, app.settings.weyveHost.c_str(), sizeof(app.weyveHostInput));
   SDL_snprintf(app.weyvePortInput, sizeof(app.weyvePortInput), "%d", app.settings.weyvePort);
-  SDL_strlcpy(app.weyveNicknameInput, app.settings.weyveNickname.c_str(), sizeof(app.weyveNicknameInput));
+  SDL_strlcpy(app.weyveNicknameInput, app.settings.weyveNickname.c_str(),
+              sizeof(app.weyveNicknameInput));
 
   for(int port = 0; port < EmuCore::PortCount; port++) {
     app.core.connect(port, app.settings.devices[port]);
@@ -731,28 +783,31 @@ void openRequestedPanel(App& app, const Options& opt) {
   // cartridge is the old name for the same window
   app.showManifest = opt.uiScreen == "manifest" || opt.uiScreen == "cartridge";
   app.showScripting = opt.uiScreen == "scripting";
-  app.showNetplay = opt.uiScreen == "netplay" || opt.uiScreen == "weyve"
-                 || opt.uiScreen == "weyve-host-settings";
+  app.showNetplay =
+      opt.uiScreen == "netplay" || opt.uiScreen == "weyve" || opt.uiScreen == "weyve-host-settings";
   if(opt.uiScreen == "weyve" || opt.uiScreen == "weyve-host-settings") {
     app.netplayTab = 1;
     app.weyve.focusTab = true;
   }
-  if(opt.uiScreen == "weyve-host-settings") app.weyve.openHostSettings = true;
+  if(opt.uiScreen == "weyve-host-settings") { app.weyve.openHostSettings = true; }
   app.showStateManager = opt.uiScreen == "state-manager";
   app.showCheats = opt.uiScreen == "cheats";
   app.showCheatFinder = opt.uiScreen == "cheat-finder";
-  if(opt.shotTab >= 0) app.settingsTab = opt.shotTab;
+  if(opt.shotTab >= 0) { app.settingsTab = opt.shotTab; }
 }
 
 void shutdownApp(App& app) {
   shutdownImGui();
   for(Controller& pad : app.pads) {
-    if(pad.gamepad) SDL_CloseGamepad(pad.gamepad);
-    else if(pad.joystick) SDL_CloseJoystick(pad.joystick);
+    if(pad.gamepad) {
+      SDL_CloseGamepad(pad.gamepad);
+    } else if(pad.joystick) {
+      SDL_CloseJoystick(pad.joystick);
+    }
   }
   app.weyveDisconnect();
   // quitting with a game up otherwise skips the auto-resume state
-  if(app.core.loaded()) app.unloadRom();
+  if(app.core.loaded()) { app.unloadRom(); }
   app.shell.shutdown();
 }
 
@@ -770,7 +825,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  app.applyShader();  // needs the GL context, so not with the rest of the config
+  app.applyShader();  // needs the GL context, so not with the rest of the
+                      // config
   app.scanGames();
   initImGui(app, opt.mode != Mode::UiShot);
   loadGamepadMappings();
@@ -778,15 +834,15 @@ int main(int argc, char** argv) {
   wireCore(app);
   openRequestedPanel(app, opt);
 
-  if(!opt.romPath.empty()) app.loadRom(opt.romPath);
-  if(!opt.luaScript.empty()) app.scripting.load(opt.luaScript);
+  if(!opt.romPath.empty()) { app.loadRom(opt.romPath); }
+  if(!opt.luaScript.empty()) { app.scripting.load(opt.luaScript); }
   if(opt.netplayPort && opt.netplaySpectate) {
     app.netplayStart(opt.netplayPort, -1, opt.netplayRemotes, {}, opt.netplaySpectatePlayers);
   } else if(opt.netplayPort && opt.netplayLocal >= 0) {
     app.netplayStart(opt.netplayPort, opt.netplayLocal, opt.netplayRemotes, opt.netplaySpectators);
-    if(!opt.netplayRecord.empty()) app.beginMovieRecording(false);
+    if(!opt.netplayRecord.empty()) { app.beginMovieRecording(false); }
   }
-  if(!opt.playMovie.empty()) app.playMovieFile(opt.playMovie);
+  if(!opt.playMovie.empty()) { app.playMovieFile(opt.playMovie); }
   if(!opt.weyveServer.empty()) {
     const size_t colon = opt.weyveServer.find(':');
     const std::string host = opt.weyveServer.substr(0, colon);
@@ -802,16 +858,36 @@ int main(int argc, char** argv) {
   Frontend frontend{app, opt};
   int code = 0;
   switch(opt.mode) {
-    case Mode::UiShot:          code = frontend.runUiShot(); break;
-    case Mode::StateTest:       code = runStateTest(app, opt.warmFrames, opt.frameLimit); break;
-    case Mode::DeterminismTest: code = runDeterminismTest(app, opt.frameLimit); break;
-    case Mode::TimelineTest:    code = runTimelineTest(app, opt.warmFrames); break;
-    case Mode::HotkeyTest:      code = runHotkeyTest(app); break;
-    case Mode::LuaTest:         code = runLuaTest(app, opt.luaTest); break;
-    case Mode::ShaderTest:      code = runShaderTest(app, opt.warmFrames); break;
-    case Mode::CheatTest:       code = runCheatTest(app); break;
-    case Mode::MovieTest:       code = runMovieTest(app, opt.warmFrames); break;
-    case Mode::Run:             code = frontend.runLoop(); break;
+    case Mode::UiShot:
+      code = frontend.runUiShot();
+      break;
+    case Mode::StateTest:
+      code = runStateTest(app, opt.warmFrames, opt.frameLimit);
+      break;
+    case Mode::DeterminismTest:
+      code = runDeterminismTest(app, opt.frameLimit);
+      break;
+    case Mode::TimelineTest:
+      code = runTimelineTest(app, opt.warmFrames);
+      break;
+    case Mode::HotkeyTest:
+      code = runHotkeyTest(app);
+      break;
+    case Mode::LuaTest:
+      code = runLuaTest(app, opt.luaTest);
+      break;
+    case Mode::ShaderTest:
+      code = runShaderTest(app, opt.warmFrames);
+      break;
+    case Mode::CheatTest:
+      code = runCheatTest(app);
+      break;
+    case Mode::MovieTest:
+      code = runMovieTest(app, opt.warmFrames);
+      break;
+    case Mode::Run:
+      code = frontend.runLoop();
+      break;
   }
 
   shutdownApp(app);

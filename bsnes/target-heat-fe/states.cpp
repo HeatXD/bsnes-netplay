@@ -10,11 +10,14 @@ constexpr uint8_t Magic[4] = {'H', 'F', 'S', '1'};
 constexpr size_t HeaderSize = 8;  // magic, then the payload length
 
 // the slots that are not numbered, and where each lives; null means a file
-constexpr struct { const char* name; const char* label; std::vector<uint8_t> App::* held; }
-SpecialSlots[] = {
-  {"undo", "undo state",         &App::undoState},
-  {"redo", "redo state",         &App::redoState},
-  {"auto", "auto-resume state",  nullptr},
+constexpr struct {
+  const char* name;
+  const char* label;
+  std::vector<uint8_t> App::* held;
+} SpecialSlots[] = {
+    {"undo", "undo state", &App::undoState},
+    {"redo", "redo state", &App::redoState},
+    {"auto", "auto-resume state", nullptr},
 };
 
 void writeLE32(uint8_t* out, uint32_t value) {
@@ -38,8 +41,10 @@ bool writeStatePayload(const std::string& path, const std::vector<uint8_t>& payl
 
 bool readStatePayload(const std::string& path, std::vector<uint8_t>& payload) {
   payload = readBytes(path);
-  if(payload.size() <= HeaderSize || SDL_memcmp(payload.data(), Magic, sizeof(Magic)) != 0
-  || readLE32(payload.data() + 4) != payload.size() - HeaderSize) return false;
+  if(payload.size() <= HeaderSize || SDL_memcmp(payload.data(), Magic, sizeof(Magic)) != 0 ||
+     readLE32(payload.data() + 4) != payload.size() - HeaderSize) {
+    return false;
+  }
   payload.erase(payload.begin(), payload.begin() + HeaderSize);
   return true;
 }
@@ -50,9 +55,7 @@ std::string App::statesDir() const {
 }
 
 // per game rather than one flat folder, so nine slots do not bury the rest
-std::string App::stateFolder() const {
-  return statesDir() + "/" + gameTitle;
-}
+std::string App::stateFolder() const { return statesDir() + "/" + gameTitle; }
 
 // a memory slot has a path too, but only so the legacy file can be cleaned up
 std::string App::statePath(const std::string& name) const {
@@ -63,16 +66,16 @@ std::string App::slotName(int slot) { return std::to_string(slot); }
 
 std::string App::stateLabel(const std::string& name) {
   for(const auto& special : SpecialSlots) {
-    if(name == special.name) return special.label;
+    if(name == special.name) { return special.label; }
   }
   const std::string managed = "Managed/";
-  if(name.compare(0, managed.size(), managed) == 0) return name.substr(managed.size());
+  if(name.compare(0, managed.size(), managed) == 0) { return name.substr(managed.size()); }
   return "state " + name;
 }
 
 std::vector<uint8_t>* App::memorySlot(const std::string& name) {
   for(const auto& special : SpecialSlots) {
-    if(name == special.name && special.held) return &(this->*special.held);
+    if(name == special.name && special.held) { return &(this->*special.held); }
   }
   return nullptr;
 }
@@ -82,51 +85,53 @@ const std::vector<uint8_t>* App::memorySlot(const std::string& name) const {
 }
 
 int64_t App::stateTime(const std::string& name) const {
-  if(!core.loaded() || memorySlot(name)) return 0;
+  if(!core.loaded() || memorySlot(name)) { return 0; }
   return fileTime(statePath(name));
 }
 
 bool App::hasState(const std::string& name) const {
-  if(const std::vector<uint8_t>* held = memorySlot(name)) return !held->empty();
+  if(const std::vector<uint8_t>* held = memorySlot(name)) { return !held->empty(); }
   return stateTime(name) != 0;
 }
 
 // quiet leaves the status line to the user's own action
 bool App::saveState(const std::string& name, bool quiet) {
-  if(!core.loaded() || netplayActive()) return false;
+  if(!core.loaded() || netplayActive()) { return false; }
 
   std::vector<uint8_t> payload = core.serialize();
   if(payload.empty()) {
-    if(!quiet) showMessage("could not capture " + stateLabel(name));
+    if(!quiet) { showMessage("could not capture " + stateLabel(name)); }
     return false;
   }
 
   if(std::vector<uint8_t>* held = memorySlot(name)) {
     *held = std::move(payload);
-    if(!quiet) showMessage("saved " + stateLabel(name));
+    if(!quiet) { showMessage("saved " + stateLabel(name)); }
     return true;
   }
 
   if(!writeStatePayload(statePath(name), payload)) {
-    if(!quiet) showMessage("could not write " + stateLabel(name));
+    if(!quiet) { showMessage("could not write " + stateLabel(name)); }
     return false;
   }
 
-  if(!quiet) showMessage("saved " + stateLabel(name));
+  if(!quiet) { showMessage("saved " + stateLabel(name)); }
   return true;
 }
 
 bool App::saveStateFile(const std::string& path, bool quiet) {
-  if(!core.loaded() || netplayActive()) return false;
+  if(!core.loaded() || netplayActive()) { return false; }
   const std::vector<uint8_t> payload = core.serialize();
   const bool saved = !payload.empty() && writeStatePayload(path, payload);
-  if(!quiet) showMessage(saved ? "saved state file " + fileName(path)
-                               : "could not save state file " + fileName(path));
+  if(!quiet) {
+    showMessage(saved ? "saved state file " + fileName(path)
+                      : "could not save state file " + fileName(path));
+  }
   return saved;
 }
 
 bool App::loadState(const std::string& name) {
-  if(!core.loaded()) return false;
+  if(!core.loaded()) { return false; }
   if(netplayActive()) {
     showMessage("states are not available during netplay");
     return false;
@@ -142,8 +147,8 @@ bool App::loadState(const std::string& name) {
   if(!payload) {
     file = readBytes(statePath(name));
     if(!file.empty()) {
-      if(file.size() <= HeaderSize || SDL_memcmp(file.data(), Magic, sizeof(Magic)) != 0
-      || readLE32(file.data() + 4) != file.size() - HeaderSize) {
+      if(file.size() <= HeaderSize || SDL_memcmp(file.data(), Magic, sizeof(Magic)) != 0 ||
+         readLE32(file.data() + 4) != file.size() - HeaderSize) {
         showMessage(stateLabel(name) + " is not a state this build can read");
         return false;
       }
@@ -174,7 +179,7 @@ bool App::loadState(const std::string& name) {
 }
 
 bool App::loadStateFile(const std::string& path) {
-  if(!core.loaded()) return false;
+  if(!core.loaded()) { return false; }
   if(netplayActive()) {
     showMessage("states are not available during netplay");
     return false;
@@ -202,25 +207,25 @@ bool App::loadStateFile(const std::string& path) {
 }
 
 bool App::removeState(const std::string& name) {
-  if(!core.loaded()) return false;
+  if(!core.loaded()) { return false; }
   if(std::vector<uint8_t>* held = memorySlot(name)) {
     const bool had = !held->empty();
     held->clear();
     return had;
   }
-  if(!hasState(name)) return false;
+  if(!hasState(name)) { return false; }
   return SDL_RemovePath(statePath(name).c_str());
 }
 
 bool App::renameState(const std::string& from, const std::string& to) {
-  if(!core.loaded() || !hasState(from) || hasState(to)) return false;
-  return ensureDir(parentDir(statePath(to)))
-      && SDL_RenamePath(statePath(from).c_str(), statePath(to).c_str());
+  if(!core.loaded() || !hasState(from) || hasState(to)) { return false; }
+  return ensureDir(parentDir(statePath(to))) &&
+         SDL_RenamePath(statePath(from).c_str(), statePath(to).c_str());
 }
 
 std::vector<StateEntry> App::availableStates(bool managed) const {
   std::vector<StateEntry> states;
-  if(!core.loaded()) return states;
+  if(!core.loaded()) { return states; }
   if(!managed) {
     for(int slot = 1; slot <= StateSlots; slot++) {
       const std::string name = slotName(slot);
@@ -238,7 +243,7 @@ std::vector<StateEntry> App::availableStates(bool managed) const {
     const std::string name = "Managed/" + label;
     states.push_back({name, label, stateTime(name)});
   }
-  if(names) SDL_free(names);
+  if(names) { SDL_free(names); }
   std::sort(states.begin(), states.end(), [](const StateEntry& a, const StateEntry& b) {
     return SDL_strcasecmp(a.label.c_str(), b.label.c_str()) < 0;
   });
@@ -246,14 +251,14 @@ std::vector<StateEntry> App::availableStates(bool managed) const {
 }
 
 void App::removeAllStates() {
-  for(int slot = 1; slot <= StateSlots; slot++) removeState(slotName(slot));
-  for(const StateEntry& state : availableStates(true)) removeState(state.name);
+  for(int slot = 1; slot <= StateSlots; slot++) { removeState(slotName(slot)); }
+  for(const StateEntry& state : availableStates(true)) { removeState(state.name); }
   SDL_RemovePath((stateFolder() + "/Managed").c_str());
   undoState.clear();
   redoState.clear();
   // the folder is removed by name, so every file any build ever wrote must be
   // listed here -- including the undo.bst and redo.bst of older ones
-  for(const auto& special : SpecialSlots) SDL_RemovePath(statePath(special.name).c_str());
+  for(const auto& special : SpecialSlots) { SDL_RemovePath(statePath(special.name).c_str()); }
   // the folder goes too when nothing is left in it
   SDL_RemovePath(stateFolder().c_str());
   showMessage("removed every state for " + gameTitle);

@@ -1,0 +1,9 @@
+BasedOnStyle: Google
+ColumnLimit: 100
+AllowShortBlocksOnASingleLine: Always
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+InsertBraces: true
+SeparateDefinitionBlocks: Always
+SpaceBeforeParens: Never
+SortIncludes: Never

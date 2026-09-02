@@ -1,27 +1,32 @@
 #include "ui.hpp"
 
 void App::drawScriptingWindow() {
-  if(!showScripting) return;
+  if(!showScripting) { return; }
 
   placeFloating(520.0f, 360.0f);
-  if(!ImGui::Begin("Lua Scripting", &showScripting)) { ImGui::End(); return; }
+  if(!ImGui::Begin("Lua Scripting", &showScripting)) {
+    ImGui::End();
+    return;
+  }
 
   ImGui::BeginDisabled(movieActive());
-  if(ImGui::Button("Open...")) openScriptDialog();
+  if(ImGui::Button("Open...")) { openScriptDialog(); }
   ImGui::SameLine();
   ImGui::BeginDisabled(scripting.path().empty());
-  if(ImGui::Button("Reload")) scripting.reload();
+  if(ImGui::Button("Reload")) { scripting.reload(); }
   ImGui::EndDisabled();
   ImGui::EndDisabled();
   ImGui::SameLine();
   ImGui::BeginDisabled(scripting.path().empty());
-  if(ImGui::Button("Stop")) scripting.stop();
+  if(ImGui::Button("Stop")) { scripting.stop(); }
   ImGui::EndDisabled();
 
   ImGui::Separator();
   ImGui::Text("State: %s", scripting.running() ? "running" : "stopped");
   ImGui::TextWrapped("Script: %s", scripting.path().empty() ? "none" : scripting.path().c_str());
-  if(!scripting.path().empty()) ImGui::TextWrapped("Data: %s", scripting.dataDirectory().c_str());
+  if(!scripting.path().empty()) {
+    ImGui::TextWrapped("Data: %s", scripting.dataDirectory().c_str());
+  }
   if(!scripting.error().empty()) {
     ImGui::Separator();
     ImGui::TextWrapped("%s", scripting.error().c_str());
@@ -29,16 +34,19 @@ void App::drawScriptingWindow() {
 
   ImGui::SeparatorText("Console");
   ImGui::BeginDisabled(scripting.console().empty());
-  if(ImGui::Button("Copy")) ImGui::SetClipboardText(scripting.console().c_str());
+  if(ImGui::Button("Copy")) { ImGui::SetClipboardText(scripting.console().c_str()); }
   ImGui::SameLine();
-  if(ImGui::Button("Clear")) scripting.clearConsole();
+  if(ImGui::Button("Clear")) { scripting.clearConsole(); }
   ImGui::EndDisabled();
   const bool scroll = scripting.takeConsoleScroll();
   if(ImGui::BeginChild("##luaconsole", ImVec2(0, 0), ImGuiChildFlags_Borders,
                        ImGuiWindowFlags_HorizontalScrollbar)) {
-    if(scripting.console().empty()) ImGui::TextDisabled("print output appears here");
-    else ImGui::TextUnformatted(scripting.console().c_str());
-    if(scroll) ImGui::SetScrollHereY(1.0f);
+    if(scripting.console().empty()) {
+      ImGui::TextDisabled("print output appears here");
+    } else {
+      ImGui::TextUnformatted(scripting.console().c_str());
+    }
+    if(scroll) { ImGui::SetScrollHereY(1.0f); }
   }
   ImGui::EndChild();
 
@@ -58,33 +66,35 @@ void App::drawGamepadDiagnostics() {
       ImGui::Text("  %s - raw HID", name ? name : "?");
     }
   }
-  if(ids) SDL_free(ids);
+  if(ids) { SDL_free(ids); }
 
   for(size_t i = 0; i < pads.size(); i++) {
     const Controller& pad = pads[i];
-    if(!pad) { ImGui::Text("pad %d: empty", (int)i + 1); continue; }
-    ImGui::Text("pad %d: %04x:%04x%s", (int)i + 1,
-                SDL_GetJoystickVendor(pad.joystick), SDL_GetJoystickProduct(pad.joystick),
-                pad.mapped() ? "" : " (raw HID)");
+    if(!pad) {
+      ImGui::Text("pad %d: empty", (int)i + 1);
+      continue;
+    }
+    ImGui::Text("pad %d: %04x:%04x%s", (int)i + 1, SDL_GetJoystickVendor(pad.joystick),
+                SDL_GetJoystickProduct(pad.joystick), pad.mapped() ? "" : " (raw HID)");
 
     std::string held;
     if(pad.gamepad) {
       for(int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; b++) {
-        if(!SDL_GetGamepadButton(pad.gamepad, (SDL_GamepadButton)b)) continue;
+        if(!SDL_GetGamepadButton(pad.gamepad, (SDL_GamepadButton)b)) { continue; }
         const char* label = SDL_GetGamepadStringForButton((SDL_GamepadButton)b);
-        if(!held.empty()) held += " ";
+        if(!held.empty()) { held += " "; }
         held += label ? label : "?";
       }
     } else {
       for(int b = 0; b < SDL_GetNumJoystickButtons(pad.joystick); b++) {
-        if(!SDL_GetJoystickButton(pad.joystick, b)) continue;
-        if(!held.empty()) held += " ";
+        if(!SDL_GetJoystickButton(pad.joystick, b)) { continue; }
+        if(!held.empty()) { held += " "; }
         held += "button" + std::to_string(b + 1);
       }
       for(int h = 0; h < SDL_GetNumJoystickHats(pad.joystick); h++) {
         const int value = SDL_GetJoystickHat(pad.joystick, h);
-        if(value == SDL_HAT_CENTERED) continue;
-        if(!held.empty()) held += " ";
+        if(value == SDL_HAT_CENTERED) { continue; }
+        if(!held.empty()) { held += " "; }
         held += "hat" + std::to_string(h + 1) + "=" + std::to_string(value);
       }
     }
@@ -99,7 +109,9 @@ void App::drawGamepadDiagnostics() {
         if(mapping) {
           ImGui::TextWrapped("%s", mapping);
           SDL_free(mapping);
-        } else ImGui::TextUnformatted("none");
+        } else {
+          ImGui::TextUnformatted("none");
+        }
       } else {
         ImGui::TextUnformatted("none");
       }
@@ -110,10 +122,13 @@ void App::drawGamepadDiagnostics() {
 }
 
 void App::drawToolsWindow() {
-  if(!showTools) return;
+  if(!showTools) { return; }
 
   placeFloating(380.0f, 250.0f);
-  if(!ImGui::Begin("Diagnostics", &showTools)) { ImGui::End(); return; }
+  if(!ImGui::Begin("Diagnostics", &showTools)) {
+    ImGui::End();
+    return;
+  }
 
   ImGui::Text("Game: %s", core.loaded() ? gameTitle.c_str() : "none");
   ImGui::Text("Resolution: %d x %d", shell.frameWidth, shell.frameHeight);
@@ -127,11 +142,14 @@ void App::drawToolsWindow() {
 
   ImGui::Separator();
   ImGui::BeginDisabled(!core.loaded());
-  if(ImGui::Button("Save Screenshot")) takeScreenshot();
+  if(ImGui::Button("Save Screenshot")) { takeScreenshot(); }
   ImGui::SameLine();
-  if(ImGui::Button("Reset")) reset();
+  if(ImGui::Button("Reset")) { reset(); }
   ImGui::EndDisabled();
-  if(!status.empty()) { ImGui::Separator(); ImGui::TextWrapped("%s", status.c_str()); }
+  if(!status.empty()) {
+    ImGui::Separator();
+    ImGui::TextWrapped("%s", status.c_str());
+  }
 
   ImGui::End();
 }
@@ -139,24 +157,24 @@ void App::drawToolsWindow() {
 void App::drawGamesList() {
   if(settings.gamesDir.empty()) {
     ImGui::TextWrapped("No games folder set.");
-    if(ImGui::Button("Choose folder")) openFolderDialog(dirPick);
+    if(ImGui::Button("Choose folder")) { openFolderDialog(dirPick); }
     ImGui::SameLine();
-    if(ImGui::Button("Open ROM...")) openRomDialog();
+    if(ImGui::Button("Open ROM...")) { openRomDialog(); }
     return;
   }
 
   ImGui::TextWrapped("%s", settings.gamesDir.c_str());
-  if(ImGui::Button("Rescan")) scanGames();
+  if(ImGui::Button("Rescan")) { scanGames(); }
   ImGui::SameLine();
-  if(ImGui::Button("Change folder")) openFolderDialog(dirPick);
+  if(ImGui::Button("Change folder")) { openFolderDialog(dirPick); }
   ImGui::SameLine();
-  if(ImGui::Button("Open ROM...")) openRomDialog();
+  if(ImGui::Button("Open ROM...")) { openRomDialog(); }
   ImGui::SameLine();
   ImGui::Text(games.size() == 1 ? "%d game" : "%d games", (int)games.size());
   const bool canPlay = gameSelected >= 0 && gameSelected < (int)games.size();
   ImGui::BeginDisabled(!canPlay);
   if(ImGui::Button("Play selected") && canPlay) {
-    if(loadRom(games[gameSelected].second)) showGames = false;
+    if(loadRom(games[gameSelected].second)) { showGames = false; }
   }
   ImGui::EndDisabled();
   ImGui::Separator();
@@ -166,12 +184,12 @@ void App::drawGamesList() {
     clipper.Begin((int)games.size());
     while(clipper.Step()) {
       for(int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
-        const bool clipped = ImGui::CalcTextSize(games[i].first.c_str()).x
-                           > ImGui::GetContentRegionAvail().x;
-        if(ImGui::Selectable(games[i].first.c_str(), gameSelected == i)) gameSelected = i;
-        if(clipped) tip(games[i].first.c_str());
+        const bool clipped =
+            ImGui::CalcTextSize(games[i].first.c_str()).x > ImGui::GetContentRegionAvail().x;
+        if(ImGui::Selectable(games[i].first.c_str(), gameSelected == i)) { gameSelected = i; }
+        if(clipped) { tip(games[i].first.c_str()); }
         if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
-          if(loadRom(games[i].second)) showGames = false;
+          if(loadRom(games[i].second)) { showGames = false; }
         }
       }
     }
@@ -180,10 +198,10 @@ void App::drawGamesList() {
 }
 
 void App::drawGamesWindow() {
-  if(!showGames) return;
+  if(!showGames) { return; }
 
   placeFloating(440.0f, 420.0f);
-  if(ImGui::Begin("Games", &showGames)) drawGamesList();
+  if(ImGui::Begin("Games", &showGames)) { drawGamesList(); }
   ImGui::End();
 }
 
@@ -192,16 +210,15 @@ void App::drawGamesHome() {
   ImGui::SetNextWindowPos(viewport->WorkPos);
   ImGui::SetNextWindowSize(viewport->WorkSize);
 
-  const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                               | ImGuiWindowFlags_NoSavedSettings
-                               | ImGuiWindowFlags_NoBringToFrontOnFocus
-                               | ImGuiWindowFlags_NoNavFocus;
-  if(ImGui::Begin("##home", nullptr, flags)) drawGamesList();
+  const ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+      ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+  if(ImGui::Begin("##home", nullptr, flags)) { drawGamesList(); }
   ImGui::End();
 }
 
 void App::drawAboutWindow() {
-  if(!showAbout) return;
+  if(!showAbout) { return; }
 
   placeFloating(340.0f, 150.0f);
   if(ImGui::Begin("About", &showAbout)) {
@@ -218,19 +235,18 @@ void App::drawAboutWindow() {
 }
 
 void App::drawUnverifiedPrompt() {
-  if(!unverifiedPrompt) return;
+  if(!unverifiedPrompt) { return; }
 
   const char* id = "Unverified game";
-  if(!ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
+  if(!ImGui::IsPopupOpen(id)) { ImGui::OpenPopup(id); }
 
   const ImGuiViewport* view = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(view->WorkPos.x + view->WorkSize.x / 2.0f,
-                                 view->WorkPos.y + view->WorkSize.y / 2.0f),
-                          ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-  if(!ImGui::BeginPopupModal(id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+  ImGui::SetNextWindowPos(
+      ImVec2(view->WorkPos.x + view->WorkSize.x / 2.0f, view->WorkPos.y + view->WorkSize.y / 2.0f),
+      ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+  if(!ImGui::BeginPopupModal(id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
 
-  ImGui::Text("%s is not in the games database; its board layout is guessed.",
-              gameTitle.c_str());
+  ImGui::Text("%s is not in the games database; its board layout is guessed.", gameTitle.c_str());
   ImGui::Separator();
 
   if(ImGui::Button("Run it")) {

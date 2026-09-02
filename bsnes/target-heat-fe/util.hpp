@@ -44,7 +44,9 @@ int64_t fileTime(const std::string& path);
 
 struct Guard {
   SDL_Mutex* mutex;
+
   explicit Guard(SDL_Mutex* mutex) : mutex(mutex) { SDL_LockMutex(mutex); }
+
   ~Guard() { SDL_UnlockMutex(mutex); }
 };
 

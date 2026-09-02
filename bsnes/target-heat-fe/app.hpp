@@ -19,16 +19,14 @@
 #include <utility>
 #include <vector>
 
-
 inline ImVec4 unpackColor(int rgb) {
-  return ImVec4(((rgb >> 16) & 0xff) / 255.0f, ((rgb >> 8) & 0xff) / 255.0f,
-                (rgb & 0xff) / 255.0f, 1.0f);
+  return ImVec4(((rgb >> 16) & 0xff) / 255.0f, ((rgb >> 8) & 0xff) / 255.0f, (rgb & 0xff) / 255.0f,
+                1.0f);
 }
 
 inline int packColor(const float rgb[3]) {
-  return (int)(rgb[0] * 255.0f + 0.5f) << 16
-       | (int)(rgb[1] * 255.0f + 0.5f) << 8
-       | (int)(rgb[2] * 255.0f + 0.5f);
+  return (int)(rgb[0] * 255.0f + 0.5f) << 16 | (int)(rgb[1] * 255.0f + 0.5f) << 8 |
+         (int)(rgb[2] * 255.0f + 0.5f);
 }
 
 struct App;
@@ -61,8 +59,8 @@ struct NetplayPeer {
   GekkoPlayerType type = GekkoLocalPlayer;
   bool connected = false;
   GekkoNetworkStats stats{};
-  std::string addr;       // Direct transport: "ip:port"
-  uint32_t weyveId = 0;   // Weyvelength transport: member id
+  std::string addr;      // Direct transport: "ip:port"
+  uint32_t weyveId = 0;  // Weyvelength transport: member id
 };
 
 struct NetplayStateSnapshot {
@@ -74,6 +72,7 @@ struct NetplayStateSnapshot {
 
 struct Netplay {
   enum Mode { Inactive, Running } mode = Inactive;
+
   enum Transport { Direct, Weyvelength } transport = Direct;
 
   std::vector<NetplayPeer> peers;
@@ -132,7 +131,10 @@ struct WeyveRoomListing {
 struct WeyveConnectAttempt {
   std::atomic<bool> complete = false;
   WeyveClient* client = nullptr;
-  ~WeyveConnectAttempt() { if(client) weyve_client_destroy(client); }
+
+  ~WeyveConnectAttempt() {
+    if(client) { weyve_client_destroy(client); }
+  }
 };
 
 struct Weyve {
@@ -179,6 +181,7 @@ struct BiosSlot {
   FilePick App::* pick;
   std::string Settings::* path;
 };
+
 extern const BiosSlot BiosSlots[3];
 
 struct App {
@@ -224,8 +227,8 @@ struct App {
   bool showCheatFinder = false;
   int settingsTab = 0;
   int mapPort = 0;
-  int mapPlayer = 0;  // which of a multitap's controllers is being mapped
-  int capturing = -1;      // emulator button slot being rebound
+  int mapPlayer = 0;         // which of a multitap's controllers is being mapped
+  int capturing = -1;        // emulator button slot being rebound
   int capturingHotkey = -1;  // hotkey index * HotkeySlots + slot
   int gameSelected = 0;
   int stateSlot = 1;  // 1..StateSlots; a session choice, not a setting
@@ -248,7 +251,8 @@ struct App {
   int cheatSearchSize = 0;
   int cheatSearchMode = 0;
   int cheatCandidateSelected = -1;
-  // undo and redo never outlive the session, so they are held rather than written
+  // undo and redo never outlive the session, so they are held rather than
+  // written
   std::vector<uint8_t> undoState, redoState;
   bool confirmRemoveStates = false;
   // not persisted: every game starts at normal speed
@@ -296,43 +300,52 @@ struct App {
   // a path, or a Sufami Turbo pair joined by '|', as the recent list stores it
   bool loadRom(const std::string& entry);
   void unloadRom();
+
   void applySpeed() {
     double scale = SpeedScales[speedIndex];
     // unlimited has no target rate to resample towards
-    if(fastForward && !settings.fastForwardUnlimited) scale /= settings.fastForwardSpeed;
+    if(fastForward && !settings.fastForwardUnlimited) { scale /= settings.fastForwardSpeed; }
     core.setSpeedScale(scale);
     core.setFrameSkip(fastForward ? settings.fastForwardFrameSkip : 0);
   }
+
   // unlimited fast forward runs with no audio clock driving the loop
   bool unpaced() const { return fastForward && settings.fastForwardUnlimited; }
+
   bool muted() const {
-    return settings.mute || (settings.muteUnfocused && !focused())
-        || (fastForward && settings.fastForwardMute)
-        || (rewinding && settings.rewindMute)
-        || netplay.rollback;
+    return settings.mute || (settings.muteUnfocused && !focused()) ||
+           (fastForward && settings.fastForwardMute) || (rewinding && settings.rewindMute) ||
+           netplay.rollback;
   }
+
   // a limited fast forward plays at 65%: decimated audio is harsh
   float audioGain() const {
-    if(muted()) return 0.0f;
+    if(muted()) { return 0.0f; }
     const bool limited = fastForward && !settings.fastForwardUnlimited;
     return settings.volume / 100.0f * (limited || rewinding ? 0.65f : 1.0f);
   }
+
   void setSpeed(int index) {
-    if(netplayActive()) return;  // GekkoNet's timesync owns the speed scale
+    if(netplayActive()) {
+      return;  // GekkoNet's timesync owns the speed scale
+    }
     speedIndex = SDL_clamp(index, 0, SpeedCount - 1);
     applySpeed();
     showMessage(std::string("speed ") + SpeedNames[speedIndex]);
   }
+
   void toggleFastForward() {
-    if(netplayActive()) return;
+    if(netplayActive()) { return; }
     fastForward = !fastForward;
     applySpeed();
   }
+
   // skew trims a card that runs fast or slow until the backlog stops drifting
   void applyAudioTuning() {
     core.setAudioFrequency(AudioRate + settings.audioSkew);
     core.setAudioBalance(SDL_clamp((settings.audioBalance - 50) / 50.0, -1.0, 1.0));
   }
+
   void reset() {
     if(movieActive() || netplayActive()) {
       showMessage("reset is not available while a movie or netplay session is active");
@@ -342,37 +355,48 @@ struct App {
     resetTimeline();
     paused = false;
   }
+
   void powerCycle() {
     if(movieActive() || netplayActive()) {
-      showMessage("power cycle is not available while a movie or netplay session is active");
+      showMessage(
+          "power cycle is not available while a movie or netplay session is "
+          "active");
       return;
     }
     core.power();
     resetTimeline();
     paused = false;
   }
+
   void advanceOneFrame() { frameAdvance = true; }
 
   // any window we own, not just the main one: an imgui viewport panel takes
   // focus away from it while staying part of this app
   bool focused() const { return SDL_GetKeyboardFocus() != nullptr; }
+
   bool fullscreen() const { return shell.fullscreen(); }
+
   void toggleFullscreen() {
     const bool enter = !fullscreen();
     // fullscreen claims whichever display the window sits on, so move it first
-    if(enter) shell.moveToDisplay(settings);
+    if(enter) { shell.moveToDisplay(settings); }
     SDL_SetWindowFullscreen(shell.window, enter);
   }
+
   void toggleMouseCapture();
+
   // hover help, suppressed by the tool tips setting
   void tip(const char* text) const {
-    if(settings.showToolTips) ImGui::SetItemTooltip("%s", text);
+    if(settings.showToolTips) { ImGui::SetItemTooltip("%s", text); }
   }
+
   void openPick(FilePick& pick, const SDL_DialogFileFilter* filters, const char* dir);
   const char* gamesDirOrNull() const;
+
   const Controller* portPad(int port, int player) const {
     return resolvePad(pads, settings.padIndex[padSlot(port, player)]);
   }
+
   // unset means a Shaders folder beside the exe, then one beside the config
   std::string shadersDir() const;
   // rebuilds the GLSL chain from the selected package and its overrides
@@ -380,29 +404,39 @@ struct App {
   void applyVideoFilter();
   // keeps only the parameters the user moved away from the manifest's values
   void saveShaderParams();
+
   // unset means a Firmware folder beside the config
   std::string firmwareDir() const {
     return settings.firmwareDir.empty() ? configDir() + "Firmware" : settings.firmwareDir;
   }
+
   // resolving this stats the disk, so readers take the cache below
   std::string databaseDir() const;
   std::string databaseDirCache;
+
   void refreshDatabaseDir() {
     databaseDirCache = databaseDir();
     core.setDatabaseDirectory(databaseDirCache);
   }
+
   // each folder row re-pushes its path to the core after a change
   void pushSavesDir() { core.setSavesDirectory(settings.savesDir); }
+
   void pushPatchesDir() { core.setPatchesDirectory(settings.patchesDir); }
+
   void pushSerialization() {
     core.setOption("System/Serialization/Method", SerializationNames[settings.serialization]);
   }
+
   // the Paths row shows this resolved, the way databaseDirCache is shown
   std::string databaseDirShown() const { return databaseDirCache; }
+
   // the folder a picker for this medium should reopen in
   void rememberDir(const std::string& path);
   void openRomDialog();
+
   void openFolderDialog(FilePick& pick) { openPick(pick, nullptr, gamesDirOrNull()); }
+
   void openFontDialog();
   void openScriptDialog();
   void openMediaDialog(FilePick& pick, const char* label, const char* extensions,
@@ -420,7 +454,7 @@ struct App {
   void stepRewind();
   void advanceEmulation();
 
-  //movies.cpp
+  // movies.cpp
   void openMovieDialog();
   void beginMovieRecording(bool fromBeginning);
   bool playMovieFile(const std::string& path);
@@ -429,12 +463,12 @@ struct App {
   void clearMovie();
   void restoreMovieDevices();
   int16_t pollMovieInput(int port, int device, int input, int16_t physical);
-  bool movieActive() const {
-    return movieMode != MovieMode::Inactive || movieSavePending;
-  }
 
-  //netplay.cpp
+  bool movieActive() const { return movieMode != MovieMode::Inactive || movieSavePending; }
+
+  // netplay.cpp
   bool netplayActive() const { return netplay.mode == Netplay::Running; }
+
   void netplayApplyDeterministicSettings();
   void netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectators = 0,
                            bool localSpectating = false, int spectatorDelay = -1,
@@ -451,15 +485,19 @@ struct App {
   void netplayLog(std::string line);
   uint32_t netplayChecksum(const std::vector<uint8_t>& state);
   void netplayCacheState(int frame, uint32_t checksum, const std::vector<uint8_t>& state);
-  void netplayDumpState(int frame, const char* tag, uint32_t checksum, const std::vector<uint8_t>& data);
+  void netplayDumpState(int frame, const char* tag, uint32_t checksum,
+                        const std::vector<uint8_t>& data);
 
-  //netplay-weyve.cpp
+  // netplay-weyve.cpp
   bool weyveConnect(const std::string& host, uint16_t port);
   void weyveDisconnect();
+
   bool weyveConnected() const { return weyve.client != nullptr; }
+
   bool weyveSessionActive() const {
     return netplayActive() && netplay.transport == Netplay::Weyvelength;
   }
+
   bool weyveInRoom() const;
   void weyveCreateRoom(bool listed);
   void weyveJoinRoom(const std::string& id, const std::string& password);
@@ -496,12 +534,13 @@ struct App {
   std::string weyveGameFingerprint() const;
   void weyveSelectGame(uint32_t gamesIndex);  // indexes App::games, not a netplay-only list
   void weyveCopyRoomCode() const;
-  void weyvePublishHostListing();  // republishes our name under the "host" listing key
+  void weyvePublishHostListing();  // republishes our name under the "host"
+                                   // listing key
   void weyveListRooms();
   void weyveClearRoomList();
 
-  //states.cpp
-  // resolved states folder, and the per-game folder holding the slots
+  // states.cpp
+  //  resolved states folder, and the per-game folder holding the slots
   std::string statesDir() const;
   std::string stateFolder() const;
   std::string statePath(const std::string& name) const;
@@ -526,6 +565,7 @@ struct App {
   void triggerHotkey(int index);
 
   ImVec4 accentColor() const { return unpackColor(settings.accent); }
+
   void applyPreset();
   void applyAccent();
   void applyTheme();
@@ -587,11 +627,13 @@ struct App {
   // cartridge summary plus every loaded medium's manifest
   void drawManifestWindow();
   void drawUnverifiedPrompt();
+
   // one definition of "not emulating", for the frame loop and the dimming alike
   bool emulationIdle() const {
-    return !core.loaded() || (!netplayActive() && paused && !frameAdvance) || unverifiedPrompt
-        || (!netplayActive() && settings.defocusPolicy == DefocusPause && !focused());
+    return !core.loaded() || (!netplayActive() && paused && !frameAdvance) || unverifiedPrompt ||
+           (!netplayActive() && settings.defocusPolicy == DefocusPause && !focused());
   }
+
   bool drawColourSection();
   bool drawFontSection();
   void restoreAppearanceDefaults();

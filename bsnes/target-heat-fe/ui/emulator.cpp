@@ -28,18 +28,17 @@ void App::restoreEmulatorDefaults() {
 
 void App::drawEmulatorTab() {
   bool dirty = false;
-  dirty |= ImGui::Combo("When window is unfocused", &settings.defocusPolicy,
-                        DefocusNames, DefocusCount);
+  dirty |=
+      ImGui::Combo("When window is unfocused", &settings.defocusPolicy, DefocusNames, DefocusCount);
 
   ImGui::Spacing();
   ImGui::TextDisabled("Fast Forward");
   ImGui::BeginDisabled(settings.fastForwardUnlimited);
-  if(ImGui::SliderInt("Limiter", &settings.fastForwardSpeed, 2, 16, "%dx")) applySpeed();
+  if(ImGui::SliderInt("Limiter", &settings.fastForwardSpeed, 2, 16, "%dx")) { applySpeed(); }
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   ImGui::EndDisabled();
   tip("The top speed fast forward runs at.");
-  if(ImGui::Checkbox("Unlimited (as fast as the machine allows)",
-                     &settings.fastForwardUnlimited)) {
+  if(ImGui::Checkbox("Unlimited (as fast as the machine allows)", &settings.fastForwardUnlimited)) {
     applySpeed();
     dirty = true;
   }
@@ -55,7 +54,8 @@ void App::drawEmulatorTab() {
   ImGui::BeginDisabled(!EmuCore::deterministicStates());
   dirty |= ImGui::SliderInt("Run-ahead", &settings.runAheadFrames, 0, 4, "%d frames");
   ImGui::EndDisabled();
-  tip("Runs speculative frames to reduce controller latency; disabled while Lua is running.");
+  tip("Runs speculative frames to reduce controller latency; disabled while "
+      "Lua is running.");
 
   ImGui::Spacing();
   ImGui::TextDisabled("Rewind");
@@ -63,7 +63,8 @@ void App::drawEmulatorTab() {
     resetTimeline();
     dirty = true;
   }
-  tip("Zero disables rewind; shorter intervals use more memory for the same duration.");
+  tip("Zero disables rewind; shorter intervals use more memory for the same "
+      "duration.");
   ImGui::BeginDisabled(settings.rewindFrequency == 0);
   if(ImGui::SliderInt("History length", &settings.rewindLength, 10, 320, "%d states")) {
     resetTimeline();
@@ -83,17 +84,17 @@ void App::drawEmulatorTab() {
 
   ImGui::Spacing();
   ImGui::TextDisabled("Save States");
-  if(ImGui::Combo("Serialization", &settings.serialization,
-                  SerializationNames, SerialCount)) {
+  if(ImGui::Combo("Serialization", &settings.serialization, SerializationNames, SerialCount)) {
     pushSerialization();
     dirty = true;
   }
-  tip("Strict winds the coprocessors further forward first; slower, but safer.");
+  tip("Strict winds the coprocessors further forward first; slower, but "
+      "safer.");
   dirty |= ImGui::Checkbox("Save an auto-resume state when a game is closed",
                            &settings.autoStateOnUnload);
   ImGui::BeginDisabled(!settings.autoStateOnUnload);
-  dirty |= ImGui::Checkbox("Resume from it when the game is loaded again",
-                           &settings.autoStateOnLoad);
+  dirty |=
+      ImGui::Checkbox("Resume from it when the game is loaded again", &settings.autoStateOnLoad);
   ImGui::EndDisabled();
   tip("The auto-resume state has a slot of its own.");
 
@@ -120,5 +121,5 @@ void App::drawEmulatorTab() {
     restoreEmulatorDefaults();
     dirty = true;
   }
-  if(dirty) settings.save(settingsCfg);
+  if(dirty) { settings.save(settingsCfg); }
 }

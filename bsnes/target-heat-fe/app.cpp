@@ -5,29 +5,30 @@
 #include <algorithm>
 
 const BiosSlot BiosSlots[3] = {
-  {"Super Game Boy", "##sgb", &App::sgbBiosPick, &Settings::sgbBios},
-  {"BS-X",           "##bsx", &App::bsxBiosPick, &Settings::bsxBios},
-  {"Sufami Turbo",   "##st",  &App::stBiosPick,  &Settings::stBios},
+    {"Super Game Boy", "##sgb", &App::sgbBiosPick, &Settings::sgbBios},
+    {"BS-X", "##bsx", &App::bsxBiosPick, &Settings::bsxBios},
+    {"Sufami Turbo", "##st", &App::stBiosPick, &Settings::stBios},
 };
 
 App::App() : scripting(*this) {}
+
 App::~App() = default;
 
 // beside the exe first, so a portable copy carries its own database
 std::string App::databaseDir() const {
-  if(!settings.databaseDir.empty()) return settings.databaseDir;
+  if(!settings.databaseDir.empty()) { return settings.databaseDir; }
   if(const char* base = SDL_GetBasePath()) {
     const std::string beside = std::string(base) + "Database";
-    if(isDirectory(beside)) return beside;
+    if(isDirectory(beside)) { return beside; }
   }
   return configDir() + "Database";
 }
 
 std::string App::shadersDir() const {
-  if(!settings.shadersDir.empty()) return settings.shadersDir;
+  if(!settings.shadersDir.empty()) { return settings.shadersDir; }
   if(const char* base = SDL_GetBasePath()) {
     const std::string beside = std::string(base) + "Shaders";
-    if(isDirectory(beside)) return beside;
+    if(isDirectory(beside)) { return beside; }
   }
   return configDir() + "Shaders";
 }
@@ -52,7 +53,7 @@ void App::applyVideoFilter() {
 void App::saveShaderParams() {
   settings.shaderParams.clear();
   for(const ShaderParam& param : shell.shader.params) {
-    if(param.value != param.stock) settings.shaderParams.push_back({param.name, param.value});
+    if(param.value != param.stock) { settings.shaderParams.push_back({param.name, param.value}); }
   }
 }
 
@@ -65,20 +66,20 @@ void App::rememberDir(const std::string& path) {
 
 void App::scanGames() {
   games.clear();
-  if(settings.gamesDir.empty()) return;
+  if(settings.gamesDir.empty()) { return; }
 
   int count = 0;
   char** found = SDL_GlobDirectory(settings.gamesDir.c_str(), nullptr, 0, &count);
-  if(!found) return;
+  if(!found) { return; }
 
   for(int i = 0; i < count; i++) {
     const std::string path = settings.gamesDir + "/" + found[i];
     // a game pak is a folder, recognised the way the core does: by its manifest
     if(isDirectory(path)) {
-      if(pathExists(path + "/manifest.bml")) games.emplace_back(found[i], pakPath(path));
+      if(pathExists(path + "/manifest.bml")) { games.emplace_back(found[i], pakPath(path)); }
       continue;
     }
-    if(!isRom(found[i])) continue;
+    if(!isRom(found[i])) { continue; }
     games.emplace_back(fileStem(found[i]), path);
   }
   SDL_free(found);
@@ -97,31 +98,31 @@ bool App::loadRom(const std::string& entry) {
     return false;
   }
   auto [first, second] = splitPair(entry);
-  if(isDirectory(first)) first = pakPath(first);
+  if(isDirectory(first)) { first = pakPath(first); }
 
   // slot media ride in a base cartridge, set once under Paths
   EmuCore::GameSpec spec;
   const char* system = nullptr;
   switch(EmuCore::mediumOf(first)) {
-  case EmuCore::Medium::GameBoy:
-    spec.gameBoy = first;
-    spec.superFamicom = settings.sgbBios;
-    system = "Super Game Boy";
-    break;
-  case EmuCore::Medium::BSMemory:
-    spec.bsMemory = first;
-    spec.superFamicom = settings.bsxBios;
-    system = "BS-X";
-    break;
-  case EmuCore::Medium::SufamiTurbo:
-    spec.sufamiTurboA = first;
-    spec.sufamiTurboB = second;
-    spec.superFamicom = settings.stBios;
-    system = "Sufami Turbo";
-    break;
-  case EmuCore::Medium::SuperFamicom:
-    spec.superFamicom = first;
-    break;
+    case EmuCore::Medium::GameBoy:
+      spec.gameBoy = first;
+      spec.superFamicom = settings.sgbBios;
+      system = "Super Game Boy";
+      break;
+    case EmuCore::Medium::BSMemory:
+      spec.bsMemory = first;
+      spec.superFamicom = settings.bsxBios;
+      system = "BS-X";
+      break;
+    case EmuCore::Medium::SufamiTurbo:
+      spec.sufamiTurboA = first;
+      spec.sufamiTurboB = second;
+      spec.superFamicom = settings.stBios;
+      system = "Sufami Turbo";
+      break;
+    case EmuCore::Medium::SuperFamicom:
+      spec.superFamicom = first;
+      break;
   }
 
   if(system && spec.superFamicom.empty()) {
@@ -159,9 +160,9 @@ bool App::loadRom(const std::string& entry) {
 
   std::string note;
   auto add = [&](const std::string& text) { note += (note.empty() ? ", " : "; ") + text; };
-  if(core.patched()) add("patch applied");
-  if(!patchError.empty()) add(patchError);
-  if(!missing.empty()) add("missing " + missing);
+  if(core.patched()) { add("patch applied"); }
+  if(!patchError.empty()) { add(patchError); }
+  if(!missing.empty()) { add("missing " + missing); }
 
   showMessage((core.verified() ? "loaded verified " : "loaded ") + gameTitle + note);
   // after the message, so a failed resume is what the status line ends on
@@ -176,17 +177,17 @@ void App::toggleMouseCapture() {
   mouseCaptured = !mouseCaptured;
   SDL_SetWindowRelativeMouseMode(shell.window, mouseCaptured);
   // the accumulated delta from before the grab would arrive as one jump
-  if(mouseCaptured) SDL_GetRelativeMouseState(nullptr, nullptr);
+  if(mouseCaptured) { SDL_GetRelativeMouseState(nullptr, nullptr); }
   showMessage(mouseCaptured ? "mouse captured, press the capture hotkey to release"
                             : "mouse released");
 }
 
 // a crash between here and unload costs one interval, not the session
 void App::saveMemoryTick() {
-  if(!settings.autoSaveMemory || !core.loaded()) return;
+  if(!settings.autoSaveMemory || !core.loaded()) { return; }
 
   const uint64_t now = SDL_GetTicks();
-  if(now - autoSaveMark < (uint64_t)settings.autoSaveInterval * 1000) return;
+  if(now - autoSaveMark < (uint64_t)settings.autoSaveInterval * 1000) { return; }
   autoSaveMark = now;
   core.saveMemory();
 }
@@ -203,9 +204,7 @@ void App::setRewinding(bool enabled) {
     rewindCounter = 0;
     return;
   }
-  if(!core.loaded() || fastForward || movieActive() || netplayActive()) {
-    return;
-  }
+  if(!core.loaded() || fastForward || movieActive() || netplayActive()) { return; }
   if(settings.rewindFrequency == 0) {
     showMessage("enable rewind under Emulator settings first");
     return;
@@ -216,29 +215,25 @@ void App::setRewinding(bool enabled) {
   }
   rewinding = true;
   rewindCounter = SDL_max(1, settings.rewindFrequency / 4) - 1;
-  if(shell.audio) SDL_ClearAudioStream(shell.audio);
+  if(shell.audio) { SDL_ClearAudioStream(shell.audio); }
 }
 
 void App::captureRewind() {
-  const bool unavailable = rewinding
-                        || movieActive()
-                        || settings.rewindFrequency == 0
-                        || !EmuCore::deterministicStates();
-  if(unavailable) {
-    return;
-  }
-  if(++rewindCounter < settings.rewindFrequency) return;
+  const bool unavailable = rewinding || movieActive() || settings.rewindFrequency == 0 ||
+                           !EmuCore::deterministicStates();
+  if(unavailable) { return; }
+  if(++rewindCounter < settings.rewindFrequency) { return; }
   rewindCounter = 0;
 
   std::vector<uint8_t> state = core.serialize(false);
-  if(state.empty()) return;
-  while((int)rewindHistory.size() >= settings.rewindLength) rewindHistory.pop_front();
+  if(state.empty()) { return; }
+  while((int)rewindHistory.size() >= settings.rewindLength) { rewindHistory.pop_front(); }
   rewindHistory.push_back(std::move(state));
 }
 
 void App::stepRewind() {
-  if(!rewinding) return;
-  if(++rewindCounter < SDL_max(1, settings.rewindFrequency / 4)) return;
+  if(!rewinding) { return; }
+  if(++rewindCounter < SDL_max(1, settings.rewindFrequency / 4)) { return; }
   rewindCounter = 0;
 
   if(rewindHistory.empty()) {
@@ -255,17 +250,16 @@ void App::stepRewind() {
 }
 
 void App::advanceEmulation() {
-  if(netplayActive()) { netplayRun(); return; }
+  if(netplayActive()) {
+    netplayRun();
+    return;
+  }
 
   captureRewind();
   stepRewind();
 
-  const bool runAhead = settings.runAheadFrames > 0
-                     && !fastForward
-                     && !rewinding
-                     && !movieActive()
-                     && !scripting.running()
-                     && EmuCore::deterministicStates();
+  const bool runAhead = settings.runAheadFrames > 0 && !fastForward && !rewinding &&
+                        !movieActive() && !scripting.running() && EmuCore::deterministicStates();
   if(!runAhead) {
     scripting.runBeforeFrame();
     core.runFrame();
@@ -282,7 +276,7 @@ void App::advanceEmulation() {
   core.runFrame();
   emulatedFrames++;
   const std::vector<uint8_t> state = core.serialize(false);
-  for(int frame = 1; frame < settings.runAheadFrames; frame++) core.runFrame();
+  for(int frame = 1; frame < settings.runAheadFrames; frame++) { core.runFrame(); }
   core.setRunAhead(false);
   core.runFrame();
 
@@ -298,7 +292,7 @@ void App::pushEnhancements() {
   // (entropy, overclocks, PPU/DSP fast paths, ...); pushing it mid-session
   // would silently replace the agreed-on values with the user's own and
   // desync every peer. netplayStop() clears netplay.mode before calling this.
-  if(netplayActive()) return;
+  if(netplayActive()) { return; }
   core.setOption("Frontend/Hotfixes", flag(settings.hackHotfixes));
   core.setOption("Hacks/Entropy", EntropyNames[settings.hackEntropy]);
   core.setOption("Hacks/CPU/Overclock", std::to_string(settings.hackCpuOverclock));
@@ -321,13 +315,13 @@ void App::pushEnhancements() {
 }
 
 void App::unloadRom() {
-  if(netplayActive()) netplayStop();
+  if(netplayActive()) { netplayStop(); }
   if(movieActive()) {
     showMessage("stop the movie before closing the game");
     return;
   }
   // the game is still in the core, so this has to happen before the unload
-  if(settings.autoStateOnUnload) saveState("auto", true);
+  if(settings.autoStateOnUnload) { saveState("auto", true); }
   saveCheats();
   core.setCheats({});
   resetTimeline();
@@ -336,8 +330,10 @@ void App::unloadRom() {
   gameLocation.clear();
   cheats.clear();
   // the memory slots belong to the machine that just went away
-  undoState.clear(); undoState.shrink_to_fit();
-  redoState.clear(); redoState.shrink_to_fit();
+  undoState.clear();
+  undoState.shrink_to_fit();
+  redoState.clear();
+  redoState.shrink_to_fit();
   shell.clearFrame();
   showGames = false;
   SDL_SetWindowTitle(shell.window, AppName);
@@ -346,10 +342,13 @@ void App::unloadRom() {
 // filters == nullptr opens a folder picker instead
 void App::openPick(FilePick& pick, const SDL_DialogFileFilter* filters, const char* dir) {
   Guard guard(pick.mutex);
-  if(pick.open) return;
+  if(pick.open) { return; }
   pick.open = true;
-  if(filters) SDL_ShowOpenFileDialog(onPicked, &pick, shell.window, filters, 2, dir, false);
-  else        SDL_ShowOpenFolderDialog(onPicked, &pick, shell.window, dir, false);
+  if(filters) {
+    SDL_ShowOpenFileDialog(onPicked, &pick, shell.window, filters, 2, dir, false);
+  } else {
+    SDL_ShowOpenFolderDialog(onPicked, &pick, shell.window, dir, false);
+  }
 }
 
 const char* App::gamesDirOrNull() const {
@@ -359,7 +358,7 @@ const char* App::gamesDirOrNull() const {
 // the folder this medium was last opened from, falling back to the games folder
 const char* App::startDirFor(EmuCore::Medium medium) {
   const std::string& remembered = settings.recentDir[(int)medium];
-  if(!remembered.empty() && isDirectory(remembered)) return remembered.c_str();
+  if(!remembered.empty() && isDirectory(remembered)) { return remembered.c_str(); }
   return gamesDirOrNull();
 }
 
@@ -391,9 +390,15 @@ void App::openScriptDialog() {
 
 void App::applyPreset() {
   switch(settings.theme) {
-    case 1: ImGui::StyleColorsLight(); break;
-    case 2: ImGui::StyleColorsClassic(); break;
-    default: ImGui::StyleColorsDark(); break;
+    case 1:
+      ImGui::StyleColorsLight();
+      break;
+    case 2:
+      ImGui::StyleColorsClassic();
+      break;
+    default:
+      ImGui::StyleColorsDark();
+      break;
   }
 
   ImGuiStyle& style = ImGui::GetStyle();
@@ -434,7 +439,9 @@ void App::applyAccent() {
   tint(ImGuiCol_TextSelectedBg, 0.45f);
   tint(ImGuiCol_NavCursor, 1.0f);
 
-  if(settings.textColor != FollowTheme) style.Colors[ImGuiCol_Text] = unpackColor(settings.textColor);
+  if(settings.textColor != FollowTheme) {
+    style.Colors[ImGuiCol_Text] = unpackColor(settings.textColor);
+  }
 }
 
 void App::applyTheme() {
@@ -466,7 +473,9 @@ void App::applyFont() {
     font = io.Fonts->AddFontFromFileTTF(settings.fontPath.c_str(), config.SizePixels, &config);
   }
   if(!font) {
-    if(!settings.fontPath.empty()) showMessage("could not load font " + fileName(settings.fontPath));
+    if(!settings.fontPath.empty()) {
+      showMessage("could not load font " + fileName(settings.fontPath));
+    }
     font = io.Fonts->AddFontDefault(&config);
   }
   io.FontDefault = font;
@@ -479,49 +488,85 @@ void App::triggerHotkey(int index) {
   bool enhanced = false;  // set by the cases that change an enhancement setting
 
   switch(index) {
-  case HkPause: if(core.loaded() && !netplayActive()) paused = !paused; break;
-  case HkReset: if(core.loaded()) reset(); break;
-  case HkFastForward: if(!rewinding) toggleFastForward(); break;
-  case HkFullscreen: toggleFullscreen(); break;
-  case HkScreenshot: takeScreenshot(); break;
-  case HkFrameAdvance:
-    if(core.loaded() && !netplayActive()) { paused = true; advanceOneFrame(); }
-    break;
-  case HkPowerCycle: if(core.loaded()) powerCycle(); break;
-  case HkMute:
-    settings.mute = !settings.mute;
-    settings.save(settingsCfg);
-    break;
-  case HkQuit:
-    if(movieActive()) {
-      showMessage("stop the movie before quitting");
-    } else {
-      running = false;
-    }
-    break;
-  case HkSpeedDown: setSpeed(speedIndex - 1); break;
-  case HkSpeedUp: setSpeed(speedIndex + 1); break;
-  case HkUnloadGame: if(core.loaded()) unloadRom(); break;
-  case HkMouseCapture: toggleMouseCapture(); break;
-  case HkMode7Down:
-  case HkMode7Up:
-    settings.hackMode7Scale = SDL_clamp(settings.hackMode7Scale
-                                        + (index == HkMode7Up ? 1 : -1), 1, MaxMode7Scale);
-    showMessage("HD mode 7 scale " + std::to_string(settings.hackMode7Scale) + "x");
-    enhanced = true;
-    break;
-  case HkSaveState: if(core.loaded()) saveState(slotName(stateSlot)); break;
-  case HkLoadState: if(core.loaded()) loadState(slotName(stateSlot)); break;
-  case HkUndoState: if(core.loaded()) loadState("undo"); break;
-  case HkRedoState: if(core.loaded()) loadState("redo"); break;
-  case HkSlotDown: if(core.loaded()) setStateSlot(stateSlot - 1); break;
-  case HkSlotUp: if(core.loaded()) setStateSlot(stateSlot + 1); break;
-  case HkSupersample:
-    settings.hackMode7Supersample = !settings.hackMode7Supersample;
-    showMessage(std::string("supersampling ") + (settings.hackMode7Supersample ? "on" : "off"));
-    enhanced = true;
-    break;
-  case HkRewind: break;
+    case HkPause:
+      if(core.loaded() && !netplayActive()) { paused = !paused; }
+      break;
+    case HkReset:
+      if(core.loaded()) { reset(); }
+      break;
+    case HkFastForward:
+      if(!rewinding) { toggleFastForward(); }
+      break;
+    case HkFullscreen:
+      toggleFullscreen();
+      break;
+    case HkScreenshot:
+      takeScreenshot();
+      break;
+    case HkFrameAdvance:
+      if(core.loaded() && !netplayActive()) {
+        paused = true;
+        advanceOneFrame();
+      }
+      break;
+    case HkPowerCycle:
+      if(core.loaded()) { powerCycle(); }
+      break;
+    case HkMute:
+      settings.mute = !settings.mute;
+      settings.save(settingsCfg);
+      break;
+    case HkQuit:
+      if(movieActive()) {
+        showMessage("stop the movie before quitting");
+      } else {
+        running = false;
+      }
+      break;
+    case HkSpeedDown:
+      setSpeed(speedIndex - 1);
+      break;
+    case HkSpeedUp:
+      setSpeed(speedIndex + 1);
+      break;
+    case HkUnloadGame:
+      if(core.loaded()) { unloadRom(); }
+      break;
+    case HkMouseCapture:
+      toggleMouseCapture();
+      break;
+    case HkMode7Down:
+    case HkMode7Up:
+      settings.hackMode7Scale =
+          SDL_clamp(settings.hackMode7Scale + (index == HkMode7Up ? 1 : -1), 1, MaxMode7Scale);
+      showMessage("HD mode 7 scale " + std::to_string(settings.hackMode7Scale) + "x");
+      enhanced = true;
+      break;
+    case HkSaveState:
+      if(core.loaded()) { saveState(slotName(stateSlot)); }
+      break;
+    case HkLoadState:
+      if(core.loaded()) { loadState(slotName(stateSlot)); }
+      break;
+    case HkUndoState:
+      if(core.loaded()) { loadState("undo"); }
+      break;
+    case HkRedoState:
+      if(core.loaded()) { loadState("redo"); }
+      break;
+    case HkSlotDown:
+      if(core.loaded()) { setStateSlot(stateSlot - 1); }
+      break;
+    case HkSlotUp:
+      if(core.loaded()) { setStateSlot(stateSlot + 1); }
+      break;
+    case HkSupersample:
+      settings.hackMode7Supersample = !settings.hackMode7Supersample;
+      showMessage(std::string("supersampling ") + (settings.hackMode7Supersample ? "on" : "off"));
+      enhanced = true;
+      break;
+    case HkRewind:
+      break;
   }
 
   if(enhanced) {
@@ -536,10 +581,9 @@ void App::pollHotkeys() {
   const bool rebinding = capturing >= 0 || capturingHotkey >= 0;
 
   for(int i = 0; i < HotkeyCount; i++) {
-    const bool held = !typing && !rebinding
-                   && input.hotkeyHeld(i, sample, pads);
+    const bool held = !typing && !rebinding && input.hotkeyHeld(i, sample, pads);
     if(i == HkRewind) {
-      if(held != hotkeyWasHeld[i]) setRewinding(held);
+      if(held != hotkeyWasHeld[i]) { setRewinding(held); }
     } else if(held && !hotkeyWasHeld[i]) {
       triggerHotkey(i);
     }
@@ -549,7 +593,7 @@ void App::pollHotkeys() {
 
 void App::takeScreenshot() {
   std::string dir = settings.shotsDir.empty() ? configDir() : settings.shotsDir;
-  if(!dir.empty() && dir.back() != '/' && dir.back() != '\\') dir += '/';
+  if(!dir.empty() && dir.back() != '/' && dir.back() != '\\') { dir += '/'; }
 
   char stamp[32];
   SDL_snprintf(stamp, sizeof(stamp), "shot-%" SDL_PRIu64 ".bmp", SDL_GetTicks());

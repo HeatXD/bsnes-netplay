@@ -21,7 +21,9 @@ void App::drawAudioTab() {
   ImGui::SliderInt("Volume (%)", &settings.volume, 0, 200);
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   if(ImGui::SliderInt("Balance", &settings.audioBalance, 0, 100,
-                      settings.audioBalance == 50 ? "centred" : "%d")) applyAudioTuning();
+                      settings.audioBalance == 50 ? "centred" : "%d")) {
+    applyAudioTuning();
+  }
   dirty |= ImGui::IsItemDeactivatedAfterEdit();
   tip("0 is hard left, 100 hard right.");
   if(ImGui::SliderInt("Skew (Hz)", &settings.audioSkew, -MaxAudioSkew, MaxAudioSkew, "%+d")) {
@@ -35,7 +37,7 @@ void App::drawAudioTab() {
   const std::vector<std::string> devices = Shell::listPlaybackDevices();
   int current = -1;  // -1 is the system default
   for(int i = 0; i < (int)devices.size(); i++) {
-    if(devices[i] == settings.audioDevice) current = i;
+    if(devices[i] == settings.audioDevice) { current = i; }
   }
   const std::string label = current >= 0 ? devices[current] : "System default";
   if(ImGui::BeginCombo("Output device", label.c_str())) {
@@ -66,5 +68,5 @@ void App::drawAudioTab() {
     restoreAudioDefaults();
     dirty = true;
   }
-  if(dirty) settings.save(settingsCfg);
+  if(dirty) { settings.save(settingsCfg); }
 }

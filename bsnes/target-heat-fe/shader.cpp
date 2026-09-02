@@ -51,7 +51,7 @@ bool loadGl() {
   bool ok = true;
   auto get = [&](const char* name) {
     SDL_FunctionPointer fn = SDL_GL_GetProcAddress(name);
-    if(!fn) ok = false;
+    if(!fn) { ok = false; }
     return fn;
   };
 #define GET(field, name) gl.field = (decltype(gl.field))get(name)
@@ -96,7 +96,8 @@ bool loadGl() {
 
 }  // namespace
 
-// the subset of BML the manifests use: indentation nests, one name: value a line
+// the subset of BML the manifests use: indentation nests, one name: value a
+// line
 struct ShaderNode {
   std::string name;
   std::string value;
@@ -104,10 +105,11 @@ struct ShaderNode {
 
   const ShaderNode* find(const char* key) const {
     for(const ShaderNode& child : children) {
-      if(child.name == key) return &child;
+      if(child.name == key) { return &child; }
     }
     return nullptr;
   }
+
   std::string text(const char* key) const {
     const ShaderNode* child = find(key);
     return child ? child->value : std::string();
@@ -123,7 +125,7 @@ struct ManifestLine {
 
 std::string trimmed(const std::string& text) {
   const size_t first = text.find_first_not_of(" \t\r");
-  if(first == std::string::npos) return {};
+  if(first == std::string::npos) { return {}; }
   return text.substr(first, text.find_last_not_of(" \t\r") + 1 - first);
 }
 
@@ -132,13 +134,13 @@ std::vector<ManifestLine> splitManifest(const std::string& text) {
   size_t pos = 0;
   while(pos < text.size()) {
     size_t end = text.find('\n', pos);
-    if(end == std::string::npos) end = text.size();
+    if(end == std::string::npos) { end = text.size(); }
     const std::string raw = text.substr(pos, end - pos);
     pos = end + 1;
 
     const size_t first = raw.find_first_not_of(" \t\r");
-    if(first == std::string::npos) continue;
-    if(raw.compare(first, 2, "//") == 0) continue;
+    if(first == std::string::npos) { continue; }
+    if(raw.compare(first, 2, "//") == 0) { continue; }
 
     ManifestLine line;
     line.indent = (int)first;
@@ -155,11 +157,12 @@ std::vector<ManifestLine> splitManifest(const std::string& text) {
   return lines;
 }
 
-// indentation counts characters, so a tab-indented manifest nests like a spaced one
+// indentation counts characters, so a tab-indented manifest nests like a spaced
+// one
 size_t buildNodes(const std::vector<ManifestLine>& lines, size_t index, int indent,
                   std::vector<ShaderNode>& out) {
   while(index < lines.size() && lines[index].indent >= indent) {
-    if(out.empty() && lines[index].indent > indent) break;
+    if(out.empty() && lines[index].indent > indent) { break; }
     if(lines[index].indent > indent) {
       index = buildNodes(lines, index, lines[index].indent, out.back().children);
       continue;
@@ -181,26 +184,26 @@ ShaderNode parseManifest(const std::string& text) {
 }
 
 GLuint parseFormat(const std::string& format) {
-  if(format == "r32i") return GL_R32I;
-  if(format == "r32ui") return GL_R32UI;
-  if(format == "rgba8") return GL_RGBA8;
-  if(format == "rgb10a2") return GL_RGB10_A2;
-  if(format == "rgba12") return GL_RGBA12;
-  if(format == "rgba16") return GL_RGBA16;
-  if(format == "rgba16f") return GL_RGBA16F;
-  if(format == "rgba32f") return GL_RGBA32F;
+  if(format == "r32i") { return GL_R32I; }
+  if(format == "r32ui") { return GL_R32UI; }
+  if(format == "rgba8") { return GL_RGBA8; }
+  if(format == "rgb10a2") { return GL_RGB10_A2; }
+  if(format == "rgba12") { return GL_RGBA12; }
+  if(format == "rgba16") { return GL_RGBA16; }
+  if(format == "rgba16f") { return GL_RGBA16F; }
+  if(format == "rgba32f") { return GL_RGBA32F; }
   // srgb8 falls through: those packages linearize themselves, and ruby agrees
   return GL_RGBA8;
 }
 
 GLuint uploadFormat(GLuint format) {
-  if(format == GL_R32I || format == GL_R32UI) return GL_RED_INTEGER;
+  if(format == GL_R32I || format == GL_R32UI) { return GL_RED_INTEGER; }
   return GL_BGRA;
 }
 
 GLuint uploadType(GLuint format) {
-  if(format == GL_R32I || format == GL_R32UI) return GL_UNSIGNED_INT;
-  if(format == GL_RGB10_A2) return GL_UNSIGNED_INT_2_10_10_10_REV;
+  if(format == GL_R32I || format == GL_R32UI) { return GL_UNSIGNED_INT; }
+  if(format == GL_RGB10_A2) { return GL_UNSIGNED_INT_2_10_10_10_REV; }
   return GL_UNSIGNED_INT_8_8_8_8_REV;
 }
 
@@ -209,8 +212,8 @@ GLuint parseFilter(const std::string& filter) {
 }
 
 GLuint parseWrap(const std::string& wrap) {
-  if(wrap == "edge") return GL_CLAMP_TO_EDGE;
-  if(wrap == "repeat") return GL_REPEAT;
+  if(wrap == "edge") { return GL_CLAMP_TO_EDGE; }
+  if(wrap == "repeat") { return GL_REPEAT; }
   return GL_CLAMP_TO_BORDER;
 }
 
@@ -218,7 +221,7 @@ GLuint parseWrap(const std::string& wrap) {
 void parseSize(const std::string& text, int& absolute, double& relative) {
   absolute = 0;
   relative = 0.0;
-  if(text.empty()) return;
+  if(text.empty()) { return; }
   if(text.back() == '%') {
     relative = SDL_atof(text.substr(0, text.size() - 1).c_str()) / 100.0;
   } else {
@@ -234,21 +237,21 @@ void applyParameters(GLuint filter, GLuint wrap) {
 }
 
 const char* const DefaultVertex =
-  "#version 150\n"
-  "in vec4 position;\n"
-  "in vec2 texCoord;\n"
-  "out Vertex { vec2 texCoord; } vertexOut;\n"
-  "void main() {\n"
-  "  gl_Position = position;\n"
-  "  vertexOut.texCoord = texCoord;\n"
-  "}\n";
+    "#version 150\n"
+    "in vec4 position;\n"
+    "in vec2 texCoord;\n"
+    "out Vertex { vec2 texCoord; } vertexOut;\n"
+    "void main() {\n"
+    "  gl_Position = position;\n"
+    "  vertexOut.texCoord = texCoord;\n"
+    "}\n";
 
 const char* const DefaultFragment =
-  "#version 150\n"
-  "uniform sampler2D source[];\n"
-  "in Vertex { vec2 texCoord; };\n"
-  "out vec4 fragColor;\n"
-  "void main() { fragColor = texture(source[0], texCoord); }\n";
+    "#version 150\n"
+    "uniform sampler2D source[];\n"
+    "in Vertex { vec2 texCoord; };\n"
+    "out vec4 fragColor;\n"
+    "void main() { fragColor = texture(source[0], texCoord); }\n";
 
 // `#in name` becomes that setting's #define; an unknown one blanks the line
 std::string substitute(const std::string& source, const std::vector<ShaderParam>& params) {
@@ -258,7 +261,7 @@ std::string substitute(const std::string& source, const std::vector<ShaderParam>
   while(true) {
     size_t end = source.find('\n', pos);
     const bool last = end == std::string::npos;
-    if(last) end = source.size();
+    if(last) { end = source.size(); }
     std::string line = source.substr(pos, end - pos);
 
     std::string probe = line;
@@ -270,11 +273,14 @@ std::string substitute(const std::string& source, const std::vector<ShaderParam>
       const std::string name = trimmed(probe.substr(4));
       line.clear();
       for(const ShaderParam& param : params) {
-        if(param.name == name) { line = "#define " + name + " " + param.value; break; }
+        if(param.name == name) {
+          line = "#define " + name + " " + param.value;
+          break;
+        }
       }
     }
     out += line;
-    if(last) break;
+    if(last) { break; }
     out += '\n';
     pos = end + 1;
   }
@@ -284,7 +290,7 @@ std::string substitute(const std::string& source, const std::vector<ShaderParam>
 std::string shaderInfoLog(GLuint shader) {
   GLint length = 0;
   gl.GetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-  if(length <= 1) return {};
+  if(length <= 1) { return {}; }
   std::string text((size_t)length, '\0');
   gl.GetShaderInfoLog(shader, length, &length, text.data());
   text.resize((size_t)length);
@@ -294,7 +300,7 @@ std::string shaderInfoLog(GLuint shader) {
 std::string programInfoLog(GLuint program) {
   GLint length = 0;
   gl.GetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
-  if(length <= 1) return {};
+  if(length <= 1) { return {}; }
   std::string text((size_t)length, '\0');
   gl.GetProgramInfoLog(program, length, &length, text.data());
   text.resize((size_t)length);
@@ -305,13 +311,13 @@ std::string programInfoLog(GLuint program) {
 
 std::vector<std::string> shaderList(const std::string& dir) {
   std::vector<std::string> found;
-  if(dir.empty()) return found;
+  if(dir.empty()) { return found; }
 
   int count = 0;
   char** names = SDL_GlobDirectory(dir.c_str(), "*.shader", SDL_GLOB_CASEINSENSITIVE, &count);
-  if(!names) return found;
+  if(!names) { return found; }
   for(int i = 0; i < count; i++) {
-    if(isDirectory(dir + "/" + names[i])) found.emplace_back(names[i]);
+    if(isDirectory(dir + "/" + names[i])) { found.emplace_back(names[i]); }
   }
   SDL_free(names);
   std::sort(found.begin(), found.end(), [](const std::string& a, const std::string& b) {
@@ -323,16 +329,16 @@ std::vector<std::string> shaderList(const std::string& dir) {
 std::string shaderLabel(const std::string& folder) {
   std::string name = fileName(folder);
   const std::string suffix = ".shader";
-  if(name.size() > suffix.size()
-  && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+  if(name.size() > suffix.size() &&
+     name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
     name.resize(name.size() - suffix.size());
   }
   return name;
 }
 
 bool Shader::init() {
-  if(entryPoints) return true;
-  if(!loadGl()) return false;
+  if(entryPoints) { return true; }
+  if(!loadGl()) { return false; }
 
   GLint units = 0;
   glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &units);
@@ -346,15 +352,18 @@ bool Shader::init() {
 
 void Shader::releasePass(ShaderPass& pass) {
   for(ShaderTexture& pixmap : pass.pixmaps) {
-    if(pixmap.texture) glDeleteTextures(1, &pixmap.texture);
+    if(pixmap.texture) { glDeleteTextures(1, &pixmap.texture); }
   }
   pass.pixmaps.clear();
-  if(pass.target.texture) glDeleteTextures(1, &pass.target.texture);
-  if(pass.framebuffer) gl.DeleteFramebuffers(1, &pass.framebuffer);
+  if(pass.target.texture) { glDeleteTextures(1, &pass.target.texture); }
+  if(pass.framebuffer) { gl.DeleteFramebuffers(1, &pass.framebuffer); }
   for(GLuint* stage : {&pass.vertex, &pass.geometry, &pass.fragment}) {
-    if(*stage) { gl.DetachShader(pass.program, *stage); gl.DeleteShader(*stage); }
+    if(*stage) {
+      gl.DetachShader(pass.program, *stage);
+      gl.DeleteShader(*stage);
+    }
   }
-  if(pass.program) gl.DeleteProgram(pass.program);
+  if(pass.program) { gl.DeleteProgram(pass.program); }
   pass = ShaderPass{};
 }
 
@@ -362,9 +371,9 @@ void Shader::unload() {
   if(entryPoints) {
     gl.UseProgram(0);
     gl.BindFramebuffer(GL_FRAMEBUFFER, 0);
-    for(ShaderPass& pass : passes) releasePass(pass);
+    for(ShaderPass& pass : passes) { releasePass(pass); }
     for(ShaderTexture& frame : ring) {
-      if(frame.texture) glDeleteTextures(1, &frame.texture);
+      if(frame.texture) { glDeleteTextures(1, &frame.texture); }
     }
   }
   passes.clear();
@@ -385,10 +394,10 @@ void Shader::unload() {
 
 void Shader::shutdown() {
   unload();
-  if(!entryPoints) return;
+  if(!entryPoints) { return; }
   gl.DeleteBuffers(3, vbo);
   gl.DeleteVertexArrays(1, &vao);
-  for(GLuint& buffer : vbo) buffer = 0;
+  for(GLuint& buffer : vbo) { buffer = 0; }
   vao = 0;
   entryPoints = false;
 }
@@ -397,7 +406,7 @@ bool Shader::load(const std::string& folder, const std::vector<ShaderParam>& ove
   failure.clear();
   log.clear();
   unload();
-  if(folder.empty()) return true;
+  if(folder.empty()) { return true; }
   if(!entryPoints) {
     failure = "this OpenGL context is too old for GLSL shaders";
     return false;
@@ -415,7 +424,10 @@ bool Shader::load(const std::string& folder, const std::vector<ShaderParam>& ove
     for(const ShaderNode& child : node->children) {
       ShaderParam param{child.name, child.value, child.value};
       for(const ShaderParam& override : overrides) {
-        if(override.name == param.name) { param.value = override.value; break; }
+        if(override.name == param.name) {
+          param.value = override.value;
+          break;
+        }
       }
       params.push_back(param);
     }
@@ -426,9 +438,9 @@ bool Shader::load(const std::string& folder, const std::vector<ShaderParam>& ove
     if(const ShaderNode* child = node->find("history")) {
       historySize = SDL_atoi(child->value.c_str());
     }
-    if(const ShaderNode* child = node->find("format")) inputFormat = parseFormat(child->value);
-    if(const ShaderNode* child = node->find("filter")) inputFilter = parseFilter(child->value);
-    if(const ShaderNode* child = node->find("wrap")) inputWrap = parseWrap(child->value);
+    if(const ShaderNode* child = node->find("format")) { inputFormat = parseFormat(child->value); }
+    if(const ShaderNode* child = node->find("filter")) { inputFilter = parseFilter(child->value); }
+    if(const ShaderNode* child = node->find("wrap")) { inputWrap = parseWrap(child->value); }
   }
   bool outputFilterSet = false;
   if(const ShaderNode* node = manifest.find("output")) {
@@ -439,7 +451,7 @@ bool Shader::load(const std::string& folder, const std::vector<ShaderParam>& ove
   }
 
   for(const ShaderNode& node : manifest.children) {
-    if(node.name != "program") continue;
+    if(node.name != "program") { continue; }
     passes.emplace_back();
     if(!buildPass(passes.back(), node, base)) {
       unload();
@@ -453,7 +465,7 @@ bool Shader::load(const std::string& folder, const std::vector<ShaderParam>& ove
   }
 
   // without an output node ruby blits with the last pass's own filter
-  if(!outputFilterSet) outputFilter = passes.back().target.filter;
+  if(!outputFilterSet) { outputFilter = passes.back().target.filter; }
 
   ring.resize((size_t)SDL_clamp(historySize, 0, 32) + 1);
   for(ShaderTexture& frame : ring) {
@@ -479,11 +491,17 @@ bool Shader::buildPass(ShaderPass& pass, const ShaderNode& node, const std::stri
   pass.program = gl.CreateProgram();
   gl.GenFramebuffers(1, &pass.framebuffer);
 
-  struct Stage { const char* key; GLenum type; const char* fallback; GLuint* out; };
+  struct Stage {
+    const char* key;
+    GLenum type;
+    const char* fallback;
+    GLuint* out;
+  };
+
   const Stage stages[] = {
-    {"vertex",   GL_VERTEX_SHADER,   DefaultVertex,   &pass.vertex},
-    {"geometry", GL_GEOMETRY_SHADER, nullptr,         &pass.geometry},
-    {"fragment", GL_FRAGMENT_SHADER, DefaultFragment, &pass.fragment},
+      {"vertex", GL_VERTEX_SHADER, DefaultVertex, &pass.vertex},
+      {"geometry", GL_GEOMETRY_SHADER, nullptr, &pass.geometry},
+      {"fragment", GL_FRAGMENT_SHADER, DefaultFragment, &pass.fragment},
   };
   for(const Stage& stage : stages) {
     const std::string file = node.text(stage.key);
@@ -536,15 +554,15 @@ bool Shader::buildPass(ShaderPass& pass, const ShaderNode& node, const std::stri
   pass.attribTexCoord = gl.GetAttribLocation(pass.program, "texCoord");
 
   for(const ShaderNode& child : node.children) {
-    if(child.name != "pixmap") continue;
+    if(child.name != "pixmap") { continue; }
     ShaderTexture pixmap;
     pixmap.filter = child.find("filter") ? parseFilter(child.text("filter")) : pass.target.filter;
     pixmap.wrap = child.find("wrap") ? parseWrap(child.text("wrap")) : pass.target.wrap;
     pixmap.format = child.find("format") ? parseFormat(child.text("format")) : pass.target.format;
 
     const std::vector<uint8_t> file = readBytes(folder + child.value);
-    uint8_t* pixels = file.empty() ? nullptr
-                    : decodeImage(file.data(), file.size(), pixmap.width, pixmap.height);
+    uint8_t* pixels =
+        file.empty() ? nullptr : decodeImage(file.data(), file.size(), pixmap.width, pixmap.height);
     if(!pixels) {
       log += "pixmap " + child.value + " could not be read\n";
       continue;
@@ -552,8 +570,8 @@ bool Shader::buildPass(ShaderPass& pass, const ShaderNode& node, const std::stri
     glGenTextures(1, &pixmap.texture);
     glBindTexture(GL_TEXTURE_2D, pixmap.texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexImage2D(GL_TEXTURE_2D, 0, (GLint)pixmap.format, pixmap.width, pixmap.height, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, (GLint)pixmap.format, pixmap.width, pixmap.height, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, pixels);
     applyParameters(pixmap.filter, pixmap.wrap);
     freeImage(pixels);
     pass.pixmaps.push_back(pixmap);
@@ -561,9 +579,7 @@ bool Shader::buildPass(ShaderPass& pass, const ShaderNode& node, const std::stri
   return true;
 }
 
-bool Shader::hasFrame() const {
-  return !ring.empty() && ring[(size_t)head].width > 0;
-}
+bool Shader::hasFrame() const { return !ring.empty() && ring[(size_t)head].width > 0; }
 
 namespace {
 void uploadFrame(ShaderTexture& frame, const uint32_t* argb, int width, int height) {
@@ -576,84 +592,88 @@ void uploadFrame(ShaderTexture& frame, const uint32_t* argb, int width, int heig
                  uploadFormat(frame.format), uploadType(frame.format), argb);
     applyParameters(frame.filter, frame.wrap);
   } else {
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
-                    uploadFormat(frame.format), uploadType(frame.format), argb);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, uploadFormat(frame.format),
+                    uploadType(frame.format), argb);
   }
 }
 }  // namespace
 
 void Shader::pushFrame(const uint32_t* argb, int width, int height) {
-  if(!entryPoints || ring.empty() || !argb || width <= 0 || height <= 0) return;
+  if(!entryPoints || ring.empty() || !argb || width <= 0 || height <= 0) { return; }
 
   // stepping the head backwards reuses the oldest slot, so no frame is copied
   head = (head + (int)ring.size() - 1) % (int)ring.size();
   uploadFrame(ring[(size_t)head], argb, width, height);
-  // an unwritten slot is an incomplete texture with a 1/0 size, so seed them all
+  // an unwritten slot is an incomplete texture with a 1/0 size, so seed them
+  // all
   for(ShaderTexture& frame : ring) {
-    if(frame.width == 0) {
-      uploadFrame(frame, argb, width, height);
-    }
+    if(frame.width == 0) { uploadFrame(frame, argb, width, height); }
   }
   fresh = true;
 }
 
 void Shader::sizeTarget(ShaderPass& pass, int width, int height) {
-  if(pass.target.texture && pass.target.width == width && pass.target.height == height) return;
+  if(pass.target.texture && pass.target.width == width && pass.target.height == height) { return; }
   pass.target.width = width;
   pass.target.height = height;
 
-  if(!pass.target.texture) glGenTextures(1, &pass.target.texture);
+  if(!pass.target.texture) { glGenTextures(1, &pass.target.texture); }
   glBindTexture(GL_TEXTURE_2D, pass.target.texture);
   glTexImage2D(GL_TEXTURE_2D, 0, (GLint)pass.target.format, width, height, 0,
                uploadFormat(pass.target.format), uploadType(pass.target.format), nullptr);
   applyParameters(pass.target.filter, pass.target.wrap);
 
   gl.BindFramebuffer(GL_FRAMEBUFFER, pass.framebuffer);
-  gl.FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                          pass.target.texture, 0);
+  gl.FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.target.texture,
+                          0);
 }
 
 void Shader::drawQuad(const ShaderPass& pass, int width, int height) {
   glViewport(0, 0, width, height);
 
   const GLfloat u = (GLfloat)width, v = (GLfloat)height;
-  const GLfloat identity[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+  const GLfloat identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
   const GLfloat projection[16] = {
-    2.0f / u, 0.0f,     0.0f, 0.0f,
-    0.0f,     2.0f / v, 0.0f, 0.0f,
-    0.0f,     0.0f,    -1.0f, 0.0f,
-   -1.0f,    -1.0f,     0.0f, 1.0f,
+      2.0f / u, 0.0f, 0.0f,  0.0f, 0.0f,  2.0f / v, 0.0f, 0.0f,
+      0.0f,     0.0f, -1.0f, 0.0f, -1.0f, -1.0f,    0.0f, 1.0f,
   };
-  const GLfloat vertices[16] = {0,0,0,1, u,0,0,1, 0,v,0,1, u,v,0,1};
-  const GLfloat positions[16] = {-1,-1,0,1, 1,-1,0,1, -1,1,0,1, 1,1,0,1};
-  const GLfloat texCoords[8] = {0,0, 1,0, 0,1, 1,1};
+  const GLfloat vertices[16] = {0, 0, 0, 1, u, 0, 0, 1, 0, v, 0, 1, u, v, 0, 1};
+  const GLfloat positions[16] = {-1, -1, 0, 1, 1, -1, 0, 1, -1, 1, 0, 1, 1, 1, 0, 1};
+  const GLfloat texCoords[8] = {0, 0, 1, 0, 0, 1, 1, 1};
 
   auto matrix = [&](const char* name, const GLfloat* values) {
     const GLint location = gl.GetUniformLocation(pass.program, name);
-    if(location >= 0) gl.UniformMatrix4fv(location, 1, GL_FALSE, values);
+    if(location >= 0) { gl.UniformMatrix4fv(location, 1, GL_FALSE, values); }
   };
   matrix("modelView", identity);
   matrix("projection", projection);
   matrix("modelViewProjection", projection);
 
   gl.BindVertexArray(vao);
-  struct Attrib { GLint location; const GLfloat* data; GLsizeiptr size; GLint components; };
+
+  struct Attrib {
+    GLint location;
+    const GLfloat* data;
+    GLsizeiptr size;
+    GLint components;
+  };
+
   const Attrib attribs[] = {
-    {pass.attribVertex,   vertices,  (GLsizeiptr)sizeof(vertices),  4},
-    {pass.attribPosition, positions, (GLsizeiptr)sizeof(positions), 4},
-    {pass.attribTexCoord, texCoords, (GLsizeiptr)sizeof(texCoords), 2},
+      {pass.attribVertex, vertices, (GLsizeiptr)sizeof(vertices), 4},
+      {pass.attribPosition, positions, (GLsizeiptr)sizeof(positions), 4},
+      {pass.attribTexCoord, texCoords, (GLsizeiptr)sizeof(texCoords), 2},
   };
   for(int i = 0; i < 3; i++) {
-    if(attribs[i].location < 0) continue;
+    if(attribs[i].location < 0) { continue; }
     gl.BindBuffer(GL_ARRAY_BUFFER, vbo[i]);
     gl.BufferData(GL_ARRAY_BUFFER, attribs[i].size, attribs[i].data, GL_STREAM_DRAW);
     gl.EnableVertexAttribArray((GLuint)attribs[i].location);
-    gl.VertexAttribPointer((GLuint)attribs[i].location, attribs[i].components,
-                           GL_FLOAT, GL_FALSE, 0, nullptr);
+    gl.VertexAttribPointer((GLuint)attribs[i].location, attribs[i].components, GL_FLOAT, GL_FALSE,
+                           0, nullptr);
   }
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   for(const Attrib& attrib : attribs) {
-    if(attrib.location >= 0) gl.DisableVertexAttribArray((GLuint)attrib.location);
+    if(attrib.location >= 0) { gl.DisableVertexAttribArray((GLuint)attrib.location); }
   }
 }
 
@@ -662,9 +682,10 @@ GLuint Shader::render(int width, int height) {
     outputWidth = outputHeight = 0;
     return 0;
   }
-  // bsnes runs the chain once an emulated frame, so a redraw must not advance phase
+  // bsnes runs the chain once an emulated frame, so a redraw must not advance
+  // phase
   const bool advance = fresh;
-  if(!advance && cached && width == cachedWidth && height == cachedHeight) return cached;
+  if(!advance && cached && width == cachedWidth && height == cachedHeight) { return cached; }
   fresh = false;
   cachedWidth = width;
   cachedHeight = height;
@@ -683,8 +704,8 @@ GLuint Shader::render(int width, int height) {
   for(ShaderPass& pass : passes) {
     int targetWidth = pass.absoluteWidth ? pass.absoluteWidth : width;
     int targetHeight = pass.absoluteHeight ? pass.absoluteHeight : height;
-    if(pass.relativeWidth > 0.0) targetWidth = (int)(sources[0].width * pass.relativeWidth);
-    if(pass.relativeHeight > 0.0) targetHeight = (int)(sources[0].height * pass.relativeHeight);
+    if(pass.relativeWidth > 0.0) { targetWidth = (int)(sources[0].width * pass.relativeWidth); }
+    if(pass.relativeHeight > 0.0) { targetHeight = (int)(sources[0].height * pass.relativeHeight); }
     targetWidth = SDL_max(1, targetWidth);
     targetHeight = SDL_max(1, targetHeight);
 
@@ -702,11 +723,11 @@ GLuint Shader::render(int width, int height) {
 
     auto scalar = [&](const char* name, GLint value) {
       const GLint location = gl.GetUniformLocation(pass.program, name);
-      if(location >= 0) gl.Uniform1i(location, value);
+      if(location >= 0) { gl.Uniform1i(location, value); }
     };
     auto size4f = [&](const char* name, int w, int h) {
       const GLint location = gl.GetUniformLocation(pass.program, name);
-      if(location >= 0) gl.Uniform4f(location, (GLfloat)w, (GLfloat)h, 1.0f / w, 1.0f / h);
+      if(location >= 0) { gl.Uniform4f(location, (GLfloat)w, (GLfloat)h, 1.0f / w, 1.0f / h); }
     };
 
     scalar("phase", pass.phase);
@@ -716,7 +737,8 @@ GLuint Shader::render(int width, int height) {
     size4f("targetSize", targetWidth, targetHeight);
     size4f("outputSize", width, height);
 
-    // a sampler the pass never names costs no unit, which is what fits CRT-Royale
+    // a sampler the pass never names costs no unit, which is what fits
+    // CRT-Royale
     int unit = 0;
     auto bind = [&](const char* array, int index, const ShaderTexture& texture) {
       char name[40];
@@ -726,7 +748,7 @@ GLuint Shader::render(int width, int height) {
       size4f(sizeName, texture.width, texture.height);
 
       const GLint location = gl.GetUniformLocation(pass.program, name);
-      if(location < 0 || unit >= maxUnits) return;
+      if(location < 0 || unit >= maxUnits) { return; }
       gl.Uniform1i(location, unit);
       gl.ActiveTexture(GL_TEXTURE0 + unit);
       glBindTexture(GL_TEXTURE_2D, texture.texture);
@@ -737,11 +759,11 @@ GLuint Shader::render(int width, int height) {
     for(size_t i = 1; i < ring.size(); i++) {
       bind("history", (int)i - 1, ring[((size_t)head + i) % ring.size()]);
     }
-    for(size_t i = 0; i < sources.size(); i++) bind("source", (int)i, sources[i]);
-    for(size_t i = 0; i < pass.pixmaps.size(); i++) bind("pixmap", (int)i, pass.pixmaps[i]);
+    for(size_t i = 0; i < sources.size(); i++) { bind("source", (int)i, sources[i]); }
+    for(size_t i = 0; i < pass.pixmaps.size(); i++) { bind("pixmap", (int)i, pass.pixmaps[i]); }
 
     drawQuad(pass, targetWidth, targetHeight);
-    if(advance) pass.phase = (pass.phase + 1) % pass.modulo;
+    if(advance) { pass.phase = (pass.phase + 1) % pass.modulo; }
     sources.insert(sources.begin(), pass.target);
   }
 

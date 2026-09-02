@@ -10,18 +10,16 @@ void requestGl(bool core) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, core ? 2 : 0);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                      core ? SDL_GL_CONTEXT_PROFILE_CORE : 0);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, core ? SDL_GL_CONTEXT_PROFILE_CORE : 0);
 #ifdef __APPLE__
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 #endif
 }
-}
+}  // namespace
 
 bool Shell::initVideo() {
   requestGl(true);
-  window = SDL_CreateWindow(AppName, 878, 224 * 3 + 24,
-                            SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+  window = SDL_CreateWindow(AppName, 878, 224 * 3 + 24, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
   if(!window) {
     SDL_Log("window creation failed: %s", SDL_GetError());
     return false;
@@ -42,7 +40,7 @@ bool Shell::initVideo() {
     return false;
   }
   SDL_GL_MakeCurrent(window, gl);
-  if(!shader.init()) SDL_Log("gl shader pipeline unavailable on this driver");
+  if(!shader.init()) { SDL_Log("gl shader pipeline unavailable on this driver"); }
   // audio is the master clock, so vsync must not also gate the loop
   SDL_GL_SetSwapInterval(0);
 
@@ -55,8 +53,8 @@ bool Shell::initVideo() {
   // GL_RGB, not GL_RGBA: the 2xSaI family blends through a 0xFEFEFE mask that
   // drops the alpha byte, so interpolated pixels arrive fully transparent and
   // would blend into the background.
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0,
-               GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE,
+               nullptr);
   return true;
 }
 
@@ -64,16 +62,19 @@ namespace {
 // resolves a remembered device name back to an id; falls back to the system
 // default when the name is empty or the device is gone (renumbered on reboot)
 SDL_AudioDeviceID findPlaybackDevice(const std::string& name) {
-  if(name.empty()) return SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+  if(name.empty()) { return SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK; }
 
   int count = 0;
   SDL_AudioDeviceID* ids = SDL_GetAudioPlaybackDevices(&count);
   SDL_AudioDeviceID found = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
   for(int i = 0; i < count; i++) {
     const char* devName = SDL_GetAudioDeviceName(ids[i]);
-    if(devName && name == devName) { found = ids[i]; break; }
+    if(devName && name == devName) {
+      found = ids[i];
+      break;
+    }
   }
-  if(ids) SDL_free(ids);
+  if(ids) { SDL_free(ids); }
   return found;
 }
 }  // namespace
@@ -83,7 +84,8 @@ bool Shell::initAudio(const Settings& settings) {
   spec.format = SDL_AUDIO_F32;
   spec.channels = 2;
   spec.freq = AudioRate;
-  audio = SDL_OpenAudioDeviceStream(findPlaybackDevice(settings.audioDevice), &spec, nullptr, nullptr);
+  audio =
+      SDL_OpenAudioDeviceStream(findPlaybackDevice(settings.audioDevice), &spec, nullptr, nullptr);
   if(!audio) {
     SDL_Log("audio open failed: %s", SDL_GetError());
     return false;
@@ -102,7 +104,7 @@ bool Shell::reopenAudio(const Settings& settings) {
     audio = previous;
     return false;
   }
-  if(previous) SDL_DestroyAudioStream(previous);
+  if(previous) { SDL_DestroyAudioStream(previous); }
   audioGain = -1.0f;  // force the new stream to pick up the current gain
   return true;
 }
@@ -112,9 +114,9 @@ std::vector<std::string> Shell::listPlaybackDevices() {
   int count = 0;
   SDL_AudioDeviceID* ids = SDL_GetAudioPlaybackDevices(&count);
   for(int i = 0; i < count; i++) {
-    if(const char* name = SDL_GetAudioDeviceName(ids[i])) names.emplace_back(name);
+    if(const char* name = SDL_GetAudioDeviceName(ids[i])) { names.emplace_back(name); }
   }
-  if(ids) SDL_free(ids);
+  if(ids) { SDL_free(ids); }
   return names;
 }
 
@@ -123,28 +125,29 @@ bool Shell::init(const Settings& settings) {
     SDL_Log("SDL_Init failed: %s", SDL_GetError());
     return false;
   }
-  if(!initVideo()) return false;
+  if(!initVideo()) { return false; }
   moveToDisplay(settings);  // SDL places a new window on the primary display
   return initAudio(settings);
 }
 
 void Shell::shutdown() {
-  if(audio) SDL_DestroyAudioStream(audio);
-  if(gl) shader.shutdown();
-  if(texture) glDeleteTextures(1, &texture);
-  if(gl) SDL_GL_DestroyContext(gl);
-  if(window) SDL_DestroyWindow(window);
+  if(audio) { SDL_DestroyAudioStream(audio); }
+  if(gl) { shader.shutdown(); }
+  if(texture) { glDeleteTextures(1, &texture); }
+  if(gl) { SDL_GL_DestroyContext(gl); }
+  if(window) { SDL_DestroyWindow(window); }
   SDL_Quit();
 }
 
-// Audio is the master clock; draining to a byte backlog paces NTSC and PAL alike.
+// Audio is the master clock; draining to a byte backlog paces NTSC and PAL
+// alike.
 int Shell::paceTarget(const Settings& settings) const {
   return settings.latencyMs * AudioRate / 1000 * 2 * (int)sizeof(float);
 }
 
 int Shell::displayFrameMs() const {
   const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
-  if(!mode || mode->refresh_rate <= 0.0f) return 16;
+  if(!mode || mode->refresh_rate <= 0.0f) { return 16; }
   return SDL_max(1, (int)(1000.0f / mode->refresh_rate));
 }
 
@@ -156,7 +159,7 @@ void Shell::pace(const Settings& settings) {
   // polling; the loop only runs again if the sleep came up short
   while(true) {
     const int over = SDL_GetAudioStreamQueued(audio) - target;
-    if(over <= 0) return;
+    if(over <= 0) { return; }
     SDL_DelayNS((Uint64)over * SDL_NS_PER_SECOND / bytesPerSecond);
   }
 }
@@ -173,32 +176,33 @@ void Shell::pushVideo(const uint32_t* argb, int width, int height) {
   if(width > textureWidth || height > textureHeight) {
     textureWidth = SDL_max(textureWidth, width);
     textureHeight = SDL_max(textureHeight, height);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0,
-                 GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_BGRA,
+                 GL_UNSIGNED_BYTE, nullptr);
   }
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, argb);
-  // the texture above is oversized, and quark shaders index texels off sourceSize
+  // the texture above is oversized, and quark shaders index texels off
+  // sourceSize
   shader.pushFrame(argb, width, height);
 }
 
-void Shell::pushAudio(const Settings& settings, const float* samples, int frames,
-                      float gain, bool unpaced) {
-  if(frames <= 0) return;
+void Shell::pushAudio(const Settings& settings, const float* samples, int frames, float gain,
+                      bool unpaced) {
+  if(frames <= 0) { return; }
   if(gain != audioGain) {
     audioGain = gain;
     SDL_SetAudioStreamGain(audio, gain);
   }
   // unpaced the emulator outruns the device, so cap the backlog instead
-  if(unpaced && SDL_GetAudioStreamQueued(audio) >= paceTarget(settings)) return;
+  if(unpaced && SDL_GetAudioStreamQueued(audio) >= paceTarget(settings)) { return; }
   SDL_PutAudioStreamData(audio, samples, frames * 2 * (int)sizeof(float));
 }
 
 void Shell::drawGame(const Settings& settings, unsigned tint) {
-  if(frameWidth <= 0 || frameHeight <= 0) return;
+  if(frameWidth <= 0 || frameHeight <= 0) { return; }
 
   ImGuiViewport* view = ImGui::GetMainViewport();
   const float availW = view->WorkSize.x, availH = view->WorkSize.y;
-  if(availW <= 0.0f || availH <= 0.0f) return;
+  if(availW <= 0.0f || availH <= 0.0f) { return; }
 
   const float videoW = videoWidth(settings);
   const float videoH = videoHeight(settings);
@@ -213,8 +217,7 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
   } else {
     const float fit = fitScale(settings, availW, availH);
     // below 1x there is no whole multiple to round to, so Center scales instead
-    const float scale = settings.outputMode == OutputCenter && fit >= 1.0f
-                      ? SDL_floorf(fit) : fit;
+    const float scale = settings.outputMode == OutputCenter && fit >= 1.0f ? SDL_floorf(fit) : fit;
     w = videoW * scale;
     h = videoH * scale;
   }
@@ -237,8 +240,8 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
   if(shader.active()) {
     // the chain renders at device resolution, which is what a CRT mask needs
     const float dpi = pixelScale();
-    const GLuint output = shader.render(SDL_max(1, (int)(w * dpi + 0.5f)),
-                                        SDL_max(1, (int)(h * dpi + 0.5f)));
+    const GLuint output =
+        shader.render(SDL_max(1, (int)(w * dpi + 0.5f)), SDL_max(1, (int)(h * dpi + 0.5f)));
     if(output) {
       present = output;
       uv0 = ImVec2(0.0f, 0.0f);
@@ -251,7 +254,7 @@ void Shell::drawGame(const Settings& settings, unsigned tint) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
   ImGui::GetBackgroundDrawList(view)->AddImage((ImTextureID)(intptr_t)present, p0, p1, uv0, uv1,
-                                              (ImU32)tint);
+                                               (ImU32)tint);
 }
 
 float Shell::pixelScale() const {
@@ -262,7 +265,7 @@ float Shell::pixelScale() const {
 }
 
 void Shell::shrinkToFit(const Settings& settings) {
-  if(fullscreen()) return;
+  if(fullscreen()) { return; }
   SDL_RestoreWindow(window);  // a maximized window ignores a resize
 
   const ImGuiViewport* view = ImGui::GetMainViewport();
@@ -283,16 +286,19 @@ namespace {
 // resolves a remembered display name back to an id, as findPlaybackDevice does
 // for audio; 0 when the name is empty or that monitor has been unplugged
 SDL_DisplayID findDisplay(const std::string& name) {
-  if(name.empty()) return 0;
+  if(name.empty()) { return 0; }
 
   int count = 0;
   SDL_DisplayID* ids = SDL_GetDisplays(&count);
   SDL_DisplayID found = 0;
   for(int i = 0; i < count; i++) {
     const char* displayName = SDL_GetDisplayName(ids[i]);
-    if(displayName && name == displayName) { found = ids[i]; break; }
+    if(displayName && name == displayName) {
+      found = ids[i];
+      break;
+    }
   }
-  if(ids) SDL_free(ids);
+  if(ids) { SDL_free(ids); }
   return found;
 }
 }  // namespace
@@ -302,9 +308,9 @@ std::vector<std::string> Shell::listDisplays() {
   int count = 0;
   SDL_DisplayID* ids = SDL_GetDisplays(&count);
   for(int i = 0; i < count; i++) {
-    if(const char* name = SDL_GetDisplayName(ids[i])) names.emplace_back(name);
+    if(const char* name = SDL_GetDisplayName(ids[i])) { names.emplace_back(name); }
   }
-  if(ids) SDL_free(ids);
+  if(ids) { SDL_free(ids); }
   return names;
 }
 
@@ -317,19 +323,19 @@ SDL_DisplayID Shell::chosenDisplay(const Settings& settings) const {
 
 void Shell::centerOn(SDL_DisplayID display) {
   SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
-                                SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+                        SDL_WINDOWPOS_CENTERED_DISPLAY(display));
 }
 
 void Shell::moveToDisplay(const Settings& settings) {
-  if(settings.displayName.empty()) return;
-  if(fullscreen()) return;
+  if(settings.displayName.empty()) { return; }
+  if(fullscreen()) { return; }
   const SDL_DisplayID display = chosenDisplay(settings);
-  if(display == SDL_GetDisplayForWindow(window)) return;
+  if(display == SDL_GetDisplayForWindow(window)) { return; }
   centerOn(display);
 }
 
 void Shell::center(const Settings& settings) {
-  if(fullscreen()) return;
+  if(fullscreen()) { return; }
   SDL_RestoreWindow(window);  // a maximized window already fills the display
   centerOn(chosenDisplay(settings));
 }
@@ -346,30 +352,30 @@ int Shell::maxScale(const Settings& settings) const {
 
 namespace {
 bool saveBmp(const void* pixels, int w, int h, const std::string& path, bool flip) {
-  SDL_Surface* surface = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_XRGB8888,
-                                               (void*)pixels, w * (int)sizeof(uint32_t));
-  if(!surface) return false;
-  const bool ok = (!flip || SDL_FlipSurface(surface, SDL_FLIP_VERTICAL))
-               && SDL_SaveBMP(surface, path.c_str());
+  SDL_Surface* surface = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_XRGB8888, (void*)pixels,
+                                               w * (int)sizeof(uint32_t));
+  if(!surface) { return false; }
+  const bool ok =
+      (!flip || SDL_FlipSurface(surface, SDL_FLIP_VERTICAL)) && SDL_SaveBMP(surface, path.c_str());
   SDL_DestroySurface(surface);
   return ok;
 }
 }  // namespace
 
 bool Shell::saveFrame(const std::string& path) const {
-  if(!lastPixels || frameWidth <= 0 || frameHeight <= 0) return false;
+  if(!lastPixels || frameWidth <= 0 || frameHeight <= 0) { return false; }
   return saveBmp(lastPixels, frameWidth, frameHeight, path, false);
 }
 
 // Reads the displayed game rectangle after the background draw list has been
 // rendered by itself. This keeps Lua drawings while excluding frontend chrome.
 bool Shell::saveGameView(const std::string& path) const {
-  if(drawWidth <= 0 || drawHeight <= 0) return false;
+  if(drawWidth <= 0 || drawHeight <= 0) { return false; }
 
   int windowW = 0, windowH = 0, pixelW = 0, pixelH = 0;
   SDL_GetWindowSize(window, &windowW, &windowH);
   SDL_GetWindowSizeInPixels(window, &pixelW, &pixelH);
-  if(windowW <= 0 || windowH <= 0 || pixelW <= 0 || pixelH <= 0) return false;
+  if(windowW <= 0 || windowH <= 0 || pixelW <= 0 || pixelH <= 0) { return false; }
 
   const ImVec2 viewportPos = ImGui::GetMainViewport()->Pos;
   const float sx = (float)pixelW / windowW;
@@ -381,7 +387,7 @@ bool Shell::saveGameView(const std::string& path) const {
   const int right = SDL_clamp((int)SDL_ceilf((localX + drawWidth) * sx), 0, pixelW);
   const int bottom = SDL_clamp((int)SDL_ceilf((localY + drawHeight) * sy), 0, pixelH);
   const int w = right - left, h = bottom - top;
-  if(w <= 0 || h <= 0) return false;
+  if(w <= 0 || h <= 0) { return false; }
 
   std::vector<uint32_t> pixels((size_t)w * h);
   glPixelStorei(GL_PACK_ALIGNMENT, 4);
@@ -393,7 +399,7 @@ bool Shell::saveGameView(const std::string& path) const {
 bool Shell::saveWindow(const std::string& path) const {
   int w = 0, h = 0;
   SDL_GetWindowSizeInPixels(window, &w, &h);
-  if(w <= 0 || h <= 0) return false;
+  if(w <= 0 || h <= 0) { return false; }
 
   std::vector<uint32_t> pixels((size_t)w * h);
   glPixelStorei(GL_PACK_ALIGNMENT, 4);
@@ -401,4 +407,3 @@ bool Shell::saveWindow(const std::string& path) const {
 
   return saveBmp(pixels.data(), w, h, path, true);
 }
-

@@ -32,8 +32,8 @@ void App::drawShaderSection(bool& dirty) {
   }
 
   const std::string dir = shadersDir();
-  const std::string current = settings.videoShader.empty() ? "None"
-                            : shaderLabel(settings.videoShader);
+  const std::string current =
+      settings.videoShader.empty() ? "None" : shaderLabel(settings.videoShader);
   if(ImGui::BeginCombo("Shader", current.c_str())) {
     if(ImGui::Selectable("None", settings.videoShader.empty())) {
       settings.videoShader.clear();
@@ -56,17 +56,17 @@ void App::drawShaderSection(bool& dirty) {
 
   if(!settings.videoShader.empty() && ImGui::Button("Reload##shader")) {
     applyShader();
-    if(shell.shader.active()) showMessage("shader reloaded");
+    if(shell.shader.active()) { showMessage("shader reloaded"); }
   }
 
   if(!shell.shader.failure.empty()) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
     ImGui::TextWrapped("%s", shell.shader.failure.c_str());
     ImGui::PopStyleColor();
-    if(!shell.shader.log.empty()) ImGui::TextWrapped("%s", shell.shader.log.c_str());
+    if(!shell.shader.log.empty()) { ImGui::TextWrapped("%s", shell.shader.log.c_str()); }
     return;
   }
-  if(!shell.shader.active()) return;
+  if(!shell.shader.active()) { return; }
 
   if(shell.shader.outputWidth > 0) {
     ImGui::Text("%d passes, output %d x %d", (int)shell.shader.passCount(),
@@ -75,9 +75,10 @@ void App::drawShaderSection(bool& dirty) {
     ImGui::Text("%d passes", (int)shell.shader.passCount());
   }
 
-  if(shell.shader.params.empty()) return;
+  if(shell.shader.params.empty()) { return; }
   ImGui::TextDisabled("Parameters");
-  // reloading replaces the parameter list, so the edit is applied after the loop
+  // reloading replaces the parameter list, so the edit is applied after the
+  // loop
   int edited = -1;
   std::string value;
   for(size_t i = 0; i < shell.shader.params.size(); i++) {
@@ -109,22 +110,22 @@ void App::drawShaderSection(bool& dirty) {
 void App::drawVideoTab() {
   bool dirty = false;
   bool geometryDirty = ImGui::Checkbox("Aspect correction (4:3)", &settings.aspectCorrect);
-  tip("Off preserves the SNES's square-pixel 8:7 image; on applies the NTSC-TV correction.");
+  tip("Off preserves the SNES's square-pixel 8:7 image; on applies the NTSC-TV "
+      "correction.");
   dirty |= geometryDirty;
   dirty |= ImGui::Checkbox("Linear filtering (smooths fractional scales)", &settings.linearFilter);
   dirty |= ImGui::Combo("Output", &settings.outputMode, OutputNames, OutputCount);
 
-  if(ImGui::BeginCombo("Window scale",
-                       windowScaleLabel(settings.windowScale, settings).c_str())) {
+  if(ImGui::BeginCombo("Window scale", windowScaleLabel(settings.windowScale, settings).c_str())) {
     const int maxScale = shell.maxScale(settings);
     for(int scale = 0; scale <= maxScale; scale++) {
       const std::string label = windowScaleLabel(scale, settings);
-      if(ImGui::Selectable(label.c_str(), settings.windowScale == scale)) setWindowScale(scale);
+      if(ImGui::Selectable(label.c_str(), settings.windowScale == scale)) { setWindowScale(scale); }
     }
     ImGui::EndCombo();
   }
-  const char* displayLabel = settings.displayName.empty() ? "Follow the window"
-                                                          : settings.displayName.c_str();
+  const char* displayLabel =
+      settings.displayName.empty() ? "Follow the window" : settings.displayName.c_str();
   if(ImGui::BeginCombo("Display", displayLabel)) {
     if(ImGui::Selectable("Follow the window", settings.displayName.empty())) {
       settings.displayName.clear();
@@ -145,9 +146,9 @@ void App::drawVideoTab() {
   }
   tip("Which monitor the window and fullscreen use.");
 
-  if(ImGui::Button("Shrink window to size")) shell.shrinkToFit(settings);
+  if(ImGui::Button("Shrink window to size")) { shell.shrinkToFit(settings); }
   ImGui::SameLine();
-  if(ImGui::Button("Center window")) shell.center(settings);
+  if(ImGui::Button("Center window")) { shell.center(settings); }
 
   ImGui::Separator();
   if(ImGui::Checkbox("Crop overscan (8 lines top/bottom)", &settings.overscanCrop)) {
@@ -164,7 +165,8 @@ void App::drawVideoTab() {
   dirty |= ImGui::Checkbox("Dim video when idle", &settings.videoDimming);
   tip("Halves the brightness while emulation is paused or stopped.");
   dirty |= ImGui::Checkbox("Include Lua drawings in screenshots", &settings.screenshotLua);
-  tip("Captures the displayed game and Lua overlay without menus or tool windows.");
+  tip("Captures the displayed game and Lua overlay without menus or tool "
+      "windows.");
 
   ImGui::Separator();
   ImGui::TextDisabled("Colour Adjustment");
@@ -183,7 +185,7 @@ void App::drawVideoTab() {
   int current = 0;
   for(size_t i = 0; i < filterNames.size(); i++) {
     items.push_back(filterNames[i].c_str());
-    if(filterNames[i] == settings.videoFilter) current = (int)i;
+    if(filterNames[i] == settings.videoFilter) { current = (int)i; }
   }
   ImGui::BeginDisabled(shell.shader.active());
   if(ImGui::Combo("Filter", &current, items.data(), (int)items.size())) {
@@ -207,6 +209,6 @@ void App::drawVideoTab() {
     restoreVideoDefaults();
     dirty = true;
   }
-  if(geometryDirty && settings.windowScale > 0) shell.shrinkToFit(settings);
-  if(dirty) settings.save(settingsCfg);
+  if(geometryDirty && settings.windowScale > 0) { shell.shrinkToFit(settings); }
+  if(dirty) { settings.save(settingsCfg); }
 }

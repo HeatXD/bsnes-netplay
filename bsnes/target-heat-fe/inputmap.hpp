@@ -11,8 +11,7 @@
 
 struct Binding {
   // Keep the first five values stable: they are persisted in input.cfg.
-  enum Type : int { None = 0, Key, PadButton, PadAxis, MouseButton,
-                    JoyButton, JoyAxis, JoyHat };
+  enum Type : int { None = 0, Key, PadButton, PadAxis, MouseButton, JoyButton, JoyAxis, JoyHat };
 
   Type type = None;
   int code = 0;
@@ -31,11 +30,15 @@ struct Controller {
   SDL_Joystick* joystick = nullptr;  // borrowed from gamepad, owned otherwise
 
   explicit operator bool() const { return joystick != nullptr; }
+
   bool mapped() const { return gamepad != nullptr; }
+
   SDL_JoystickID id() const { return joystick ? SDL_GetJoystickID(joystick) : 0; }
+
   const char* name() const {
-    return gamepad ? SDL_GetGamepadName(gamepad)
-                   : joystick ? SDL_GetJoystickName(joystick) : nullptr;
+    return gamepad    ? SDL_GetGamepadName(gamepad)
+           : joystick ? SDL_GetJoystickName(joystick)
+                      : nullptr;
   }
 };
 
@@ -44,9 +47,9 @@ const Controller* resolvePad(const std::vector<Controller>& pads, int index);
 
 // everything a binding can be tested against, gathered once a frame
 struct InputSample {
-  const bool* keys = nullptr;         // SDL_GetKeyboardState
-  uint32_t mouseButtons = 0;          // SDL_GetMouseState mask
-  int mods = 0;                       // ctrl, shift, alt and gui, sides collapsed
+  const bool* keys = nullptr;    // SDL_GetKeyboardState
+  uint32_t mouseButtons = 0;     // SDL_GetMouseState mask
+  int mods = 0;                  // ctrl, shift, alt and gui, sides collapsed
   int mouseDx = 0, mouseDy = 0;  // relative motion, for the aiming devices
   bool mouseCaptured = false;
 
@@ -65,7 +68,7 @@ inline int padSlot(int port, int player) { return port * EmuCore::MaxPlayers + p
 // pads with an unplugged controller are left empty rather than removed
 inline int livePadCount(const std::vector<Controller>& pads) {
   int live = 0;
-  for(const Controller& pad : pads) live += (bool)pad;
+  for(const Controller& pad : pads) { live += (bool)pad; }
   return live;
 }
 
@@ -73,9 +76,10 @@ inline int livePadCount(const std::vector<Controller>& pads) {
 // not clobber the gamepad mapping. Which pad each port reads comes from
 // Settings::padIndex.
 class InputMap {
-public:
+ public:
   static constexpr int Ports = EmuCore::PortCount;
-  // interchangeable; the defaults fill them with a key, a pad button and a stick
+  // interchangeable; the defaults fill them with a key, a pad button and a
+  // stick
   static constexpr int Slots = 3;
   // each input carries a second set of slots that auto-fires while held
   static constexpr int TurboSlot = Slots;
@@ -97,36 +101,39 @@ public:
   Binding& binding(int port, int device, int index, int slot) {
     return bindings[port][device][index][slot];
   }
+
   const Binding& binding(int port, int device, int index, int slot) const {
     return bindings[port][device][index][slot];
   }
 
   Binding& hotkey(int index, int slot) { return hotkeys[index][slot]; }
+
   const Binding& hotkey(int index, int slot) const { return hotkeys[index][slot]; }
+
   // false when the config predates bindings, so its scancodes can be migrated
   bool hasHotkeys() const { return hotkeysLoaded; }
+
   void migrateHotkeys(const int* scancodes, int count);
 
   // any mapping fires it, and any pad may be the one pressing it
-  bool hotkeyHeld(int index, const InputSample& sample,
-                  const std::vector<Controller>& pads) const;
+  bool hotkeyHeld(int index, const InputSample& sample, const std::vector<Controller>& pads) const;
 
   // frame is the emulated frame count, so turbo timing tracks the emulator's
   // own clock and stays correct under fast forward
-  void apply(EmuCore& core, const std::vector<Controller>& pads,
-            const Settings& settings, const InputSample& sample, long long frame) const;
+  void apply(EmuCore& core, const std::vector<Controller>& pads, const Settings& settings,
+             const InputSample& sample, long long frame) const;
 
   // the 12 SNES buttons for one gamepad slot (bit i = EmuCore::Button i), for
   // netplay to hand to GekkoNet instead of writing straight into the core
   uint16_t pollButtons(int port, int player, const std::vector<Controller>& pads,
-                       const Settings& settings, const InputSample& sample,
-                       long long frame, double refreshRate) const;
+                       const Settings& settings, const InputSample& sample, long long frame,
+                       double refreshRate) const;
 
   // pad events from another controller are ignored, so pad 1 cannot bind port 2
   static bool capture(const SDL_Event& event, Binding& out, const Controller* pad = nullptr,
                       bool chords = false);
 
-private:
+ private:
   using Slotted = std::array<Binding, SlotCount>;
   using PerInput = std::array<Slotted, EmuCore::MaxInputs>;
   using PerDevice = std::array<PerInput, EmuCore::DeviceCount>;

@@ -26,13 +26,32 @@ constexpr int DefaultAccent = 0x4296fa;
 constexpr int FollowTheme = -1;
 
 // appended to, never reordered: the config file stores these by index
-enum Hotkey { HkPause, HkReset, HkFastForward, HkFullscreen, HkScreenshot,
-             HkFrameAdvance, HkPowerCycle, HkMute, HkQuit,
-             HkSpeedDown, HkSpeedUp,
-             HkUnloadGame, HkMouseCapture,
-             HkMode7Down, HkMode7Up, HkSupersample,
-             HkSaveState, HkLoadState, HkUndoState, HkRedoState,
-             HkSlotDown, HkSlotUp, HkRewind, HotkeyCount };
+enum Hotkey {
+  HkPause,
+  HkReset,
+  HkFastForward,
+  HkFullscreen,
+  HkScreenshot,
+  HkFrameAdvance,
+  HkPowerCycle,
+  HkMute,
+  HkQuit,
+  HkSpeedDown,
+  HkSpeedUp,
+  HkUnloadGame,
+  HkMouseCapture,
+  HkMode7Down,
+  HkMode7Up,
+  HkSupersample,
+  HkSaveState,
+  HkLoadState,
+  HkUndoState,
+  HkRedoState,
+  HkSlotDown,
+  HkSlotUp,
+  HkRewind,
+  HotkeyCount
+};
 
 const char* HotkeyName(int index);
 // SDL_SCANCODE_UNKNOWN where bsnes ships the action unbound too
@@ -126,7 +145,7 @@ struct Settings {
   bool hackHotfixes = true;
   int hackEntropy = EntropyLow;
   bool hackCpuFastMath = false;
-  int hackCpuOverclock = 100;      // percent
+  int hackCpuOverclock = 100;  // percent
   int hackSa1Overclock = 100;
   int hackSuperFxOverclock = 100;
   bool warnUnverified = false;
@@ -170,15 +189,14 @@ struct Settings {
   // Which opened pad drives each player, -1 for none; one stick can enumerate
   // as several devices, so the working one is chosen rather than assumed. A
   // multitap puts four players on one port, so this is per player, not port.
-  int padIndex[EmuCore::PortCount * EmuCore::MaxPlayers] = {0, -1, -1, -1,
-                                                            1, -1, -1, -1,
-                                                            -1, -1, -1, -1};
+  int padIndex[EmuCore::PortCount * EmuCore::MaxPlayers] = {0,  -1, -1, -1, 1,  -1,
+                                                            -1, -1, -1, -1, -1, -1};
   int turboRate = 8;  // Hz
 
   // netplay
-  int netplayRollback = 8;   // frames
-  int netplayDelay = 2;      // frames
-  int netplayRunAhead = 0;   // frames
+  int netplayRollback = 8;          // frames
+  int netplayDelay = 2;             // frames
+  int netplayRunAhead = 0;          // frames
   int netplaySpectatorDelay = 300;  // frames; 5 seconds at 60 Hz
   bool netplayDesyncDetection = false;
   std::string weyveHost = "";

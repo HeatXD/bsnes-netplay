@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 
-// one manifest `settings` entry, substituted wherever a source says `#in <name>`
+// one manifest `settings` entry, substituted wherever a source says `#in
+// <name>`
 struct ShaderParam {
   std::string name;
   std::string value;
@@ -38,8 +39,11 @@ struct ShaderPass {
 struct Shader {
   // resolves the GL entry points; false when the context is too old to run any
   bool init();
+
   bool supported() const { return entryPoints; }
+
   bool active() const { return !passes.empty(); }
+
   size_t passCount() const { return passes.size(); }
 
   // `folder` is a .shader package; overrides replace manifest `settings` values
@@ -54,18 +58,19 @@ struct Shader {
   // runs the chain; returns the texture to present, or 0 when there is nothing
   GLuint render(int outputWidth, int outputHeight);
 
-  std::string path;                 // the loaded package, empty when none
-  std::string failure;              // why the last load or render gave up
-  std::string log;                  // compiler and linker output, for the UI
+  std::string path;     // the loaded package, empty when none
+  std::string failure;  // why the last load or render gave up
+  std::string log;      // compiler and linker output, for the UI
   std::vector<ShaderParam> params;
 
   // chain runs, not redraws; the UI never reads it, the shader test does
   uint64_t renderCount = 0;
 
   GLuint outputFilter = GL_LINEAR;
-  int outputWidth = 0, outputHeight = 0;  // size of the texture render() returned
+  int outputWidth = 0,
+      outputHeight = 0;  // size of the texture render() returned
 
-private:
+ private:
   bool entryPoints = false;
   GLuint vao = 0, vbo[3] = {};
   int maxUnits = 8;
