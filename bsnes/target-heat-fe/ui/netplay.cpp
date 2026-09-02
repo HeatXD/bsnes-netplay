@@ -6,7 +6,7 @@
 #include <algorithm>
 
 namespace {
-void drawDirectTab(App& app);
+void drawDirectTab(App& app, bool tuning = true);
 void drawWeyveTab(App& app);
 }
 void App::restoreNetplayDefaults() {
@@ -41,6 +41,12 @@ void App::drawNetplayTab() {
       "Costs performance; leave off unless hunting a desync.");
 
   ImGui::Separator();
+  ImGui::SetNextItemWidth(180.0f);
+  ImGui::Combo("Transport", &netplayTab, "Direct P2P\0Weyvelength\0");
+  if(netplayTab == 0) {
+    drawDirectTab(*this, false);
+  } else {
+  ImGui::Separator();
   ImGui::TextUnformatted("Weyvelength");
   ImGui::InputText("Server", weyveHostInput, sizeof(weyveHostInput));
   if(ImGui::IsItemDeactivatedAfterEdit()) {
@@ -67,6 +73,7 @@ void App::drawNetplayTab() {
   ImGui::TextDisabled("The room browser connects automatically with these settings.");
   ImGui::TextDisabled("A room's game list is the Games tab's own library (Settings > Paths);\n"
                       "each player auto-loads their own copy by content hash.");
+  }
 
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##netplay")) {
@@ -178,7 +185,7 @@ void drawHostFields(App& app) {
   app.tip("Adds someone who watches without controlling the game.");
 }
 
-void drawDirectTab(App& app) {
+void drawDirectTab(App& app, bool tuning) {
   ImGui::InputText("Local port", app.netplayPortInput, sizeof(app.netplayPortInput),
                    ImGuiInputTextFlags_CharsDecimal);
   app.tip("UDP port this instance listens on.");
@@ -186,7 +193,7 @@ void drawDirectTab(App& app) {
   app.tip("Watch instead of playing; connects to one player's address below.");
 
   bool saveSettings = false;
-  if(ImGui::BeginTable("##direct-tuning", 3, ImGuiTableFlags_SizingStretchSame)) {
+  if(tuning && ImGui::BeginTable("##direct-tuning", 3, ImGuiTableFlags_SizingStretchSame)) {
     ImGui::TableNextColumn();
     ImGui::SetNextItemWidth(82.0f);
     ImGui::SliderInt("Rollback", &app.settings.netplayRollback, 0, 32);
@@ -204,8 +211,10 @@ void drawDirectTab(App& app) {
     app.tip("Local speculative frames used to reduce perceived input latency.");
     ImGui::EndTable();
   }
-  saveSettings |= ImGui::Checkbox("Desync detection", &app.settings.netplayDesyncDetection);
-  app.tip("Compare state checksums with peers; enable when diagnosing a desync.");
+  if(tuning) {
+    saveSettings |= ImGui::Checkbox("Desync detection", &app.settings.netplayDesyncDetection);
+    app.tip("Compare state checksums with peers; enable when diagnosing a desync.");
+  }
   bool hasSpectator = false;
   for(const NetplayRemoteEntry& entry : app.netplayRemotes) {
     hasSpectator |= entry.role == NetplayEntryRole::Spectator;
