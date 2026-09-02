@@ -1,7 +1,7 @@
 #pragma once
 
-#include "emucore/emucore.hpp"
-#include "settings.hpp"
+#include "../emucore/emucore.hpp"
+#include "../settings.hpp"
 
 #include <SDL3/SDL.h>
 

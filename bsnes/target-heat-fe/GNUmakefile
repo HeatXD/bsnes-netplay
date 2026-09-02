@@ -72,13 +72,13 @@ endif
 flags += $(sdl3.flags) $(imgui.flags) $(lua.flags) $(gekkonet.flags) $(weyvelength.flags)
 
 # filter drives the CPU video filters; lzma unpacks .7z game archives
-objects += ui-main ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
+objects += ui-main ui-options ui-util ui-settings ui-shell ui-app ui-draw ui-inputmap ui-states
 objects += ui-movies
-objects += ui-shader ui-stbimage
+objects += ui-shader ui-shader-manifest ui-stbimage
 objects += ui-cheats ui-cheat-window
 objects += ui-tests
-objects += ui-scripting lua
-objects += ui-netplay ui-netplay-weyve ui-netplay-window
+objects += ui-scripting ui-scripting-api ui-scripting-window lua
+objects += ui-netplay ui-netplay-weyve ui-netplay-settings ui-netplay-window
 objects += core-main core-media core-vfs core-video core-info core-memory
 objects += ui-video ui-audio ui-input ui-hotkeys ui-emulator ui-enhance
 objects += ui-custom ui-paths ui-windows ui-state-manager ui-manifest ui-compat
@@ -89,25 +89,30 @@ endif
 objects := $(objects:%=obj/%.o)
 
 obj/ui-main.o: $(ui)/main.cpp
+obj/ui-options.o: $(ui)/platform/options.cpp
 obj/ui-util.o: $(ui)/util.cpp
 obj/ui-settings.o: $(ui)/settings.cpp
-obj/ui-shell.o: $(ui)/shell.cpp
-obj/ui-shader.o: $(ui)/shader.cpp
-obj/ui-stbimage.o: $(ui)/stbimage.cpp
+obj/ui-shell.o: $(ui)/platform/shell.cpp
+obj/ui-shader.o: $(ui)/video/shader.cpp
+obj/ui-shader-manifest.o: $(ui)/video/manifest.cpp
+obj/ui-stbimage.o: $(ui)/video/image.cpp
 # CRT-Royale's mask LUTs are PNGs; SDL already vendors a decoder for its own use
 obj/ui-stbimage.o: flags += -I$(sdl3.path)/src/video -Wno-unused-function
 obj/ui-app.o: $(ui)/app.cpp
 obj/ui-draw.o: $(ui)/ui/ui.cpp
-obj/ui-inputmap.o: $(ui)/inputmap.cpp
+obj/ui-inputmap.o: $(ui)/input/inputmap.cpp
 obj/ui-states.o: $(ui)/states.cpp
 obj/ui-movies.o: $(ui)/movies.cpp
 obj/ui-cheats.o: $(ui)/cheats.cpp
 obj/ui-cheat-window.o: $(ui)/ui/cheats.cpp
-obj/ui-tests.o: $(ui)/tests.cpp
-obj/ui-scripting.o: $(ui)/scripting.cpp
-obj/ui-netplay.o: $(ui)/netplay.cpp
-obj/ui-netplay-weyve.o: $(ui)/netplay-weyve.cpp
-obj/ui-netplay-window.o: $(ui)/ui/netplay.cpp
+obj/ui-tests.o: $(ui)/tests/tests.cpp
+obj/ui-scripting.o: $(ui)/scripting/engine.cpp
+obj/ui-scripting-api.o: $(ui)/scripting/api.cpp
+obj/ui-scripting-window.o: $(ui)/ui/scripting.cpp
+obj/ui-netplay.o: $(ui)/netplay/session.cpp
+obj/ui-netplay-weyve.o: $(ui)/netplay/weyvelength.cpp
+obj/ui-netplay-settings.o: $(ui)/ui/netplay/settings.cpp
+obj/ui-netplay-window.o: $(ui)/ui/netplay/window.cpp
 obj/lua.o: $(lua.path)/onelua.c
 obj/lua.o: flags += -DMAKE_LIB $(if $(findstring g++,$(compiler)),-Wno-stringop-overflow)
 

@@ -1,6 +1,6 @@
-#include "scripting.hpp"
+#include "engine.hpp"
 
-#include "app.hpp"
+#include "../app.hpp"
 
 #include <algorithm>
 
@@ -245,9 +245,6 @@ std::string tableString(lua_State* state, int table, const char* name, const cha
   return value;
 }
 
-ImU32 imguiColor(uint32_t argb) {
-  return IM_COL32((argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff, argb >> 24);
-}
 }  // namespace
 
 int LuaEngine::drawBox(lua_State* state) {
@@ -700,137 +697,6 @@ int LuaEngine::fileDirectory(lua_State* state) {
   return 1;
 }
 
-void LuaEngine::registerApi() {
-  lua_pushlightuserdata(state, this);
-  lua_setfield(state, LUA_REGISTRYINDEX, "heat-fe.lua");
-
-  const struct {
-    const char* name;
-    int bytes;
-    bool little;
-    bool write;
-    bool signedValue;
-  } functions[] = {
-      {"read_u8", 1, true, false, false},      {"read_u16_le", 2, true, false, false},
-      {"read_u16_be", 2, false, false, false}, {"read_u24_le", 3, true, false, false},
-      {"read_u24_be", 3, false, false, false}, {"read_u32_le", 4, true, false, false},
-      {"read_u32_be", 4, false, false, false}, {"read_s8", 1, true, false, true},
-      {"read_s16_le", 2, true, false, true},   {"read_s16_be", 2, false, false, true},
-      {"read_s24_le", 3, true, false, true},   {"read_s24_be", 3, false, false, true},
-      {"read_s32_le", 4, true, false, true},   {"read_s32_be", 4, false, false, true},
-      {"write_u8", 1, true, true, false},      {"write_u16_le", 2, true, true, false},
-      {"write_u16_be", 2, false, true, false}, {"write_u24_le", 3, true, true, false},
-      {"write_u24_be", 3, false, true, false}, {"write_u32_le", 4, true, true, false},
-      {"write_u32_be", 4, false, true, false}, {"write_s8", 1, true, true, true},
-      {"write_s16_le", 2, true, true, true},   {"write_s16_be", 2, false, true, true},
-      {"write_s24_le", 3, true, true, true},   {"write_s24_be", 3, false, true, true},
-      {"write_s32_le", 4, true, true, true},   {"write_s32_be", 4, false, true, true},
-  };
-
-  auto addMemoryDomain = [&](EmuCore::MemoryDomain domain) {
-    for(const auto& function : functions) {
-      lua_pushinteger(state, function.bytes);
-      lua_pushboolean(state, function.little);
-      lua_pushinteger(state, (lua_Integer)domain);
-      lua_pushboolean(state, function.signedValue);
-      lua_pushcclosure(state, function.write ? writeMemory : readMemory, 4);
-      lua_setfield(state, -2, function.name);
-    }
-    lua_pushinteger(state, (lua_Integer)domain);
-    lua_pushcclosure(state, readBit, 1);
-    lua_setfield(state, -2, "read_bit");
-    lua_pushinteger(state, (lua_Integer)domain);
-    lua_pushcclosure(state, writeBit, 1);
-    lua_setfield(state, -2, "write_bit");
-    lua_pushinteger(state, app.core.memorySize(domain));
-    lua_setfield(state, -2, "size");
-  };
-
-  lua_newtable(state);
-  addMemoryDomain(EmuCore::MemoryDomain::Bus);
-
-  const struct {
-    const char* name;
-    EmuCore::MemoryDomain domain;
-  } domains[] = {
-      {"wram", EmuCore::MemoryDomain::WRAM},     {"vram", EmuCore::MemoryDomain::VRAM},
-      {"cgram", EmuCore::MemoryDomain::CGRAM},   {"oam", EmuCore::MemoryDomain::OAM},
-      {"apuram", EmuCore::MemoryDomain::APURAM},
-  };
-
-  for(const auto& domain : domains) {
-    lua_newtable(state);
-    addMemoryDomain(domain.domain);
-    lua_setfield(state, -2, domain.name);
-  }
-  lua_setglobal(state, "memory");
-
-  lua_newtable(state);
-  const luaL_Reg gui[] = {
-      {"box", drawBox},      {"circle", drawCircle}, {"ellipse", drawEllipse}, {"line", drawLine},
-      {"pixel", drawPixel},  {"text", drawText},     {"window", guiWindow},    {"label", guiLabel},
-      {"button", guiButton}, {nullptr, nullptr},
-  };
-  luaL_setfuncs(state, gui, 0);
-  lua_setglobal(state, "gui");
-
-  lua_newtable(state);
-  const luaL_Reg input[] = {
-      {"value", inputValue}, {"held", inputHeld},          {"set", inputSet},
-      {"clear", inputClear}, {"clear_all", inputClearAll}, {nullptr, nullptr},
-  };
-  luaL_setfuncs(state, input, 0);
-  lua_setglobal(state, "input");
-
-  lua_pushcfunction(state, consoleLog);
-  lua_setglobal(state, "print");
-  lua_newtable(state);
-  const luaL_Reg console[] = {
-      {"log", consoleLog},
-      {"clear", consoleClear},
-      {nullptr, nullptr},
-  };
-  luaL_setfuncs(state, console, 0);
-  lua_setglobal(state, "console");
-
-  lua_newtable(state);
-  const luaL_Reg savestate[] = {
-      {"save", saveState},     {"load", loadState},          {"exists", hasState},
-      {"remove", removeState}, {"save_file", saveStateFile}, {"load_file", loadStateFile},
-      {nullptr, nullptr},
-  };
-  luaL_setfuncs(state, savestate, 0);
-  lua_setglobal(state, "savestate");
-
-  lua_newtable(state);
-  const luaL_Reg emu[] = {
-      {"loaded", emuLoaded}, {"paused", emuPaused}, {"pause", emuPause},
-      {"resume", emuResume}, {"reset", emuReset},   {"power", emuPower},
-      {"frame", emuFrame},   {"game", emuGame},     {nullptr, nullptr},
-  };
-  luaL_setfuncs(state, emu, 0);
-  lua_setglobal(state, "emu");
-
-  lua_newtable(state);
-  lua_pushcfunction(state, fileRead);
-  lua_setfield(state, -2, "read");
-  lua_pushboolean(state, false);
-  lua_pushcclosure(state, fileWrite, 1);
-  lua_setfield(state, -2, "write");
-  lua_pushboolean(state, true);
-  lua_pushcclosure(state, fileWrite, 1);
-  lua_setfield(state, -2, "append");
-  lua_pushcfunction(state, fileDirectory);
-  lua_setfield(state, -2, "directory");
-  lua_pushcfunction(state, fileExists);
-  lua_setfield(state, -2, "exists");
-  lua_pushcfunction(state, fileList);
-  lua_setfield(state, -2, "list");
-  lua_pushcfunction(state, fileRemove);
-  lua_setfield(state, -2, "remove");
-  lua_setglobal(state, "file");
-}
-
 bool LuaEngine::reload() {
   if(scriptPath.empty()) { return false; }
   const std::string path = scriptPath;
@@ -904,89 +770,6 @@ bool LuaEngine::runBeforeFrame() {
   }
   inBeforeFrame = false;
   return true;
-}
-
-void LuaEngine::drawOverlay() {
-  if((commands.empty() && windows.empty()) || app.shell.drawWidth <= 0 ||
-     app.shell.drawHeight <= 0) {
-    return;
-  }
-
-  const float sx = app.shell.drawWidth / 256.0f;
-  const float sy = app.shell.drawHeight / videoHeight(app.settings);
-  const ImVec2 origin(app.shell.drawX, app.shell.drawY);
-  auto point = [&](float x, float y) { return ImVec2(origin.x + x * sx, origin.y + y * sy); };
-
-  // The game is always drawn on the main viewport. Keep the overlay on that
-  // same draw list even if ImGui's current window belongs to another viewport,
-  // so clean screenshots can capture the game and overlay together.
-  ImDrawList* draw = ImGui::GetBackgroundDrawList(ImGui::GetMainViewport());
-  for(const DrawCommand& command : commands) {
-    ImVec2 p1 = point(command.x1, command.y1);
-    if(command.type == DrawCommand::Box) {
-      const ImVec2 p2 = point(command.x2, command.y2);
-      if(command.color >> 24) { draw->AddRectFilled(p1, p2, imguiColor(command.color)); }
-      if(command.outline >> 24) {
-        draw->AddRect(p1, p2, imguiColor(command.outline), 0.0f, 0,
-                      SDL_max(1.0f, command.thickness * sy));
-      }
-    } else if(command.type == DrawCommand::Ellipse) {
-      const ImVec2 radius(command.x2 * sx, command.y2 * sy);
-      if(command.color >> 24) { draw->AddEllipseFilled(p1, radius, imguiColor(command.color)); }
-      if(command.outline >> 24) {
-        draw->AddEllipse(p1, radius, imguiColor(command.outline), 0.0f, 0,
-                         SDL_max(1.0f, command.thickness * sy));
-      }
-    } else if(command.type == DrawCommand::Line) {
-      draw->AddLine(p1, point(command.x2, command.y2), imguiColor(command.color),
-                    SDL_max(1.0f, command.thickness * sy));
-    } else if(command.type == DrawCommand::Pixel) {
-      draw->AddRectFilled(p1, point(command.x1 + 1.0f, command.y1 + 1.0f),
-                          imguiColor(command.color));
-    } else {
-      const float size = command.size * sy;
-      ImFont* font = command.pixelFont && app.luaPixelFont ? app.luaPixelFont : ImGui::GetFont();
-      const ImVec2 extent = font->CalcTextSizeA(size, FLT_MAX, 0.0f, command.text.c_str());
-      if(command.align == DrawCommand::Center) {
-        p1.x -= extent.x * 0.5f;
-      } else if(command.align == DrawCommand::Right) {
-        p1.x -= extent.x;
-      }
-      if(command.outline >> 24) {
-        for(int y = -1; y <= 1; y++) {
-          for(int x = -1; x <= 1; x++) {
-            if(x || y) {
-              draw->AddText(font, size, ImVec2(p1.x + x, p1.y + y), imguiColor(command.outline),
-                            command.text.c_str());
-            }
-          }
-        }
-      }
-      draw->AddText(font, size, p1, imguiColor(command.color), command.text.c_str());
-    }
-  }
-
-  for(const WindowCommand& window : windows) {
-    if(window.width > 0.0f || window.height > 0.0f) {
-      ImGui::SetNextWindowSize(ImVec2(window.width, window.height), ImGuiCond_FirstUseEver);
-    }
-    const std::string id = window.title + "###lua-window-" + window.title;
-    const ImGuiWindowFlags flags =
-        window.width == 0.0f && window.height == 0.0f ? ImGuiWindowFlags_AlwaysAutoResize : 0;
-    if(ImGui::Begin(id.c_str(), nullptr, flags)) {
-      for(const WindowWidget& widget : window.widgets) {
-        if(widget.type == WindowWidget::Label) {
-          ImGui::TextUnformatted(widget.text.c_str());
-        } else {
-          const std::string label = widget.text + "###" + widget.key;
-          if(ImGui::Button(label.c_str(), ImVec2(widget.width, widget.height))) {
-            clickedWidgets.insert(widget.key);
-          }
-        }
-      }
-    }
-    ImGui::End();
-  }
 }
 
 int64_t LuaEngine::globalInteger(const char* name) const {

@@ -1,6 +1,6 @@
 #include "inputmap.hpp"
 
-#include "util.hpp"
+#include "../util.hpp"
 
 namespace {
 constexpr int AxisThreshold = 16000;

@@ -2,7 +2,7 @@
 
 // Verification harnesses drive App directly without drawing or pumping events.
 
-#include "app.hpp"
+#include "../app.hpp"
 
 int runStateTest(App& app, int warmFrames, int frames);
 int runDeterminismTest(App& app, int frames);

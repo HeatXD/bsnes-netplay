@@ -1,4 +1,4 @@
-#include "app.hpp"
+#include "../app.hpp"
 
 #include <algorithm>
 #include <thread>
@@ -449,207 +449,293 @@ void App::weyveCopyRoomCode() const {
   if(len) { SDL_SetClipboardText(bytes(id, len).c_str()); }
 }
 
-void App::weyvePoll() {
+namespace {
+
+bool finishConnect(App& app) {
+  Weyve& weyve = app.weyve;
   if(weyve.connecting && weyve.connecting->complete.load(std::memory_order_acquire)) {
     const auto attempt = std::move(weyve.connecting);
     if(!attempt->client) {
       weyve.lastError = "could not connect";
-      return;
+      return false;
     }
     weyve.client = attempt->client;
     attempt->client = nullptr;
     weyve.idleSince = SDL_GetTicks();
-    weyve_set_name(weyve.client, settings.weyveNickname.c_str());
+    weyve_set_name(weyve.client, app.settings.weyveNickname.c_str());
     weyve.focusTab = true;
-    weyve.localRollback = settings.netplayRollback;
-    weyve.localDelay = settings.netplayDelay;
+    weyve.localRollback = app.settings.netplayRollback;
+    weyve.localDelay = app.settings.netplayDelay;
     weyve.rollbackBaseline = 0;
     weyve.delayBaseline = 0;
-    weyve.spectatorDelay = settings.netplaySpectatorDelay;
+    weyve.spectatorDelay = app.settings.netplaySpectatorDelay;
     weyve.log.clear();
     weyve.lastStartToken = 0;
     weyve.lastStopToken = 0;
-    weyveListRooms();
+    app.weyveListRooms();
   }
-  if(!weyve.client) { return; }
+  return weyve.client != nullptr;
+}
 
-  if(weyveInRoom()) {
+void rememberRoomMembers(App& app) {
+  if(app.weyveInRoom()) {
     uint32_t count = 0;
-    const uint32_t* members = weyve_members(weyve.client, &count);
+    const uint32_t* members = weyve_members(app.weyve.client, &count);
     for(uint32_t i = 0; i < count; i++) {
       uint32_t length = 0;
-      const char* name = weyve_peer_name(weyve.client, members[i], &length);
-      weyveRememberName(members[i], bytes(name, length));
+      const char* name = weyve_peer_name(app.weyve.client, members[i], &length);
+      app.weyveRememberName(members[i], bytes(name, length));
     }
   }
+}
 
-  const bool wasInRoom = weyveInRoom();
-  if(!weyve_poll(weyve.client)) {
-    if(weyveSessionActive()) { netplayStop(); }
-    if(wasInRoom) { pendingNetplayUnload = true; }
-    weyve_client_destroy(weyve.client);
-    weyve.client = nullptr;
-    const uint64_t elapsed = SDL_GetTicks() - weyve.roomListRequestedAt;
-    weyve.lastError = weyve.roomListRequestedAt && elapsed < 5000
-                          ? "Server protocol is incompatible with this client"
-                          : "The server closed the connection";
-    weyve.roomListRequestedAt = 0;
+bool pollConnection(App& app) {
+  Weyve& weyve = app.weyve;
+  const bool wasInRoom = app.weyveInRoom();
+  if(weyve_poll(weyve.client)) { return true; }
+  if(app.weyveSessionActive()) { app.netplayStop(); }
+  if(wasInRoom) { app.pendingNetplayUnload = true; }
+  weyve_client_destroy(weyve.client);
+  weyve.client = nullptr;
+  const uint64_t elapsed = SDL_GetTicks() - weyve.roomListRequestedAt;
+  weyve.lastError = weyve.roomListRequestedAt && elapsed < 5000
+                        ? "Server protocol is incompatible with this client"
+                        : "The server closed the connection";
+  weyve.roomListRequestedAt = 0;
+  return false;
+}
+
+void handlePeerLeft(App& app, uint32_t id) {
+  app.weyveRemoveNetplayPeer(id);
+  if(id == weyve_id(app.weyve.client)) {
+    if(app.weyveSessionActive()) { app.netplayStop(); }
+    app.pendingNetplayUnload = true;
+    app.weyveResetRoomState();
+    app.weyveListRooms();
     return;
   }
+  app.weyve.rolesDirty = true;
+  if(weyve_is_host(app.weyve.client)) {
+    const std::string key = "role:" + std::to_string(id);
+    weyve_set_room_data(app.weyve.client, key.c_str(), "");
+  }
+  if(app.weyve.selectedMember == id) { app.weyve.selectedMember = 0; }
+  app.weyveLog(app.weyveNameOf(id) + " left");
+}
 
-  WeyveEvent event;
-  while(weyve_next(weyve.client, &event)) {
-    switch(event.type) {
-      case WEYVE_EVENT_ROOM_ID_ASSIGNED:
-        weyve.rolesDirty = true;
-        weyveResetRoomState();
-        weyveLog("You joined the room");
-        break;
-      case WEYVE_EVENT_ROOM_ERROR:
-        weyve.pendingCreate = false;
-        weyve.pendingListed = false;
-        weyve.pendingLeave = false;
-        weyve.lastError = weyveRoomErrorText(event.data.room_error.code);
-        weyveLog(weyve.lastError);
-        break;
-      case WEYVE_EVENT_CHAT: {
-        weyveLog(weyveNameOf(event.data.chat.from) + ": " +
-                 bytes(event.data.chat.text, event.data.chat.text_len));
-        break;
-      }
-      case WEYVE_EVENT_PEER_JOINED: {
-        weyve.rolesDirty = true;
-        const std::string name =
-            bytes(event.data.peer_joined.name, event.data.peer_joined.name_len);
-        weyveRememberName(event.data.peer_joined.id, name);
-        weyveLog(weyveNameOf(event.data.peer_joined.id) + " joined");
-        break;
-      }
-      case WEYVE_EVENT_PEER_LEFT: {
-        weyveRemoveNetplayPeer(event.data.peer_left.id);
-        if(event.data.peer_left.id == weyve_id(weyve.client)) {
-          if(weyveSessionActive()) { netplayStop(); }
-          pendingNetplayUnload = true;
-          weyveResetRoomState();
-          weyveListRooms();
-          break;
-        }
-        weyve.rolesDirty = true;
-        if(weyve_is_host(weyve.client)) {
-          const std::string key = "role:" + std::to_string(event.data.peer_left.id);
-          weyve_set_room_data(weyve.client, key.c_str(), "");
-        }
-        if(weyve.selectedMember == event.data.peer_left.id) { weyve.selectedMember = 0; }
-        weyveLog(weyveNameOf(event.data.peer_left.id) + " left");
-        break;
-      }
-      case WEYVE_EVENT_HOST_CHANGED: {
-        weyve.rolesDirty = true;
-        weyveLog(weyveNameOf(event.data.host_changed.id) + " is now the host");
-        if(event.data.host_changed.id == weyve_id(weyve.client)) {
-          weyvePublishHostListing();
-          if(weyve.pendingCreate) {
-            weyveSetBaseline(settings.netplayRollback, settings.netplayDelay);
-            weyve_set_room_data(weyve.client, "spectator_delay",
-                                std::to_string(weyve.spectatorDelay).c_str());
-            weyve_set_room_data(weyve.client, "desync",
-                                settings.netplayDesyncDetection ? "1" : "0");
-            if(weyve.pendingListed) { weyve_set_room_listed(weyve.client, true); }
-            weyve.pendingCreate = false;
-            weyve.pendingListed = false;
-          }
-        }
-        break;
-      }
-      case WEYVE_EVENT_ROOM_DATA_CHANGED: {
-        const std::string key = bytes(event.data.room_data.key, event.data.room_data.key_len);
-        const std::string value = bytes(event.data.room_data.value, event.data.room_data.value_len);
-        if(key == "game") {
-          weyveLog("Game: " + value);
-        } else if(key == "rollback_min") {
-          weyve.rollbackBaseline = SDL_atoi(value.c_str());
-          weyveLog("Rollback baseline: " + value);
-        } else if(key == "delay_min") {
-          weyve.delayBaseline = SDL_atoi(value.c_str());
-          weyveLog("Input delay baseline: " + value);
-        } else if(key == "spectator_delay") {
-          weyve.spectatorDelay = SDL_atoi(value.c_str());
-          weyveLog("Spectator delay: " + value + " frames");
-        } else if(key == "desync") {
-          weyveLog(value == "1" ? "Desync detection enabled" : "Desync detection disabled");
-        } else if(key.rfind("role:", 0) == 0) {
-          weyve.rolesDirty = true;
-        }
-        break;
-      }
-      case WEYVE_EVENT_MEMBER_DATA_CHANGED: {
-        const std::string key = bytes(event.data.member_data.key, event.data.member_data.key_len);
-        if(event.data.member_data.id == weyve_id(weyve.client)) {
-          break;  // our own echo
-        }
-        const std::string value =
-            bytes(event.data.member_data.value, event.data.member_data.value_len);
-        if(key == "hasGame") {
-          weyveLog(weyveNameOf(event.data.member_data.id) +
-                   (value == "1" ? " has this game" : " doesn't have this game"));
-        } else if(key == "rollback" || key == "delay") {
-          weyveLog(weyveNameOf(event.data.member_data.id) + " set " + key + " to " + value);
-        }
-        break;
-      }
-      case WEYVE_EVENT_KICKED:
-        if(weyveSessionActive()) { netplayStop(); }
-        pendingNetplayUnload = true;
-        weyveResetRoomState();
-        weyveLog("You were kicked from the room");
-        weyveListRooms();
-        break;
-      case WEYVE_EVENT_BANNED:
-        if(weyveSessionActive()) { netplayStop(); }
-        pendingNetplayUnload = true;
-        weyveResetRoomState();
-        weyveLog("You were banned from the room");
-        weyveListRooms();
-        break;
-      case WEYVE_EVENT_ROOM_ACCESS_CHANGED:
-        weyveLog(std::string("Room access: ") + (event.data.room_access.open ? "open" : "closed") +
-                 (event.data.room_access.passworded ? ", password required" : ", no password"));
-        break;
-      case WEYVE_EVENT_ROOM_LISTED_CHANGED:
-        weyveLog(event.data.room_listed.listed ? "Room is now public" : "Room is now private");
-        break;
-      case WEYVE_EVENT_ROOM_LIST: {
-        // copied out immediately: the client's storage only lasts until the
-        // next weyve_poll
-        weyve.roomList.clear();
-        weyve.roomListRequestedAt = 0;
-        const uint32_t count = weyve_room_list_count(weyve.client);
-        for(uint32_t i = 0; i < count; i++) {
-          WeyveRoomListing listing;
-          uint32_t idLen = 0;
-          const char* id = weyve_room_list_id(weyve.client, i, &idLen);
-          listing.id = bytes(id, idLen);
-          listing.members = weyve_room_list_members(weyve.client, i);
-          listing.joinable = weyve_room_list_joinable(weyve.client, i);
-          listing.passworded = weyve_room_list_passworded(weyve.client, i);
-          uint32_t valueLen = 0;
-          const char* game = weyve_room_list_listing(weyve.client, i, "game", &valueLen);
-          listing.game = bytes(game, valueLen);
-          valueLen = 0;
-          const char* host = weyve_room_list_listing(weyve.client, i, "host", &valueLen);
-          listing.host = bytes(host, valueLen);
-          valueLen = 0;
-          const char* running = weyve_room_list_listing(weyve.client, i, "running", &valueLen);
-          listing.statusKnown = valueLen > 0;
-          listing.running = bytes(running, valueLen) == "1";
-          weyve.roomList.push_back(std::move(listing));
-        }
-        break;
-      }
-      default:
-        break;
+void handleHostChanged(App& app, uint32_t id) {
+  app.weyve.rolesDirty = true;
+  app.weyveLog(app.weyveNameOf(id) + " is now the host");
+  if(id != weyve_id(app.weyve.client)) { return; }
+  app.weyvePublishHostListing();
+  if(!app.weyve.pendingCreate) { return; }
+  app.weyveSetBaseline(app.settings.netplayRollback, app.settings.netplayDelay);
+  weyve_set_room_data(app.weyve.client, "spectator_delay",
+                      std::to_string(app.weyve.spectatorDelay).c_str());
+  weyve_set_room_data(app.weyve.client, "desync", app.settings.netplayDesyncDetection ? "1" : "0");
+  if(app.weyve.pendingListed) { weyve_set_room_listed(app.weyve.client, true); }
+  app.weyve.pendingCreate = false;
+  app.weyve.pendingListed = false;
+}
+
+void handleRoomData(App& app, const WeyveEvent& event) {
+  const std::string key = bytes(event.data.room_data.key, event.data.room_data.key_len);
+  const std::string value = bytes(event.data.room_data.value, event.data.room_data.value_len);
+  if(key == "game") {
+    app.weyveLog("Game: " + value);
+  } else if(key == "rollback_min") {
+    app.weyve.rollbackBaseline = SDL_atoi(value.c_str());
+    app.weyveLog("Rollback baseline: " + value);
+  } else if(key == "delay_min") {
+    app.weyve.delayBaseline = SDL_atoi(value.c_str());
+    app.weyveLog("Input delay baseline: " + value);
+  } else if(key == "spectator_delay") {
+    app.weyve.spectatorDelay = SDL_atoi(value.c_str());
+    app.weyveLog("Spectator delay: " + value + " frames");
+  } else if(key == "desync") {
+    app.weyveLog(value == "1" ? "Desync detection enabled" : "Desync detection disabled");
+  } else if(key.rfind("role:", 0) == 0) {
+    app.weyve.rolesDirty = true;
+  }
+}
+
+void handleMemberData(App& app, const WeyveEvent& event) {
+  if(event.data.member_data.id == weyve_id(app.weyve.client)) { return; }
+  const std::string key = bytes(event.data.member_data.key, event.data.member_data.key_len);
+  const std::string value = bytes(event.data.member_data.value, event.data.member_data.value_len);
+  if(key == "hasGame") {
+    app.weyveLog(app.weyveNameOf(event.data.member_data.id) +
+                 (value == "1" ? " has this game" : " doesn't have this game"));
+  } else if(key == "rollback" || key == "delay") {
+    app.weyveLog(app.weyveNameOf(event.data.member_data.id) + " set " + key + " to " + value);
+  }
+}
+
+void handleRoomList(App& app) {
+  app.weyve.roomList.clear();
+  app.weyve.roomListRequestedAt = 0;
+  const uint32_t count = weyve_room_list_count(app.weyve.client);
+  for(uint32_t i = 0; i < count; i++) {
+    WeyveRoomListing listing;
+    uint32_t length = 0;
+    const char* value = weyve_room_list_id(app.weyve.client, i, &length);
+    listing.id = bytes(value, length);
+    listing.members = weyve_room_list_members(app.weyve.client, i);
+    listing.joinable = weyve_room_list_joinable(app.weyve.client, i);
+    listing.passworded = weyve_room_list_passworded(app.weyve.client, i);
+    length = 0;
+    value = weyve_room_list_listing(app.weyve.client, i, "game", &length);
+    listing.game = bytes(value, length);
+    length = 0;
+    value = weyve_room_list_listing(app.weyve.client, i, "host", &length);
+    listing.host = bytes(value, length);
+    length = 0;
+    value = weyve_room_list_listing(app.weyve.client, i, "running", &length);
+    listing.statusKnown = length > 0;
+    listing.running = bytes(value, length) == "1";
+    app.weyve.roomList.push_back(std::move(listing));
+  }
+}
+
+void handleRemoved(App& app, const char* reason) {
+  if(app.weyveSessionActive()) { app.netplayStop(); }
+  app.pendingNetplayUnload = true;
+  app.weyveResetRoomState();
+  app.weyveLog(std::string("You were ") + reason + " from the room");
+  app.weyveListRooms();
+}
+
+void handleEvent(App& app, const WeyveEvent& event) {
+  switch(event.type) {
+    case WEYVE_EVENT_ROOM_ID_ASSIGNED:
+      app.weyve.rolesDirty = true;
+      app.weyveResetRoomState();
+      app.weyveLog("You joined the room");
+      break;
+    case WEYVE_EVENT_ROOM_ERROR:
+      app.weyve.pendingCreate = false;
+      app.weyve.pendingListed = false;
+      app.weyve.pendingLeave = false;
+      app.weyve.lastError = weyveRoomErrorText(event.data.room_error.code);
+      app.weyveLog(app.weyve.lastError);
+      break;
+    case WEYVE_EVENT_CHAT:
+      app.weyveLog(app.weyveNameOf(event.data.chat.from) + ": " +
+                   bytes(event.data.chat.text, event.data.chat.text_len));
+      break;
+    case WEYVE_EVENT_PEER_JOINED: {
+      app.weyve.rolesDirty = true;
+      const std::string name = bytes(event.data.peer_joined.name, event.data.peer_joined.name_len);
+      app.weyveRememberName(event.data.peer_joined.id, name);
+      app.weyveLog(app.weyveNameOf(event.data.peer_joined.id) + " joined");
+      break;
+    }
+    case WEYVE_EVENT_PEER_LEFT:
+      handlePeerLeft(app, event.data.peer_left.id);
+      break;
+    case WEYVE_EVENT_HOST_CHANGED:
+      handleHostChanged(app, event.data.host_changed.id);
+      break;
+    case WEYVE_EVENT_ROOM_DATA_CHANGED:
+      handleRoomData(app, event);
+      break;
+    case WEYVE_EVENT_MEMBER_DATA_CHANGED:
+      handleMemberData(app, event);
+      break;
+    case WEYVE_EVENT_KICKED:
+      handleRemoved(app, "kicked");
+      break;
+    case WEYVE_EVENT_BANNED:
+      handleRemoved(app, "banned");
+      break;
+    case WEYVE_EVENT_ROOM_ACCESS_CHANGED:
+      app.weyveLog(std::string("Room access: ") +
+                   (event.data.room_access.open ? "open" : "closed") +
+                   (event.data.room_access.passworded ? ", password required" : ", no password"));
+      break;
+    case WEYVE_EVENT_ROOM_LISTED_CHANGED:
+      app.weyveLog(event.data.room_listed.listed ? "Room is now public" : "Room is now private");
+      break;
+    case WEYVE_EVENT_ROOM_LIST:
+      handleRoomList(app);
+      break;
+    default:
+      break;
+  }
+}
+
+void publishRoomState(App& app) {
+  if(!weyve_is_host(app.weyve.client)) { return; }
+  uint32_t length = 0;
+  const char* value = weyve_name(app.weyve.client, &length);
+  const std::string name = bytes(value, length);
+  length = 0;
+  value = weyve_room_listing(app.weyve.client, "host", &length);
+  if(!name.empty() && bytes(value, length) != name) {
+    weyve_set_room_listing(app.weyve.client, "host", name.c_str());
+  }
+
+  const std::string game = app.weyveRoomData("game");
+  if(game.empty() && !app.games.empty()) {
+    app.weyveSelectGame(0);
+  } else if(!game.empty()) {
+    length = 0;
+    value = weyve_room_listing(app.weyve.client, "game", &length);
+    if(bytes(value, length) != game) {
+      weyve_set_room_listing(app.weyve.client, "game", game.c_str());
     }
   }
+}
+
+void applyRoomState(App& app) {
+  Weyve& weyve = app.weyve;
+  const std::string targetHash = app.weyveRoomData("game_hash");
+  if(targetHash != weyve.lastGameHash) {
+    weyve.lastGameHash = targetHash;
+    weyve_set_member_data(weyve.client, "hasGame",
+                          app.weyveHasGame(targetHash).empty() ? "0" : "1");
+  }
+  const std::string rollback = app.weyveRoomData("rollback_min");
+  const std::string delay = app.weyveRoomData("delay_min");
+  const std::string spectatorDelay = app.weyveRoomData("spectator_delay");
+  if(!rollback.empty()) { weyve.rollbackBaseline = SDL_atoi(rollback.c_str()); }
+  if(!delay.empty()) { weyve.delayBaseline = SDL_atoi(delay.c_str()); }
+  if(!spectatorDelay.empty()) { weyve.spectatorDelay = SDL_atoi(spectatorDelay.c_str()); }
+  if(weyve.localRollback < weyve.rollbackBaseline) {
+    app.weyveSetLocalRollback(weyve.localRollback);
+  }
+  if(weyve.localDelay < weyve.delayBaseline) { app.weyveSetLocalDelay(weyve.localDelay); }
+  weyve_set_member_data(weyve.client, "rollback", std::to_string(weyve.localRollback).c_str());
+  weyve_set_member_data(weyve.client, "delay", std::to_string(weyve.localDelay).c_str());
+
+  const uint32_t start = (uint32_t)SDL_atoi(app.weyveRoomData("start_token").c_str());
+  const uint32_t stop = (uint32_t)SDL_atoi(app.weyveRoomData("stop_token").c_str());
+  if(start != weyve.lastStartToken) {
+    weyve.lastStartToken = start;
+    if(start > stop && !app.netplayActive()) {
+      app.weyveLog("Host started the session");
+      app.netplayStartWeyve();
+    }
+  }
+  if(stop != weyve.lastStopToken) {
+    weyve.lastStopToken = stop;
+    if(stop >= start && app.weyveSessionActive()) {
+      app.netplayStop();
+      app.pendingNetplayUnload = true;
+      app.weyveLog("Host ended the session");
+    }
+  }
+}
+
+}  // namespace
+
+void App::weyvePoll() {
+  if(!finishConnect(*this)) { return; }
+  rememberRoomMembers(*this);
+  if(!pollConnection(*this)) { return; }
+
+  WeyveEvent event;
+  while(weyve_next(weyve.client, &event)) { handleEvent(*this, event); }
 
   if(!weyveInRoom()) {
     // browsing without joining still costs the server a connection slot
@@ -665,63 +751,8 @@ void App::weyvePoll() {
     weyve.rolesDirty = false;
     weyveAutoAssignRoles();
   }
-
-  if(weyve_is_host(weyve.client)) {
-    uint32_t nameLen = 0;
-    const char* nameBytes = weyve_name(weyve.client, &nameLen);
-    const std::string name = bytes(nameBytes, nameLen);
-    uint32_t listingLen = 0;
-    const char* hostBytes = weyve_room_listing(weyve.client, "host", &listingLen);
-    std::string listedHost = bytes(hostBytes, listingLen);
-    if(!name.empty() && listedHost != name) {
-      weyve_set_room_listing(weyve.client, "host", name.c_str());
-    }
-
-    std::string game = weyveRoomData("game");
-    if(game.empty() && !games.empty()) {
-      weyveSelectGame(0);
-    } else if(!game.empty()) {
-      listingLen = 0;
-      const char* gameBytes = weyve_room_listing(weyve.client, "game", &listingLen);
-      std::string listedGame = bytes(gameBytes, listingLen);
-      if(listedGame != game) { weyve_set_room_listing(weyve.client, "game", game.c_str()); }
-    }
-  }
-
-  const std::string targetHash = weyveRoomData("game_hash");
-  if(targetHash != weyve.lastGameHash) {
-    weyve.lastGameHash = targetHash;
-    const bool hasGame = !weyveHasGame(targetHash).empty();
-    weyve_set_member_data(weyve.client, "hasGame", hasGame ? "1" : "0");
-  }
-  const std::string rollbackFloor = weyveRoomData("rollback_min");
-  const std::string delayFloor = weyveRoomData("delay_min");
-  const std::string spectatorDelay = weyveRoomData("spectator_delay");
-  if(!rollbackFloor.empty()) { weyve.rollbackBaseline = SDL_atoi(rollbackFloor.c_str()); }
-  if(!delayFloor.empty()) { weyve.delayBaseline = SDL_atoi(delayFloor.c_str()); }
-  if(!spectatorDelay.empty()) { weyve.spectatorDelay = SDL_atoi(spectatorDelay.c_str()); }
-  if(weyve.localRollback < weyve.rollbackBaseline) { weyveSetLocalRollback(weyve.localRollback); }
-  if(weyve.localDelay < weyve.delayBaseline) { weyveSetLocalDelay(weyve.localDelay); }
-  weyve_set_member_data(weyve.client, "rollback", std::to_string(weyve.localRollback).c_str());
-  weyve_set_member_data(weyve.client, "delay", std::to_string(weyve.localDelay).c_str());
-
-  const uint32_t startToken = (uint32_t)SDL_atoi(weyveRoomData("start_token").c_str());
-  const uint32_t stopToken = (uint32_t)SDL_atoi(weyveRoomData("stop_token").c_str());
-  if(startToken != weyve.lastStartToken) {
-    weyve.lastStartToken = startToken;
-    if(startToken > stopToken && !netplayActive()) {
-      weyveLog("Host started the session");
-      netplayStartWeyve();
-    }
-  }
-  if(stopToken != weyve.lastStopToken) {
-    weyve.lastStopToken = stopToken;
-    if(stopToken >= startToken && weyveSessionActive()) {
-      netplayStop();
-      pendingNetplayUnload = true;
-      weyveLog("Host ended the session");
-    }
-  }
+  publishRoomState(*this);
+  applyRoomState(*this);
   weyveSyncSpectators();
 }
 

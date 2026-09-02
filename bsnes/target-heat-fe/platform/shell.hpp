@@ -1,8 +1,8 @@
 #pragma once
 
-#include "emucore/emucore.hpp"
-#include "settings.hpp"
-#include "shader.hpp"
+#include "../emucore/emucore.hpp"
+#include "../settings.hpp"
+#include "../video/shader.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>

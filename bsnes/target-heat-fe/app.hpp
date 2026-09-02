@@ -1,20 +1,16 @@
 #pragma once
 
 #include "emucore/emucore.hpp"
-#include "inputmap.hpp"
+#include "input/inputmap.hpp"
+#include "netplay/state.hpp"
 #include "settings.hpp"
-#include "shell.hpp"
-#include "scripting.hpp"
+#include "platform/shell.hpp"
+#include "scripting/engine.hpp"
 #include "util.hpp"
 
 #include "imgui.h"
 
-#include <gekkonet.h>
-#include <weyvelength.h>
-
 #include <deque>
-#include <atomic>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -50,129 +46,6 @@ struct CheatCandidate {
 };
 
 enum class MovieMode { Inactive, Playing, Recording };
-
-// SNES buttons, in EmuCore::Button order; one player's worth per network packet
-constexpr int NetplayButtonCount = EmuCore::ButtonCount;
-
-struct NetplayPeer {
-  int id = 0;
-  GekkoPlayerType type = GekkoLocalPlayer;
-  bool connected = false;
-  GekkoNetworkStats stats{};
-  std::string addr;      // Direct transport: "ip:port"
-  uint32_t weyveId = 0;  // Weyvelength transport: member id
-};
-
-struct NetplayStateSnapshot {
-  bool valid = false;
-  int frame = 0;
-  uint32_t checksum = 0;
-  std::vector<uint8_t> data;
-};
-
-struct Netplay {
-  enum Mode { Inactive, Running } mode = Inactive;
-
-  enum Transport { Direct, Weyvelength } transport = Direct;
-
-  std::vector<NetplayPeer> peers;
-  std::vector<uint16_t> inputs;  // this tick's confirmed buttons, one mask per port
-  // Recent saves used for desync dumps.
-  std::deque<NetplayStateSnapshot> stateCache;
-  static constexpr int StateCacheFrames = 32;
-
-  GekkoConfig config{};
-  GekkoSession* session = nullptr;
-  std::string instance;  // "p<port>" or "w<room>", for log lines and dump filenames
-  int localPlayer = 0;   // this peer's player index, 0..numPlayers-1
-  int localActorId = 0;  // the GekkoNet actor handle for that player
-  bool detectDesyncs = false;
-  // Offline runahead is restored when the session ends.
-  int savedRunAheadFrames = 0;
-  bool rollback = false;
-  bool spectatorPaused = false;
-  bool recordInput = false;
-  int localDelay = 0;
-  int localRunAhead = 0;
-  double speedScale = 1.0;
-  uint32_t desyncCount = 0;
-  std::deque<std::string> log;
-  static constexpr int LogLimit = 200;
-};
-
-struct WeyveKnownName {
-  uint32_t id = 0;
-  std::string name;
-};
-
-enum class NetplayEntryRole { Player, Spectator };
-
-struct NetplayRemoteEntry {
-  NetplayEntryRole role = NetplayEntryRole::Player;
-  int playerNumber = 1;  // Player role only; 1-based, never equal to App::netplayLocalPlayer
-  char ip[64] = "127.0.0.1";
-  char port[8] = "7000";
-};
-
-// one row of a room-browser result; copied out of the client's borrowed
-// storage immediately on WEYVE_EVENT_ROOM_LIST, since that storage lasts only
-// until the next weyve_poll
-struct WeyveRoomListing {
-  std::string id;
-  uint32_t members = 0;
-  bool joinable = true;
-  bool passworded = false;
-  bool running = false;
-  bool statusKnown = false;
-  std::string game;  // "listing" key "game", empty if the host hasn't set one
-  std::string host;  // "listing" key "host"; empty on a legacy or unset host
-};
-
-struct WeyveConnectAttempt {
-  std::atomic<bool> complete = false;
-  WeyveClient* client = nullptr;
-
-  ~WeyveConnectAttempt() {
-    if(client) { weyve_client_destroy(client); }
-  }
-};
-
-struct Weyve {
-  WeyveClient* client = nullptr;
-  std::shared_ptr<WeyveConnectAttempt> connecting;
-  std::string lastError;
-  uint64_t idleSince = 0;
-  uint64_t roomListRequestedAt = 0;
-  static constexpr uint64_t IdleTimeoutMs = 5 * 60 * 1000;
-
-  bool pendingListed = false;
-  bool pendingCreate = false;
-  bool pendingLeave = false;
-  bool connectAttempted = false;
-  bool focusTab = false;
-  bool openHostSettings = false;
-  bool rolesDirty = true;  // host reassigns roles on the next poll
-  uint32_t lastStartToken = 0;
-  uint32_t lastStopToken = 0;
-  uint32_t selectedMember = 0;
-  int localRollback = 8;
-  int localDelay = 2;
-  int rollbackBaseline = 8;
-  int delayBaseline = 2;
-  int spectatorDelay = 300;
-  std::string lastGameHash;
-
-  std::vector<WeyveKnownName> knownNames;  // remembered after a member leaves
-
-  static constexpr int LogLimit = 200;
-  std::deque<std::string> log;
-  char chatInput[256] = {};
-
-  std::vector<WeyveRoomListing> roomList;  // last weyve_list_rooms reply
-
-  static constexpr int PlayerCap = 5;
-  static constexpr int SpectatorCap = 32;
-};
 
 // shared by the Paths tab and the pick draining, so the two cannot drift
 struct BiosSlot {

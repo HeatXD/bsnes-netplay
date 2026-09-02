@@ -1,6 +1,7 @@
 #include "shader.hpp"
+#include "manifest.hpp"
 
-#include "util.hpp"
+#include "../util.hpp"
 
 #include <algorithm>
 
@@ -96,91 +97,12 @@ bool loadGl() {
 
 }  // namespace
 
-// the subset of BML the manifests use: indentation nests, one name: value a
-// line
-struct ShaderNode {
-  std::string name;
-  std::string value;
-  std::vector<ShaderNode> children;
-
-  const ShaderNode* find(const char* key) const {
-    for(const ShaderNode& child : children) {
-      if(child.name == key) { return &child; }
-    }
-    return nullptr;
-  }
-
-  std::string text(const char* key) const {
-    const ShaderNode* child = find(key);
-    return child ? child->value : std::string();
-  }
-};
-
 namespace {
-
-struct ManifestLine {
-  int indent = 0;
-  std::string name, value;
-};
 
 std::string trimmed(const std::string& text) {
   const size_t first = text.find_first_not_of(" \t\r");
   if(first == std::string::npos) { return {}; }
   return text.substr(first, text.find_last_not_of(" \t\r") + 1 - first);
-}
-
-std::vector<ManifestLine> splitManifest(const std::string& text) {
-  std::vector<ManifestLine> lines;
-  size_t pos = 0;
-  while(pos < text.size()) {
-    size_t end = text.find('\n', pos);
-    if(end == std::string::npos) { end = text.size(); }
-    const std::string raw = text.substr(pos, end - pos);
-    pos = end + 1;
-
-    const size_t first = raw.find_first_not_of(" \t\r");
-    if(first == std::string::npos) { continue; }
-    if(raw.compare(first, 2, "//") == 0) { continue; }
-
-    ManifestLine line;
-    line.indent = (int)first;
-    const std::string body = trimmed(raw);
-    const size_t colon = body.find(':');
-    if(colon == std::string::npos) {
-      line.name = body;
-    } else {
-      line.name = trimmed(body.substr(0, colon));
-      line.value = trimmed(body.substr(colon + 1));
-    }
-    lines.push_back(line);
-  }
-  return lines;
-}
-
-// indentation counts characters, so a tab-indented manifest nests like a spaced
-// one
-size_t buildNodes(const std::vector<ManifestLine>& lines, size_t index, int indent,
-                  std::vector<ShaderNode>& out) {
-  while(index < lines.size() && lines[index].indent >= indent) {
-    if(out.empty() && lines[index].indent > indent) { break; }
-    if(lines[index].indent > indent) {
-      index = buildNodes(lines, index, lines[index].indent, out.back().children);
-      continue;
-    }
-    ShaderNode node;
-    node.name = lines[index].name;
-    node.value = lines[index].value;
-    out.push_back(std::move(node));
-    index++;
-  }
-  return index;
-}
-
-ShaderNode parseManifest(const std::string& text) {
-  const std::vector<ManifestLine> lines = splitManifest(text);
-  ShaderNode root;
-  buildNodes(lines, 0, 0, root.children);
-  return root;
 }
 
 GLuint parseFormat(const std::string& format) {
@@ -418,7 +340,7 @@ bool Shader::load(const std::string& folder, const std::vector<ShaderParam>& ove
     failure = "no manifest.bml in " + folder;
     return false;
   }
-  const ShaderNode manifest = parseManifest(text);
+  const ShaderNode manifest = parseShaderManifest(text);
 
   if(const ShaderNode* node = manifest.find("settings")) {
     for(const ShaderNode& child : node->children) {
