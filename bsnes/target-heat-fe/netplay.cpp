@@ -385,7 +385,23 @@ void App::netplayRun() {
     }
     case GekkoLoadEvent: {
       std::vector<uint8_t> state(event->data.load.state, event->data.load.state + event->data.load.state_len);
-      core.unserialize(state);
+      if(netplay.localPlayer < 0) {
+        const std::vector<uint8_t> local = core.serialize(false);
+        if(local.size() == state.size()) {
+          for(const EmuCore::StateComponent& part : core.stateMap(false)) {
+            if(!part.hostState || part.offset < 0 || part.size < 0) continue;
+            const size_t offset = (size_t)part.offset;
+            const size_t size = (size_t)part.size;
+            if(offset > state.size() || size > state.size() - offset) continue;
+            SDL_memcpy(state.data() + offset, local.data() + offset, size);
+          }
+        }
+      }
+      if(!core.unserialize(state)) {
+        netplayLog("could not load the synchronized netplay state");
+        netplayStop();
+        return;
+      }
       netplay.rollback = true;
       netplay.recordInput = false;
       core.setRollback(true);

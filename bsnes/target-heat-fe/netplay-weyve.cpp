@@ -198,11 +198,47 @@ std::vector<uint32_t> App::weyvePlayerOrder() const {
   return players;
 }
 
+std::vector<uint32_t> App::weyveSessionPlayerOrder() const {
+  std::vector<uint32_t> players;
+  const std::string encoded = weyveRoomData("session_players");
+  size_t start = 0;
+  while(start < encoded.size()) {
+    const size_t end = encoded.find(',', start);
+    const std::string item = encoded.substr(start, end - start);
+    if(!item.empty()) players.push_back((uint32_t)std::strtoul(item.c_str(), nullptr, 10));
+    if(end == std::string::npos) break;
+    start = end + 1;
+  }
+  return players.empty() ? weyvePlayerOrder() : players;
+}
+
+int App::weyveSpectatorRelay(uint32_t memberId, const std::vector<uint32_t>& players) const {
+  if(!weyve.client || players.empty()) return -1;
+  uint32_t count = 0;
+  const uint32_t* members = weyve_members(weyve.client, &count);
+  const size_t first = memberId % players.size();
+  for(size_t offset = 0; offset < players.size(); offset++) {
+    const size_t player = (first + offset) % players.size();
+    for(uint32_t member = 0; member < count; member++) {
+      if(players[player] == members[member]) return (int)player;
+    }
+  }
+  return -1;
+}
+
 void App::weyveAutoAssignRoles() {
   if(!weyve.client || !weyve_is_host(weyve.client)) return;
   uint32_t count = 0;
   const uint32_t* members = weyve_members(weyve.client, &count);
   std::vector<uint32_t> players = weyvePlayerOrder();
+
+  if(weyveSessionActive()) {
+    for(uint32_t i = 0; i < count; i++) {
+      const std::string key = "role:" + std::to_string(members[i]);
+      if(weyveRoomData(key).empty()) weyve_set_room_data(weyve.client, key.c_str(), "spec");
+    }
+    return;
+  }
 
   for(uint32_t i = 0; i < count; i++) {
     if(!weyveRoomData("role:" + std::to_string(members[i])).empty()) continue;
@@ -319,9 +355,14 @@ void App::weyveStartGame() {
 
   weyve_set_room_data(weyve.client, "spectator_delay",
                       std::to_string(weyve.spectatorDelay).c_str());
+  std::string sessionPlayers;
+  for(uint32_t player : weyvePlayerOrder()) {
+    if(!sessionPlayers.empty()) sessionPlayers += ',';
+    sessionPlayers += std::to_string(player);
+  }
+  weyve_set_room_data(weyve.client, "session_players", sessionPlayers.c_str());
   const uint32_t token = (uint32_t)SDL_atoi(weyveRoomData("start_token").c_str()) + 1;
   weyve_set_room_data(weyve.client, "start_token", std::to_string(token).c_str());
-  weyve_set_room_joinable(weyve.client, false);
 }
 
 void App::weyveStopGame() {
@@ -329,6 +370,7 @@ void App::weyveStopGame() {
   const uint32_t token = (uint32_t)SDL_atoi(weyveRoomData("stop_token").c_str()) + 1;
   weyve_set_room_data(weyve.client, "stop_token", std::to_string(token).c_str());
   weyve_set_room_joinable(weyve.client, true);
+  weyve.rolesDirty = true;
 }
 
 // searches App::games -- the same library the Games tab scans from
@@ -447,6 +489,7 @@ void App::weyvePoll() {
       break;
     }
     case WEYVE_EVENT_PEER_LEFT: {
+      weyveRemoveNetplayPeer(event.data.peer_left.id);
       if(event.data.peer_left.id == weyve_id(weyve.client)) {
         if(weyveSessionActive()) {
           netplayStop();
@@ -457,6 +500,10 @@ void App::weyvePoll() {
         break;
       }
       weyve.rolesDirty = true;
+      if(weyve_is_host(weyve.client)) {
+        const std::string key = "role:" + std::to_string(event.data.peer_left.id);
+        weyve_set_room_data(weyve.client, key.c_str(), "");
+      }
       if(weyve.selectedMember == event.data.peer_left.id) weyve.selectedMember = 0;
       weyveLog(weyveNameOf(event.data.peer_left.id) + " left");
       break;
@@ -619,19 +666,23 @@ void App::weyvePoll() {
   weyve_set_member_data(weyve.client, "delay", std::to_string(weyve.localDelay).c_str());
 
   const uint32_t startToken = (uint32_t)SDL_atoi(weyveRoomData("start_token").c_str());
+  const uint32_t stopToken = (uint32_t)SDL_atoi(weyveRoomData("stop_token").c_str());
   if(startToken != weyve.lastStartToken) {
     weyve.lastStartToken = startToken;
-    if(!netplayActive()) { weyveLog("Host started the session"); netplayStartWeyve(); }
+    if(startToken > stopToken && !netplayActive()) {
+      weyveLog("Host started the session");
+      netplayStartWeyve();
+    }
   }
-  const uint32_t stopToken = (uint32_t)SDL_atoi(weyveRoomData("stop_token").c_str());
   if(stopToken != weyve.lastStopToken) {
     weyve.lastStopToken = stopToken;
-    if(weyveSessionActive()) {
+    if(stopToken >= startToken && weyveSessionActive()) {
       netplayStop();
       pendingNetplayUnload = true;
       weyveLog("Host ended the session");
     }
   }
+  weyveSyncSpectators();
 }
 
 void App::netplayStartWeyve() {
@@ -649,7 +700,7 @@ void App::netplayStartWeyve() {
     }
   }
 
-  const std::vector<uint32_t> players = weyvePlayerOrder();
+  const std::vector<uint32_t> players = weyveSessionPlayerOrder();
   const int numPlayers = (int)players.size();
   if(numPlayers < 1) return;
 
@@ -672,28 +723,33 @@ void App::netplayStartWeyve() {
   netplay.instance = "w" + bytes(roomId, roomLen);
   const bool detectDesyncs = weyveRoomData("desync") == "1";
 
-  // spectators round-robin across players so no single one relays the whole room
   int localSpectators = 0;
   if(!spectating) {
-    for(size_t s = 0; s < spectatorIds.size(); s++) if((int)(s % numPlayers) == local) localSpectators++;
+    for(uint32_t spectatorId : spectatorIds) {
+      if(weyveSpectatorRelay(spectatorId, players) == local) localSpectators++;
+    }
   }
 
   gWeyveApp = this;
   const std::string spectatorDelayText = weyveRoomData("spectator_delay");
   const int spectatorDelay = spectatorDelayText.empty() ? settings.netplaySpectatorDelay
                                                         : SDL_atoi(spectatorDelayText.c_str());
-  netplayBeginSession(numPlayers, detectDesyncs, localSpectators, spectating, spectatorDelay,
+  netplayBeginSession(numPlayers, detectDesyncs,
+                      spectating ? 0 : Weyve::SpectatorCap, spectating, spectatorDelay,
                       weyve.localRollback, weyve.localDelay);
   gekko_net_adapter_set(netplay.session, &weyveAdapter);
 
   netplay.peers.clear();
   if(spectating) {
-    // one remote player carries us; round-robin by our own rank among spectators
-    size_t rank = 0;
-    for(size_t s = 0; s < spectatorIds.size(); s++) if(spectatorIds[s] == selfId) rank = s;
     NetplayPeer peer;
     peer.type = GekkoRemotePlayer;
-    peer.weyveId = players[rank % players.size()];
+    const int relay = weyveSpectatorRelay(selfId, players);
+    if(relay < 0) {
+      netplayStop();
+      showMessage("Cannot spectate: no players remain in the session");
+      return;
+    }
+    peer.weyveId = players[relay];
     GekkoNetAddress addr{&peer.weyveId, sizeof(peer.weyveId)};
     peer.id = gekko_add_actor(netplay.session, GekkoRemotePlayer, &addr);
     netplay.peers.push_back(peer);
@@ -721,11 +777,11 @@ void App::netplayStartWeyve() {
   }
   netplaySetLocalDelay(weyve.localDelay);
 
-  for(size_t s = 0; s < spectatorIds.size(); s++) {
-    if((int)(s % numPlayers) != local) continue;
+  for(uint32_t spectatorId : spectatorIds) {
+    if(weyveSpectatorRelay(spectatorId, players) != local) continue;
     NetplayPeer peer;
     peer.type = GekkoSpectator;
-    peer.weyveId = spectatorIds[s];
+    peer.weyveId = spectatorId;
     GekkoNetAddress addr{&peer.weyveId, sizeof(peer.weyveId)};
     peer.id = gekko_add_actor(netplay.session, GekkoSpectator, &addr);
     netplay.peers.push_back(peer);
@@ -734,4 +790,57 @@ void App::netplayStartWeyve() {
   netplay.mode = Netplay::Running;
   netplayLog("weyvelength: room " + netplay.instance + " local id " + std::to_string(selfId)
            + " spectators " + std::to_string(localSpectators));
+}
+
+void App::weyveSyncSpectators() {
+  if(!weyveSessionActive() || netplay.localPlayer < 0 || !netplay.session) return;
+
+  const std::vector<uint32_t> players = weyveSessionPlayerOrder();
+  const int numPlayers = (int)players.size();
+  if(numPlayers <= 0 || netplay.localPlayer >= numPlayers) return;
+
+  uint32_t count = 0;
+  const uint32_t* members = weyve_members(weyve.client, &count);
+  for(uint32_t i = 0; i < count; i++) {
+    const uint32_t memberId = members[i];
+    if(weyveRoleOf(memberId) != "spec"
+       || weyveSpectatorRelay(memberId, players) != netplay.localPlayer) continue;
+
+    const bool exists = std::any_of(netplay.peers.begin(), netplay.peers.end(),
+      [memberId](const NetplayPeer& peer) {
+        return peer.type == GekkoSpectator && peer.weyveId == memberId;
+      });
+    if(exists) continue;
+
+    NetplayPeer peer;
+    peer.type = GekkoSpectator;
+    peer.weyveId = memberId;
+    GekkoNetAddress addr{&peer.weyveId, sizeof(peer.weyveId)};
+    peer.id = gekko_add_actor(netplay.session, GekkoSpectator, &addr);
+    if(peer.id < 0) {
+      netplayLog("could not add late spectator " + std::to_string(memberId));
+      continue;
+    }
+    netplay.peers.push_back(peer);
+    netplayLog("added late spectator " + std::to_string(memberId));
+  }
+}
+
+void App::weyveRemoveNetplayPeer(uint32_t memberId) {
+  if(!weyveSessionActive() || !netplay.session) return;
+  bool restartSpectator = false;
+  for(auto peer = netplay.peers.begin(); peer != netplay.peers.end();) {
+    if(peer->weyveId != memberId || peer->type == GekkoLocalPlayer) {
+      ++peer;
+      continue;
+    }
+    restartSpectator |= netplay.localPlayer < 0 && peer->type == GekkoRemotePlayer;
+    gekko_disconnect_actor(netplay.session, peer->id);
+    netplayLog("removed room peer " + std::to_string(memberId));
+    peer = netplay.peers.erase(peer);
+  }
+  if(restartSpectator) {
+    netplayStop();
+    netplayStartWeyve();
+  }
 }

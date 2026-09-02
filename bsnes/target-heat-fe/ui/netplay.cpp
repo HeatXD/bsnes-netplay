@@ -390,10 +390,9 @@ void drawWeyveHostSettings(App& app) {
     ImGui::TextUnformatted("Joining");
     ImGui::TableNextColumn();
     bool open = weyve_room_joinable(app.weyve.client);
-    ImGui::BeginDisabled(running);
     if(ImGui::Checkbox("Open##room", &open)) weyve_set_room_joinable(app.weyve.client, open);
-    ImGui::EndDisabled();
-    app.tip("Allow new members to join. A running session is closed automatically.");
+    app.tip(running ? "Allow new members to join this session as spectators."
+                    : "Allow new members to join the room.");
 
     ImGui::TableNextRow();
     ImGui::TableNextColumn();

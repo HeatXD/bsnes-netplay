@@ -157,6 +157,7 @@ struct Weyve {
   std::vector<WeyveRoomListing> roomList;  // last weyve_list_rooms reply
 
   static constexpr int PlayerCap = 5;
+  static constexpr int SpectatorCap = 32;
 };
 
 // shared by the Paths tab and the pick draining, so the two cannot drift
@@ -195,7 +196,6 @@ struct App {
 
   bool running = true;
   bool fontDirty = false;
-  // Always-available fixed-width font for Lua overlays, independent of the UI font.
   ImFont* luaPixelFont = nullptr;
   bool paused = false;
   bool fastForward = false;
@@ -455,6 +455,8 @@ struct App {
   void weyveResetRoomState();
   void weyvePoll();
   void netplayStartWeyve();
+  void weyveSyncSpectators();
+  void weyveRemoveNetplayPeer(uint32_t memberId);
   void weyveLog(std::string line);
   void weyveRememberName(uint32_t memberId, const std::string& name);
   std::string weyveNameOf(uint32_t memberId) const;
@@ -463,6 +465,8 @@ struct App {
   std::string weyveRoleOf(uint32_t memberId) const;
   std::string weyveRoleLabel(const std::string& role) const;
   std::vector<uint32_t> weyvePlayerOrder() const;
+  std::vector<uint32_t> weyveSessionPlayerOrder() const;
+  int weyveSpectatorRelay(uint32_t memberId, const std::vector<uint32_t>& players) const;
   void weyveAutoAssignRoles();
   void weyveSetRole(uint32_t memberId, const std::string& role);
   void weyveSetBaseline(int rollback, int delay);

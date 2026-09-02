@@ -4,8 +4,6 @@ expected_commands = 6
 assert(not pcall(gui.circle, 20, 20, -1))
 assert(not pcall(gui.ellipse, 20, 20, 4, -1))
 
--- Compound expressions must retain standard Lua's operand-returning and/or
--- semantics. With the OR terms grouped, the final value is numeric.
 local bit = {band = function(value, mask) return value & mask end}
 local i, pause = 1, 0
 local animnotupdating = {3}

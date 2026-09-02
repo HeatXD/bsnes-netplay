@@ -836,8 +836,6 @@ bool LuaEngine::runFrame() {
     return failFromStack("Lua frame: ");
   }
   if(lua_pcall(state, 0, 0, 0) != LUA_OK) return failFromStack("Lua frame: ");
-  // A click is a one-frame event. Buttons consume matching events while the
-  // callback runs; discard clicks for controls the script did not draw again.
   clickedWidgets.clear();
   return true;
 }
@@ -934,8 +932,6 @@ void LuaEngine::drawOverlay() {
         if(widget.type == WindowWidget::Label) {
           ImGui::TextUnformatted(widget.text.c_str());
         } else {
-          // ### keeps the visible label out of ImGui's identifier, so a stable
-          // options.id remains active even if the label changes mid-click.
           const std::string label = widget.text + "###" + widget.key;
           if(ImGui::Button(label.c_str(), ImVec2(widget.width, widget.height))) {
             clickedWidgets.insert(widget.key);
