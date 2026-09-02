@@ -13,6 +13,8 @@
 #include <weyvelength.h>
 
 #include <deque>
+#include <atomic>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -121,14 +123,24 @@ struct WeyveRoomListing {
   uint32_t members = 0;
   bool joinable = true;
   bool passworded = false;
+  bool running = false;
+  bool statusKnown = false;
   std::string game;  // "listing" key "game", empty if the host hasn't set one
   std::string host;  // "listing" key "host"; empty on a legacy or unset host
 };
 
+struct WeyveConnectAttempt {
+  std::atomic<bool> complete = false;
+  WeyveClient* client = nullptr;
+  ~WeyveConnectAttempt() { if(client) weyve_client_destroy(client); }
+};
+
 struct Weyve {
   WeyveClient* client = nullptr;
+  std::shared_ptr<WeyveConnectAttempt> connecting;
   std::string lastError;
   uint64_t idleSince = 0;
+  uint64_t roomListRequestedAt = 0;
   static constexpr uint64_t IdleTimeoutMs = 5 * 60 * 1000;
 
   bool pendingListed = false;

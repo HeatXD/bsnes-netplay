@@ -186,6 +186,7 @@ struct Frontend {
   bool inFrame = false;
   bool screensaverInhibited = false;
   bool weyveGamePicked = false;  // manual verification only
+  bool weyveRequestSent = false;
   bool weyveRoomReported = false;
   bool weyveStarted = false;
   bool weyveDemoted = false;
@@ -269,6 +270,13 @@ bool Frontend::stepFrame() {
   app.sample = InputSample::poll(app.mouseCaptured);
   app.pollHotkeys();
   app.weyvePoll();
+
+  if(!weyveRequestSent && app.weyveConnected()) {
+    weyveRequestSent = true;
+    if(opt.weyveCreate) app.weyveCreateRoom(true);
+    else if(!opt.weyveJoin.empty()) app.weyveJoinRoom(opt.weyveJoin, "");
+    if(opt.weyveBrowse) app.weyveListRooms();
+  }
 
   if(app.pendingNetplayUnload) {
     app.pendingNetplayUnload = false;
@@ -725,7 +733,10 @@ void openRequestedPanel(App& app, const Options& opt) {
   app.showScripting = opt.uiScreen == "scripting";
   app.showNetplay = opt.uiScreen == "netplay" || opt.uiScreen == "weyve"
                  || opt.uiScreen == "weyve-host-settings";
-  if(opt.uiScreen == "weyve" || opt.uiScreen == "weyve-host-settings") app.weyve.focusTab = true;
+  if(opt.uiScreen == "weyve" || opt.uiScreen == "weyve-host-settings") {
+    app.netplayTab = 1;
+    app.weyve.focusTab = true;
+  }
   if(opt.uiScreen == "weyve-host-settings") app.weyve.openHostSettings = true;
   app.showStateManager = opt.uiScreen == "state-manager";
   app.showCheats = opt.uiScreen == "cheats";
@@ -781,9 +792,6 @@ int main(int argc, char** argv) {
     const std::string host = opt.weyveServer.substr(0, colon);
     const uint16_t port = (uint16_t)SDL_atoi(opt.weyveServer.c_str() + colon + 1);
     app.weyveConnect(host, port);
-    if(opt.weyveCreate) app.weyveCreateRoom(true);
-    else if(!opt.weyveJoin.empty()) app.weyveJoinRoom(opt.weyveJoin, "");
-    if(opt.weyveBrowse) app.weyveListRooms();
   }
   if(opt.needsRom() && !app.core.loaded()) {
     SDL_Log("no rom loaded");

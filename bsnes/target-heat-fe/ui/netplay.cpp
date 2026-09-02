@@ -6,7 +6,7 @@
 #include <algorithm>
 
 namespace {
-void drawDirectTab(App& app, bool tuning = true);
+void drawDirectTab(App& app);
 void drawWeyveTab(App& app);
 }
 void App::restoreNetplayDefaults() {
@@ -41,12 +41,6 @@ void App::drawNetplayTab() {
       "Costs performance; leave off unless hunting a desync.");
 
   ImGui::Separator();
-  ImGui::SetNextItemWidth(180.0f);
-  ImGui::Combo("Transport", &netplayTab, "Direct P2P\0Weyvelength\0");
-  if(netplayTab == 0) {
-    drawDirectTab(*this, false);
-  } else {
-  ImGui::Separator();
   ImGui::TextUnformatted("Weyvelength");
   ImGui::InputText("Server", weyveHostInput, sizeof(weyveHostInput));
   if(ImGui::IsItemDeactivatedAfterEdit()) {
@@ -73,8 +67,6 @@ void App::drawNetplayTab() {
   ImGui::TextDisabled("The room browser connects automatically with these settings.");
   ImGui::TextDisabled("A room's game list is the Games tab's own library (Settings > Paths);\n"
                       "each player auto-loads their own copy by content hash.");
-  }
-
   ImGui::Separator();
   if(ImGui::Button("Restore defaults##netplay")) {
     restoreNetplayDefaults();
@@ -185,7 +177,7 @@ void drawHostFields(App& app) {
   app.tip("Adds someone who watches without controlling the game.");
 }
 
-void drawDirectTab(App& app, bool tuning) {
+void drawDirectTab(App& app) {
   ImGui::InputText("Local port", app.netplayPortInput, sizeof(app.netplayPortInput),
                    ImGuiInputTextFlags_CharsDecimal);
   app.tip("UDP port this instance listens on.");
@@ -193,7 +185,7 @@ void drawDirectTab(App& app, bool tuning) {
   app.tip("Watch instead of playing; connects to one player's address below.");
 
   bool saveSettings = false;
-  if(tuning && ImGui::BeginTable("##direct-tuning", 3, ImGuiTableFlags_SizingStretchSame)) {
+  if(ImGui::BeginTable("##direct-tuning", 3, ImGuiTableFlags_SizingStretchSame)) {
     ImGui::TableNextColumn();
     ImGui::SetNextItemWidth(82.0f);
     ImGui::SliderInt("Rollback", &app.settings.netplayRollback, 0, 32);
@@ -211,10 +203,8 @@ void drawDirectTab(App& app, bool tuning) {
     app.tip("Local speculative frames used to reduce perceived input latency.");
     ImGui::EndTable();
   }
-  if(tuning) {
-    saveSettings |= ImGui::Checkbox("Desync detection", &app.settings.netplayDesyncDetection);
-    app.tip("Compare state checksums with peers; enable when diagnosing a desync.");
-  }
+  saveSettings |= ImGui::Checkbox("Desync detection", &app.settings.netplayDesyncDetection);
+  app.tip("Compare state checksums with peers; enable when diagnosing a desync.");
   bool hasSpectator = false;
   for(const NetplayRemoteEntry& entry : app.netplayRemotes) {
     hasSpectator |= entry.role == NetplayEntryRole::Spectator;
@@ -619,15 +609,17 @@ void connectWeyveFromSettings(App& app) {
     app.weyve.lastError = "Set a server in Settings > Netplay";
     return;
   }
-  if(app.weyveConnect(app.settings.weyveHost, (uint16_t)app.settings.weyvePort)) {
-    app.weyveListRooms();
-  }
+  app.weyveConnect(app.settings.weyveHost, (uint16_t)app.settings.weyvePort);
 }
 
 void drawWeyveTab(App& app) {
   if(!app.weyve.client) {
     if(!app.weyve.connectAttempted) connectWeyveFromSettings(app);
     if(app.weyve.client) return;
+    if(app.weyve.connecting) {
+      ImGui::TextDisabled("Connecting...");
+      return;
+    }
     ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.4f, 1.0f), "%s",
                        app.weyve.lastError.empty() ? "Could not connect" : app.weyve.lastError.c_str());
     if(ImGui::Button("Reconnect")) connectWeyveFromSettings(app);
@@ -653,10 +645,11 @@ void drawWeyveTab(App& app) {
 
     ImGui::Separator();
     if(ImGui::Button("Refresh room list")) app.weyveListRooms();
-    if(ImGui::BeginTable("##weyve-rooms", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+    if(ImGui::BeginTable("##weyve-rooms", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                          ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp)) {
       ImGui::TableSetupColumn("Game Name", ImGuiTableColumnFlags_WidthStretch);
       ImGui::TableSetupColumn("Host name", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 65.0f);
       ImGui::TableSetupColumn("Players", ImGuiTableColumnFlags_WidthFixed, 60.0f);
       ImGui::TableSetupColumn("Locked", ImGuiTableColumnFlags_WidthFixed, 55.0f);
       ImGui::TableHeadersRow();
@@ -679,8 +672,10 @@ void drawWeyveTab(App& app) {
         const std::string host = room.host.empty() ? "(unknown host)" : room.host;
         ImGui::TextUnformatted(host.c_str());
         ImGui::TableSetColumnIndex(2);
-        ImGui::Text("%u", room.members);
+        ImGui::TextUnformatted(!room.statusKnown ? "Unknown" : room.running ? "Running" : "Lobby");
         ImGui::TableSetColumnIndex(3);
+        ImGui::Text("%u", room.members);
+        ImGui::TableSetColumnIndex(4);
         ImGui::TextUnformatted(locked ? "yes" : "no");
         ImGui::PopID();
       }
@@ -697,19 +692,21 @@ void drawWeyveTab(App& app) {
 
 void App::drawNetplayWindow() {
   if(!showNetplay) return;
+  if(netplayActive()) netplayTab = netplay.transport == Netplay::Direct ? 0 : 1;
   placeFloating(560.0f, 480.0f);
-  const bool visible = ImGui::Begin("Netplay", &showNetplay);
+  const char* title = netplayTab == 0 ? "Direct P2P" : "Weyvelength";
+  const bool visible = ImGui::Begin(title, &showNetplay);
   if(!showNetplay) {
     ImGui::End();
     weyveDisconnect();
     weyve.connectAttempted = false;
     return;
   }
-  if(!weyve.client && !weyve.connectAttempted) {
+  if(netplayTab == 1 && !weyve.client && !weyve.connectAttempted) {
     weyve.focusTab = true;
     connectWeyveFromSettings(*this);
   }
-  if(!weyve.client && !weyve.lastError.empty()) weyve.focusTab = true;
+  if(netplayTab == 1 && !weyve.client && !weyve.lastError.empty()) weyve.focusTab = true;
   if(!visible) { ImGui::End(); return; }
 
   const bool weyveRoomSession = netplayActive() && netplay.transport == Netplay::Weyvelength
@@ -801,19 +798,7 @@ void App::drawNetplayWindow() {
     return;
   }
 
-  if(ImGui::BeginTabBar("##netplay-tabs")) {
-    const bool inWeyveRoom = weyveInRoom();
-    if(!inWeyveRoom && ImGui::BeginTabItem("Direct P2P")) {
-      drawDirectTab(*this);
-      ImGui::EndTabItem();
-    }
-    const ImGuiTabItemFlags flags = weyve.focusTab || inWeyveRoom ? ImGuiTabItemFlags_SetSelected : 0;
-    if(ImGui::BeginTabItem("Weyvelength Rooms", nullptr, flags)) {
-      weyve.focusTab = false;
-      drawWeyveTab(*this);
-      ImGui::EndTabItem();
-    }
-    ImGui::EndTabBar();
-  }
+  if(netplayTab == 0) drawDirectTab(*this);
+  else drawWeyveTab(*this);
   ImGui::End();
 }

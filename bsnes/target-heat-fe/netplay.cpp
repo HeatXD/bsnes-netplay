@@ -120,7 +120,9 @@ void App::netplayBeginSession(int numPlayers, bool detectDesyncs, int maxSpectat
   netplayApplyDeterministicSettings();
   core.power();
 
-  const int stateSize = (int)core.serialize(false).size();
+  const std::vector<uint8_t> initialState = core.serialize(false);
+  const int stateSize = (int)SDL_max(initialState.size(), core.serialize(true).size());
+  if(!initialState.empty()) core.unserialize(initialState);
   const int slots = numPlayers > 2 ? EmuCore::MaxPlayers + 1 : numPlayers;
   netplay.inputs.assign(slots, 0);
   netplay.detectDesyncs = detectDesyncs;
@@ -375,8 +377,19 @@ void App::netplayRun() {
     const GekkoGameEvent* event = updates[i];
     switch(event->type) {
     case GekkoSaveEvent: {
-      const std::vector<uint8_t> state = core.serialize(false);
-      const uint32_t checksum = netplayChecksum(state);
+      std::vector<uint8_t> state;
+      if(event->data.save.portable) {
+        const std::vector<uint8_t> live = core.serialize(false);
+        state = core.serialize(true);
+        if(live.empty() || !core.unserialize(live)) {
+          netplayLog("could not restore after creating spectator state");
+          netplayStop();
+          return;
+        }
+      } else {
+        state = core.serialize(false);
+      }
+      const uint32_t checksum = event->data.save.portable ? 0 : netplayChecksum(state);
       *event->data.save.checksum = checksum;
       *event->data.save.state_len = (unsigned)state.size();
       SDL_memcpy(event->data.save.state, state.data(), state.size());
