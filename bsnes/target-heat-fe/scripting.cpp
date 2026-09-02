@@ -37,6 +37,7 @@ void LuaEngine::close() {
   if(state) lua_close(state);
   state = nullptr;
   active = false;
+  beforeFramePrepared = false;
   commands.clear();
   windows.clear();
   clickedWidgets.clear();
@@ -50,6 +51,7 @@ bool LuaEngine::failFromStack(const char* prefix) {
   appendConsole(lastError);
   clearInputOverrides();
   active = false;
+  beforeFramePrepared = false;
   commands.clear();
   windows.clear();
   clickedWidgets.clear();
@@ -820,9 +822,12 @@ void LuaEngine::stop() {
 
 bool LuaEngine::runFrame() {
   if(!active || !state) return false;
-  commands.clear();
-  windows.clear();
-  currentWindow = -1;
+  if(!beforeFramePrepared) {
+    commands.clear();
+    windows.clear();
+    currentWindow = -1;
+  }
+  beforeFramePrepared = false;
 
   lua_getglobal(state, "on_frame");
   if(lua_isnil(state, -1)) {
@@ -843,6 +848,11 @@ bool LuaEngine::runFrame() {
 bool LuaEngine::runBeforeFrame() {
   if(!active || !state) return false;
 
+  commands.clear();
+  windows.clear();
+  currentWindow = -1;
+  beforeFramePrepared = true;
+
   for(int port = 0; port < EmuCore::PortCount; port++) {
     for(int input = 0; input < EmuCore::MaxInputs; input++) {
       const int slot = port * EmuCore::MaxInputs + input;
@@ -862,9 +872,13 @@ bool LuaEngine::runBeforeFrame() {
   if(!lua_isfunction(state, -1)) {
     lua_pop(state, 1);
     lua_pushliteral(state, "on_before_frame must be a function");
+    beforeFramePrepared = false;
     return failFromStack("Lua before frame: ");
   }
-  if(lua_pcall(state, 0, 0, 0) != LUA_OK) return failFromStack("Lua before frame: ");
+  if(lua_pcall(state, 0, 0, 0) != LUA_OK) {
+    beforeFramePrepared = false;
+    return failFromStack("Lua before frame: ");
+  }
   inBeforeFrame = false;
   return true;
 }

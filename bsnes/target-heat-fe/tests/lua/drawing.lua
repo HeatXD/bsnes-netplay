@@ -1,5 +1,5 @@
 frames = 0
-expected_commands = 6
+expected_commands = 12
 
 assert(not pcall(gui.circle, 20, 20, -1))
 assert(not pcall(gui.ellipse, 20, 20, 4, -1))
@@ -22,6 +22,15 @@ animnotupdating[i] = (hittime[i] > 0 or airhittime[i] > 0) and
       animelemtime[i][1] == animelemtime[i][2] and
       animelemtime[i][1] ~= -1 and pause == 0) and 1 or 0) or 0
 assert(type(animnotupdating[i]) == "number" and animnotupdating[i] == 4)
+
+function on_before_frame()
+  gui.box(8, 8, 24, 20, {fill = 0x4000ff00, outline = 0xffff0000})
+  gui.circle(32, 20, 6, {fill = 0xffff00ff, outline = 0xffffffff})
+  gui.ellipse(48, 20, 8, 4, {fill = 0xffffff00, outline = 0xffffffff})
+  gui.line(56, 8, 72, 24, 0xff00ffff)
+  gui.pixel(80, 16, 0xffff00ff)
+  gui.text(96, 8, 0x2a, {color = 0xffffffff, align = "right", font = "pixel"})
+end
 
 function on_frame()
   frames = frames + 1

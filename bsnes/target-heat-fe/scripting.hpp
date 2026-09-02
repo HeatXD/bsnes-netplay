@@ -40,6 +40,7 @@ private:
   std::string lastError;
   bool active = false;
   bool inBeforeFrame = false;
+  bool beforeFramePrepared = false;
   bool havePhysicalInput = false;
   std::vector<int16_t> inputOverrides;
   std::vector<int16_t> physicalInput;
